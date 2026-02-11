@@ -261,7 +261,15 @@ func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) e
 	lock.Lock()
 	defer lock.Unlock()
 
-	err := c.evalOnChartOnce(ctx, chartID, js, out)
+	// First attempt.
+	slog.Debug("cdpcontrol eval on chart", "chart_id", chartID)
+	session, info, err := c.resolveChartSession(ctx, chartID)
+	if err != nil {
+		slog.Warn("cdpcontrol chart resolve failed", "chart_id", chartID, "error", err)
+	} else {
+		slog.Debug("cdpcontrol chart resolved", "chart_id", chartID, "target_id", info.TargetID)
+		err = c.evalOnSession(ctx, session, info.TargetID, js, out)
+	}
 	if err == nil {
 		return nil
 	}
@@ -269,8 +277,9 @@ func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) e
 		return err
 	}
 
+	// Retry after recovery.
 	slog.Warn("cdpcontrol eval retry after transient failure", "chart_id", chartID, "error", err)
-	if cdpErr := c.asCode(err, CodeCDPUnavailable); cdpErr {
+	if c.asCode(err, CodeCDPUnavailable) {
 		if recErr := c.reconnect(ctx); recErr != nil {
 			slog.Error("cdpcontrol reconnect failed during retry", "chart_id", chartID, "error", recErr)
 			return recErr
@@ -280,17 +289,14 @@ func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) e
 			slog.Warn("cdpcontrol tab refresh failed during retry", "chart_id", chartID, "error", syncErr)
 		}
 	}
-	return c.evalOnChartOnce(ctx, chartID, js, out)
-}
 
-func (c *Client) evalOnChartOnce(ctx context.Context, chartID, js string, out any) error {
-	slog.Debug("cdpcontrol eval on chart", "chart_id", chartID)
-	session, info, err := c.resolveChartSession(ctx, chartID)
+	slog.Debug("cdpcontrol eval on chart (retry)", "chart_id", chartID)
+	session, info, err = c.resolveChartSession(ctx, chartID)
 	if err != nil {
-		slog.Warn("cdpcontrol chart resolve failed", "chart_id", chartID, "error", err)
+		slog.Warn("cdpcontrol chart resolve failed (retry)", "chart_id", chartID, "error", err)
 		return err
 	}
-	slog.Debug("cdpcontrol chart resolved", "chart_id", chartID, "target_id", info.TargetID)
+	slog.Debug("cdpcontrol chart resolved (retry)", "chart_id", chartID, "target_id", info.TargetID)
 	return c.evalOnSession(ctx, session, info.TargetID, js, out)
 }
 
