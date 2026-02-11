@@ -167,13 +167,23 @@ var study = null;
 if (typeof chart.getStudyById === "function") study = chart.getStudyById(id);
 if (!study) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"study not found: "+id});
 var name = String(study.name || study.title || "");
-var inputs = {};
+var raw = {};
 if (typeof study.getInputValues === "function") {
-  inputs = study.getInputValues() || {};
+  raw = study.getInputValues() || {};
 } else if (typeof study.inputs === "function") {
-  inputs = study.inputs() || {};
+  raw = study.inputs() || {};
 } else if (study.inputs) {
-  inputs = study.inputs || {};
+  raw = study.inputs || {};
+}
+var inputs = {};
+if (Array.isArray(raw)) {
+  for (var i = 0; i < raw.length; i++) {
+    var item = raw[i] || {};
+    var key = String(item.id || item.name || ("input_" + i));
+    inputs[key] = item.value !== undefined ? item.value : item;
+  }
+} else {
+  inputs = raw;
 }
 return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:inputs}});
 `, jsString(studyID)))
@@ -199,13 +209,23 @@ if (!merged && typeof study.setInputValues !== "function") {
   return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"modify study inputs unavailable"});
 }
 var name = String(study.name || study.title || "");
-var current = {};
+var raw = {};
 if (typeof study.getInputValues === "function") {
-  current = study.getInputValues() || {};
+  raw = study.getInputValues() || {};
 } else if (typeof study.inputs === "function") {
-  current = study.inputs() || {};
+  raw = study.inputs() || {};
 } else if (study.inputs) {
-  current = study.inputs || {};
+  raw = study.inputs || {};
+}
+var current = {};
+if (Array.isArray(raw)) {
+  for (var j = 0; j < raw.length; j++) {
+    var it = raw[j] || {};
+    var k = String(it.id || it.name || ("input_" + j));
+    current[k] = it.value !== undefined ? it.value : it;
+  }
+} else {
+  current = raw;
 }
 return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:current}});
 `, jsString(studyID), jsJSON(inputs)))
