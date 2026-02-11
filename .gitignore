@@ -2,6 +2,8 @@
 .env
 chromium-profile*/
 logs/
+research_data/
+bin/
 
 .playwright-mcp
 .obsidian/

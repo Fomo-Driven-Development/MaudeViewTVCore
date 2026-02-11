@@ -10,6 +10,7 @@ help:
 	@echo ""
 	@echo "  just start-browser       Start Chrome with remote debugging"
 	@echo "  just start-browser-logs  Start Chrome with debugging and console logs"
+	@echo "  just run-researcher      Build and run passive TradingView researcher"
 	@echo ""
 
 # Start Chrome with remote debugging enabled
@@ -19,3 +20,7 @@ start-browser:
 # Start Chrome with debugging and console logs
 start-browser-logs:
     ./scripts/start-chromium.sh --with-logs
+
+# Build and run the passive researcher
+run-researcher:
+    go build -o ./bin/researcher ./cmd/researcher && ./bin/researcher
