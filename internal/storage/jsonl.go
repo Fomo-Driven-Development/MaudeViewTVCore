@@ -147,7 +147,9 @@ func (w *JSONLWriter) writeRecord(record any) {
 func (w *JSONLWriter) rotateForDate(date string) {
 	// Close existing logger
 	if w.logger != nil {
-		w.logger.Close()
+		if err := w.logger.Close(); err != nil {
+			slog.Warn("Failed to close JSONL logger during date rotation", "error", err, "subdir", w.subDir)
+		}
 	}
 
 	// Create new directory for date

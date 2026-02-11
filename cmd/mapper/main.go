@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", pipeline.ModeFull, "pipeline mode: static-only|runtime-only|correlate|report|validate|full")
+	mode := flag.String("mode", pipeline.ModeFull, "pipeline mode: static-only|runtime-only|correlate|report|validate|smoke|full")
 	flag.Parse()
 
 	if err := pipeline.Run(context.Background(), os.Stdout, *mode); err != nil {

@@ -16,6 +16,7 @@ help:
 	@echo "  just mapper-correlate    Run correlation stage only"
 	@echo "  just mapper-report       Run reporting stage only"
 	@echo "  just mapper-validate     Validate mapper artifacts"
+	@echo "  just mapper-smoke        Run smoke sequence + docs report"
 	@echo "  just mapper-full         Run full mapper pipeline"
 	@echo ""
 
@@ -50,6 +51,10 @@ mapper-report:
 # Mapper stage: artifact validation
 mapper-validate:
     ./scripts/mapper-validate.sh
+
+# Mapper smoke sequence with baseline report
+mapper-smoke:
+    ./scripts/mapper-smoke.sh
 
 # Mapper pipeline: all stages
 mapper-full:

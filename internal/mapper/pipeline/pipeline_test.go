@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -57,6 +58,59 @@ func TestRunFullModeOrder(t *testing.T) {
 			t.Fatalf("full mode output missing %q in %q", fragment, got)
 		}
 		start += next + len(fragment)
+	}
+}
+
+func TestRunSmokeMode(t *testing.T) {
+	baseDir := t.TempDir()
+	dataDir := filepath.Join(baseDir, "research_data")
+	docsDir := filepath.Join(baseDir, "docs")
+	dateRoot := filepath.Join(dataDir, "2026-02-11")
+
+	jsPath := filepath.Join(dateRoot, "chart_test/resources/js/main.001122.js")
+	if err := os.MkdirAll(filepath.Dir(jsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(jsPath) error = %v", err)
+	}
+	if err := os.WriteFile(jsPath, []byte("function tradingPanel(){return true;}"), 0o644); err != nil {
+		t.Fatalf("WriteFile(jsPath) error = %v", err)
+	}
+
+	httpPath := filepath.Join(dateRoot, "chart_test/http/TAB12345.jsonl")
+	httpLine := `{"timestamp":"2026-02-11T16:48:33Z","request_id":"http-1","tab_id":"TAB12345","url":"https://www.tradingview.com/chart/test","method":"GET"}` + "\n"
+	if err := os.MkdirAll(filepath.Dir(httpPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(httpPath) error = %v", err)
+	}
+	if err := os.WriteFile(httpPath, []byte(httpLine), 0o644); err != nil {
+		t.Fatalf("WriteFile(httpPath) error = %v", err)
+	}
+
+	wsPath := filepath.Join(dateRoot, "chart_test/websocket/TAB12345.jsonl")
+	wsLine := `{"timestamp":"2026-02-11T16:48:34Z","request_id":"ws-1","tab_id":"TAB12345","url":"wss://prodata.tradingview.com/socket.io/websocket","event_type":"frame_received","direction":"incoming"}` + "\n"
+	if err := os.MkdirAll(filepath.Dir(wsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(wsPath) error = %v", err)
+	}
+	if err := os.WriteFile(wsPath, []byte(wsLine), 0o644); err != nil {
+		t.Fatalf("WriteFile(wsPath) error = %v", err)
+	}
+
+	t.Setenv("RESEARCHER_DATA_DIR", dataDir)
+	t.Setenv("RESEARCHER_DOCS_DIR", docsDir)
+	var out bytes.Buffer
+	if err := Run(context.Background(), &out, ModeSmoke); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	got := out.String()
+	for _, token := range []string{
+		"static-analysis: complete\n",
+		"runtime-probes: complete\n",
+		"correlation: complete\n",
+		"reporting: complete\n",
+		"validation: complete\n",
+		"smoke-test-report:",
+	} {
+		if !strings.Contains(got, token) {
+			t.Fatalf("smoke mode output missing %q in %q", token, got)
+		}
 	}
 }
 

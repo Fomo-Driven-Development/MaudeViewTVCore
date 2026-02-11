@@ -13,6 +13,7 @@ func TestMapperScriptsExist(t *testing.T) {
 		"mapper-runtime-only.sh",
 		"mapper-correlate.sh",
 		"mapper-report.sh",
+		"mapper-smoke.sh",
 		"mapper-full.sh",
 	}
 

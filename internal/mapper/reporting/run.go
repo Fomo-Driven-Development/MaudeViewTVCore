@@ -398,6 +398,7 @@ func readJSONL[T any](path string) ([]T, error) {
 	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024), 10*1024*1024)
 	out := make([]T, 0)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
