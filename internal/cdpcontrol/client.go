@@ -238,6 +238,15 @@ func (c *Client) AddStudy(ctx context.Context, chartID, name string, inputs map[
 	return out.Study, nil
 }
 
+func (c *Client) GetStudyInputs(ctx context.Context, chartID, studyID string) (StudyDetail, error) {
+	var out StudyDetail
+	err := c.evalOnChart(ctx, chartID, jsGetStudyInputs(studyID), &out)
+	if err != nil {
+		return StudyDetail{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) RemoveStudy(ctx context.Context, chartID, studyID string) error {
 	var out struct {
 		Status string `json:"status"`

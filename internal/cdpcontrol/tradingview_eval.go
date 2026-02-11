@@ -117,6 +117,26 @@ return JSON.stringify({ok:true,data:{study:{id:String(id),name:String(name)}}});
 `, jsString(name), jsJSON(inputs), forceOverlay))
 }
 
+func jsGetStudyInputs(studyID string) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var id = %s;
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var study = null;
+if (typeof chart.getStudyById === "function") study = chart.getStudyById(id);
+if (!study) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"study not found: "+id});
+var name = String(study.name || study.title || "");
+var inputs = {};
+if (typeof study.getInputValues === "function") {
+  inputs = study.getInputValues() || {};
+} else if (typeof study.inputs === "function") {
+  inputs = study.inputs() || {};
+} else if (study.inputs) {
+  inputs = study.inputs || {};
+}
+return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:inputs}});
+`, jsString(studyID)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

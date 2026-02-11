@@ -44,3 +44,10 @@ type Study struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
+// StudyDetail describes a study with its input parameters.
+type StudyDetail struct {
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Inputs map[string]any `json:"inputs"`
+}

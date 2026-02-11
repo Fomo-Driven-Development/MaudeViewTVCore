@@ -60,6 +60,13 @@ func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map
 	return s.cdp.AddStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name), inputs, forceOverlay)
 }
 
+func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error) {
+	if strings.TrimSpace(studyID) == "" {
+		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	}
+	return s.cdp.GetStudyInputs(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
+}
+
 func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) error {
 	if strings.TrimSpace(studyID) == "" {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}

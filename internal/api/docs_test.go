@@ -33,6 +33,9 @@ func (s *stubService) AddStudy(ctx context.Context, chartID, name string, inputs
 	return cdpcontrol.Study{}, nil
 }
 func (s *stubService) RemoveStudy(ctx context.Context, chartID, studyID string) error { return nil }
+func (s *stubService) GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error) {
+	return cdpcontrol.StudyDetail{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

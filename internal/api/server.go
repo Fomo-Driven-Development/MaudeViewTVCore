@@ -24,6 +24,7 @@ type Service interface {
 	ListStudies(ctx context.Context, chartID string) ([]cdpcontrol.Study, error)
 	AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error)
 	RemoveStudy(ctx context.Context, chartID, studyID string) error
+	GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -238,6 +239,25 @@ func NewServer(svc Service) http.Handler {
 				return nil, mapErr(err)
 			}
 			return &struct{}{}, nil
+		})
+
+	type getStudyOutput struct {
+		Body struct {
+			ChartID string                 `json:"chart_id"`
+			Study   cdpcontrol.StudyDetail `json:"study"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-study", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Get study detail with inputs", Tags: []string{"Studies"}},
+		func(ctx context.Context, input *removeStudyInput) (*getStudyOutput, error) {
+			detail, err := svc.GetStudyInputs(ctx, input.ChartID, input.StudyID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &getStudyOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Study = detail
+			return out, nil
 		})
 
 	return router
