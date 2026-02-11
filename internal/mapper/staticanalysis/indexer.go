@@ -21,6 +21,7 @@ const (
 	indexRelativeOutput    = "mapper/static-analysis/js-bundle-index.jsonl"
 	analysisRelativeOutput = "mapper/static-analysis/js-bundle-analysis.jsonl"
 	errorsRelativeOutput   = "mapper/static-analysis/js-bundle-analysis-errors.jsonl"
+	graphRelativeOutput    = "mapper/static-analysis/js-bundle-dependency-graph.jsonl"
 )
 
 type jsBundleRecord struct {
@@ -53,6 +54,32 @@ type jsBundleAnalysisErrorRecord struct {
 	FilePath   string `json:"file_path"`
 	ChunkName  string `json:"chunk_name"`
 	Error      string `json:"error"`
+}
+
+type jsBundleGraphDependency struct {
+	Type               string `json:"type"`
+	Target             string `json:"target"`
+	ResolvedPrimaryKey string `json:"resolved_primary_key,omitempty"`
+	ResolvedChunkName  string `json:"resolved_chunk_name,omitempty"`
+}
+
+type jsBundleSourceReference struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type jsDomainHint struct {
+	Domain    string `json:"domain"`
+	Rationale string `json:"rationale"`
+}
+
+type jsBundleGraphNode struct {
+	PrimaryKey       string                    `json:"primary_key"`
+	FilePath         string                    `json:"file_path"`
+	ChunkName        string                    `json:"chunk_name"`
+	Dependencies     []jsBundleGraphDependency `json:"dependencies"`
+	SourceReferences []jsBundleSourceReference `json:"source_references"`
+	DomainHints      []jsDomainHint            `json:"domain_hints"`
 }
 
 type jsBundleExtracted struct {
@@ -95,6 +122,10 @@ func indexJSBundles(ctx context.Context, dataDir string) error {
 			return err
 		}
 		if err := writeAnalysisErrorFile(filepath.Join(dataDir, topLevel, errorsRelativeOutput), errorRecords); err != nil {
+			return err
+		}
+		graphNodes := buildBundleDependencyGraph(records, analysisRecords)
+		if err := writeDependencyGraphFile(filepath.Join(dataDir, topLevel, graphRelativeOutput), graphNodes); err != nil {
 			return err
 		}
 	}
@@ -186,6 +217,10 @@ func writeAnalysisErrorFile(outputPath string, records []jsBundleAnalysisErrorRe
 	return writeJSONLFile(outputPath, records)
 }
 
+func writeDependencyGraphFile(outputPath string, records []jsBundleGraphNode) error {
+	return writeJSONLFile(outputPath, records)
+}
+
 func writeJSONLFile[T any](outputPath string, records []T) error {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
@@ -195,7 +230,7 @@ func writeJSONLFile[T any](outputPath string, records []T) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := bufio.NewWriter(f)
 	for _, record := range records {
@@ -492,6 +527,173 @@ func validateNoDuplicatePrimaryKeys(records []jsBundleRecord) error {
 		seen[record.PrimaryKey] = struct{}{}
 	}
 	return nil
+}
+
+func buildBundleDependencyGraph(indexRecords []jsBundleRecord, analysisRecords []jsBundleAnalysisRecord) []jsBundleGraphNode {
+	recordByKey := make(map[string]jsBundleRecord, len(indexRecords))
+	for _, record := range indexRecords {
+		recordByKey[record.PrimaryKey] = record
+	}
+
+	nodes := make([]jsBundleGraphNode, 0, len(analysisRecords))
+	for _, analysis := range analysisRecords {
+		record, ok := recordByKey[analysis.PrimaryKey]
+		if !ok {
+			continue
+		}
+		dependencies := buildGraphDependencies(analysis, recordByKey)
+		nodes = append(nodes, jsBundleGraphNode{
+			PrimaryKey:   analysis.PrimaryKey,
+			FilePath:     analysis.FilePath,
+			ChunkName:    analysis.ChunkName,
+			Dependencies: dependencies,
+			SourceReferences: []jsBundleSourceReference{
+				{Type: "index_record_primary_key", Value: record.PrimaryKey},
+				{Type: "analysis_record_primary_key", Value: analysis.PrimaryKey},
+			},
+			DomainHints: buildDomainHints(record, analysis, dependencies),
+		})
+	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].PrimaryKey < nodes[j].PrimaryKey
+	})
+	return nodes
+}
+
+func buildGraphDependencies(analysis jsBundleAnalysisRecord, recordByKey map[string]jsBundleRecord) []jsBundleGraphDependency {
+	deps := make([]jsBundleGraphDependency, 0, len(analysis.ImportEdges)+len(analysis.RequireEdges))
+	seen := make(map[string]struct{}, len(analysis.ImportEdges)+len(analysis.RequireEdges))
+
+	appendEdges := func(depType string, edges []string) {
+		for _, edge := range edges {
+			dep := jsBundleGraphDependency{Type: depType, Target: edge}
+			if resolved, ok := resolveDependencyPrimaryKey(analysis.FilePath, edge, recordByKey); ok {
+				dep.ResolvedPrimaryKey = resolved.PrimaryKey
+				dep.ResolvedChunkName = resolved.ChunkName
+			}
+			key := dep.Type + "\x00" + dep.Target + "\x00" + dep.ResolvedPrimaryKey
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			deps = append(deps, dep)
+		}
+	}
+
+	appendEdges("import", analysis.ImportEdges)
+	appendEdges("require", analysis.RequireEdges)
+
+	sort.Slice(deps, func(i, j int) bool {
+		if deps[i].Type == deps[j].Type {
+			if deps[i].Target == deps[j].Target {
+				return deps[i].ResolvedPrimaryKey < deps[j].ResolvedPrimaryKey
+			}
+			return deps[i].Target < deps[j].Target
+		}
+		return deps[i].Type < deps[j].Type
+	})
+
+	return deps
+}
+
+func resolveDependencyPrimaryKey(filePath, edge string, recordByKey map[string]jsBundleRecord) (jsBundleRecord, bool) {
+	if edge == "" {
+		return jsBundleRecord{}, false
+	}
+	if !strings.HasPrefix(edge, "./") && !strings.HasPrefix(edge, "../") {
+		return jsBundleRecord{}, false
+	}
+
+	sourceDir := filepath.Dir(filepath.FromSlash(filePath))
+	basePath := filepath.Clean(filepath.Join(sourceDir, edge))
+	candidates := make([]string, 0, 6)
+	if strings.HasSuffix(basePath, ".js") {
+		candidates = append(candidates, basePath)
+	} else {
+		candidates = append(candidates, basePath+".js", filepath.Join(basePath, "index.js"))
+	}
+	candidates = append(candidates, basePath)
+
+	for _, candidate := range candidates {
+		key := filepath.ToSlash(candidate)
+		if record, ok := recordByKey[key]; ok {
+			return record, true
+		}
+	}
+	return jsBundleRecord{}, false
+}
+
+func buildDomainHints(record jsBundleRecord, analysis jsBundleAnalysisRecord, dependencies []jsBundleGraphDependency) []jsDomainHint {
+	evidence := collectDomainEvidence(record, analysis, dependencies)
+	rules := []struct {
+		domain   string
+		keywords []string
+	}{
+		{domain: "chart", keywords: []string{"chart", "candl", "ohlc", "symbol", "price-scale"}},
+		{domain: "studies", keywords: []string{"study", "studies", "indicator", "overlay", "rsi", "macd"}},
+		{domain: "trading", keywords: []string{"trade", "trading", "order", "position", "broker", "portfolio"}},
+		{domain: "watchlist", keywords: []string{"watchlist", "watch-list", "symbol-list"}},
+		{domain: "replay", keywords: []string{"replay", "playback", "bar-replay"}},
+		{domain: "widget", keywords: []string{"widget", "embed", "iframe", "mini-chart"}},
+	}
+
+	hints := make([]jsDomainHint, 0, len(rules))
+	for _, rule := range rules {
+		if rationale, ok := firstMatchingEvidence(rule.keywords, evidence); ok {
+			hints = append(hints, jsDomainHint{
+				Domain:    rule.domain,
+				Rationale: rationale,
+			})
+		}
+	}
+	return hints
+}
+
+type domainEvidence struct {
+	label string
+	value string
+}
+
+func collectDomainEvidence(record jsBundleRecord, analysis jsBundleAnalysisRecord, dependencies []jsBundleGraphDependency) []domainEvidence {
+	out := []domainEvidence{
+		{label: "chunk_name", value: record.ChunkName},
+	}
+
+	for _, value := range analysis.Functions {
+		out = append(out, domainEvidence{label: "function", value: value})
+	}
+	for _, value := range analysis.Classes {
+		out = append(out, domainEvidence{label: "class", value: value})
+	}
+	for _, value := range analysis.Exports {
+		out = append(out, domainEvidence{label: "export", value: value})
+	}
+	for _, anchor := range analysis.SignalAnchors {
+		out = append(out, domainEvidence{label: "signal_anchor_" + anchor.Type, value: anchor.Value})
+	}
+	for _, dep := range dependencies {
+		out = append(out, domainEvidence{label: dep.Type + "_edge", value: dep.Target})
+		if dep.ResolvedPrimaryKey != "" {
+			out = append(out, domainEvidence{label: dep.Type + "_resolved", value: dep.ResolvedPrimaryKey})
+		}
+		if dep.ResolvedChunkName != "" {
+			out = append(out, domainEvidence{label: dep.Type + "_resolved_chunk", value: dep.ResolvedChunkName})
+		}
+	}
+	return out
+}
+
+func firstMatchingEvidence(keywords []string, evidence []domainEvidence) (string, bool) {
+	for _, candidate := range evidence {
+		lower := strings.ToLower(candidate.value)
+		for _, keyword := range keywords {
+			if strings.Contains(lower, keyword) {
+				return fmt.Sprintf("matched keyword %q in %s %q", keyword, candidate.label, candidate.value), true
+			}
+		}
+	}
+	return "", false
 }
 
 func fileSHA256(path string) (string, error) {

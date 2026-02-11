@@ -182,6 +182,116 @@ func TestIndexJSBundlesWritesAnalysisAndErrorArtifacts(t *testing.T) {
 	if errorRecords[0].Error == "" {
 		t.Fatal("expected non-empty parse error message")
 	}
+
+	graphPath := filepath.Join(dataDir, "2026-02-11", graphRelativeOutput)
+	graphNodes := parseJSONLGraphNodes(t, mustReadFile(t, graphPath))
+	if got := len(graphNodes); got != 1 {
+		t.Fatalf("graph node count = %d, want 1", got)
+	}
+	if graphNodes[0].PrimaryKey != validRelPath {
+		t.Fatalf("graph primary key = %q, want %q", graphNodes[0].PrimaryKey, validRelPath)
+	}
+	assertContainsSourceReference(t, graphNodes[0].SourceReferences, jsBundleSourceReference{
+		Type:  "index_record_primary_key",
+		Value: validRelPath,
+	})
+	assertContainsSourceReference(t, graphNodes[0].SourceReferences, jsBundleSourceReference{
+		Type:  "analysis_record_primary_key",
+		Value: validRelPath,
+	})
+	assertContainsDomainHint(t, graphNodes[0].DomainHints, "chart")
+	assertContainsDomainHint(t, graphNodes[0].DomainHints, "trading")
+}
+
+func TestIndexJSBundlesBuildsDependencyGraphAndDomainHints(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "research_data")
+
+	fixtures := map[string]string{
+		"2026-02-11/chart_a/resources/js/main.001122.js": strings.Join([]string{
+			`import chartView from "./chartView.js";`,
+			`import studiesPanel from "./studiesPanel.js";`,
+			`const trading = require("./tradingPanel");`,
+			`const watch = require("./watchlistCenter.js");`,
+			`import replayPanel from "./replaySurface.js";`,
+			`const widgetHost = require("./widgetHost");`,
+			`export function start() { return "ok"; }`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/chartView.js": strings.Join([]string{
+			`export function chartController() { return "/api/v1/chart/list"; }`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/studiesPanel.js": strings.Join([]string{
+			`export function studiesLoader() { return "indicator:rsi"; }`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/tradingPanel.js": strings.Join([]string{
+			`export function placeOrder() { return "/api/v1/orders"; }`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/watchlistCenter.js": strings.Join([]string{
+			`export const watchlistStore = "watchlist:active";`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/replaySurface.js": strings.Join([]string{
+			`export const replayMode = "bar-replay";`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/widgetHost.js": strings.Join([]string{
+			`export function widgetFrame() { return "/embed/widget/chart"; }`,
+		}, "\n"),
+		"2026-02-11/chart_a/resources/js/utility.909090.js": `export const noop = true;`,
+	}
+
+	for relPath, content := range fixtures {
+		if err := writeFixtureJS(dataDir, relPath, content); err != nil {
+			t.Fatalf("writeFixtureJS(%q) error = %v", relPath, err)
+		}
+	}
+
+	if err := indexJSBundles(context.Background(), dataDir); err != nil {
+		t.Fatalf("indexJSBundles() error = %v", err)
+	}
+
+	graphPath := filepath.Join(dataDir, "2026-02-11", graphRelativeOutput)
+	graphNodes := parseJSONLGraphNodes(t, mustReadFile(t, graphPath))
+
+	mainNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/main.001122.js")
+	assertContainsSourceReference(t, mainNode.SourceReferences, jsBundleSourceReference{
+		Type:  "index_record_primary_key",
+		Value: mainNode.PrimaryKey,
+	})
+	assertContainsSourceReference(t, mainNode.SourceReferences, jsBundleSourceReference{
+		Type:  "analysis_record_primary_key",
+		Value: mainNode.PrimaryKey,
+	})
+	if len(mainNode.Dependencies) != 6 {
+		t.Fatalf("main dependency count = %d, want 6", len(mainNode.Dependencies))
+	}
+	assertContainsDependency(t, mainNode.Dependencies, jsBundleGraphDependency{
+		Type:               "import",
+		Target:             "./chartView.js",
+		ResolvedPrimaryKey: "2026-02-11/chart_a/resources/js/chartView.js",
+		ResolvedChunkName:  "chartView",
+	})
+	assertContainsDependency(t, mainNode.Dependencies, jsBundleGraphDependency{
+		Type:               "require",
+		Target:             "./tradingPanel",
+		ResolvedPrimaryKey: "2026-02-11/chart_a/resources/js/tradingPanel.js",
+		ResolvedChunkName:  "tradingPanel",
+	})
+
+	chartNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/chartView.js")
+	assertContainsDomainHint(t, chartNode.DomainHints, "chart")
+	studiesNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/studiesPanel.js")
+	assertContainsDomainHint(t, studiesNode.DomainHints, "studies")
+	tradingNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/tradingPanel.js")
+	assertContainsDomainHint(t, tradingNode.DomainHints, "trading")
+	watchlistNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/watchlistCenter.js")
+	assertContainsDomainHint(t, watchlistNode.DomainHints, "watchlist")
+	replayNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/replaySurface.js")
+	assertContainsDomainHint(t, replayNode.DomainHints, "replay")
+	widgetNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/widgetHost.js")
+	assertContainsDomainHint(t, widgetNode.DomainHints, "widget")
+
+	utilityNode := findGraphNodeByPrimaryKey(t, graphNodes, "2026-02-11/chart_a/resources/js/utility.909090.js")
+	if len(utilityNode.DomainHints) != 0 {
+		t.Fatalf("utility domain hint count = %d, want 0", len(utilityNode.DomainHints))
+	}
 }
 
 func parseJSONLRecords(t *testing.T, data []byte) []jsBundleRecord {
@@ -220,6 +330,20 @@ func parseJSONLErrorRecords(t *testing.T, data []byte) []jsBundleAnalysisErrorRe
 		var rec jsBundleAnalysisErrorRecord
 		if err := json.Unmarshal([]byte(line), &rec); err != nil {
 			t.Fatalf("json.Unmarshal() parse error record error = %v", err)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+func parseJSONLGraphNodes(t *testing.T, data []byte) []jsBundleGraphNode {
+	t.Helper()
+	lines := slices.DeleteFunc(splitTrimLines(string(data)), func(line string) bool { return line == "" })
+	records := make([]jsBundleGraphNode, 0, len(lines))
+	for _, line := range lines {
+		var rec jsBundleGraphNode
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("json.Unmarshal() graph node error = %v", err)
 		}
 		records = append(records, rec)
 	}
@@ -294,4 +418,48 @@ func assertContainsAnchor(t *testing.T, anchors []jsSignalAnchor, want jsSignalA
 		}
 	}
 	t.Fatalf("missing anchor %+v in %+v", want, anchors)
+}
+
+func assertContainsSourceReference(t *testing.T, refs []jsBundleSourceReference, want jsBundleSourceReference) {
+	t.Helper()
+	for _, ref := range refs {
+		if ref == want {
+			return
+		}
+	}
+	t.Fatalf("missing source reference %+v in %+v", want, refs)
+}
+
+func assertContainsDependency(t *testing.T, deps []jsBundleGraphDependency, want jsBundleGraphDependency) {
+	t.Helper()
+	for _, dep := range deps {
+		if dep == want {
+			return
+		}
+	}
+	t.Fatalf("missing dependency %+v in %+v", want, deps)
+}
+
+func findGraphNodeByPrimaryKey(t *testing.T, nodes []jsBundleGraphNode, primaryKey string) jsBundleGraphNode {
+	t.Helper()
+	for _, node := range nodes {
+		if node.PrimaryKey == primaryKey {
+			return node
+		}
+	}
+	t.Fatalf("missing graph node %q", primaryKey)
+	return jsBundleGraphNode{}
+}
+
+func assertContainsDomainHint(t *testing.T, hints []jsDomainHint, wantDomain string) {
+	t.Helper()
+	for _, hint := range hints {
+		if hint.Domain == wantDomain {
+			if strings.TrimSpace(hint.Rationale) == "" {
+				t.Fatalf("domain hint %q has empty rationale", wantDomain)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing domain hint %q in %+v", wantDomain, hints)
 }
