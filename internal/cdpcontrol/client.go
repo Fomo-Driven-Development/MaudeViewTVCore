@@ -552,9 +552,12 @@ func jsJSON(v any) string {
 	return string(b)
 }
 
-func wrapJSEval(body string) string {
-	return `(function(){
-try {
+func buildIIFE(async bool, body string) string {
+	prefix := "(function(){\n"
+	if async {
+		prefix = "(async function(){\n"
+	}
+	return prefix + `try {
 ` + body + `
 } catch (err) {
 return JSON.stringify({ok:false,error_code:"` + CodeEvalFailure + `",error_message:String(err && err.message || err)});
@@ -562,12 +565,5 @@ return JSON.stringify({ok:false,error_code:"` + CodeEvalFailure + `",error_messa
 })()`
 }
 
-func wrapJSEvalAsync(body string) string {
-	return `(async function(){
-try {
-` + body + `
-} catch (err) {
-return JSON.stringify({ok:false,error_code:"` + CodeEvalFailure + `",error_message:String(err && err.message || err)});
-}
-})()`
-}
+func wrapJSEval(body string) string      { return buildIIFE(false, body) }
+func wrapJSEvalAsync(body string) string  { return buildIIFE(true, body) }
