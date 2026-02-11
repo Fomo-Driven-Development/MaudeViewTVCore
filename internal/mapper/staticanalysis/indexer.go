@@ -92,17 +92,6 @@ type jsBundleExtracted struct {
 }
 
 var (
-	functionDeclPattern   = regexp.MustCompile(`\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(`)
-	functionAssignPattern = regexp.MustCompile(`\b([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*function\b`)
-	arrowAssignPattern    = regexp.MustCompile(`\b([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>`)
-	classPattern          = regexp.MustCompile(`\bclass\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`)
-	exportDeclPattern     = regexp.MustCompile(`\bexport\s+(?:const|let|var|function|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
-	exportBracesPattern   = regexp.MustCompile(`\bexport\s*\{\s*([^}]*)\}`)
-	exportsAssignPattern  = regexp.MustCompile(`\bexports\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=`)
-	importPattern         = regexp.MustCompile(`\bimport\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]`)
-	dynamicImportPattern  = regexp.MustCompile(`\bimport\(\s*['"]([^'"]+)['"]\s*\)`)
-	requirePattern        = regexp.MustCompile(`\brequire\(\s*['"]([^'"]+)['"]\s*\)`)
-	stringLiteralPattern  = regexp.MustCompile(`['"]([^'"\\]*(?:\\.[^'"\\]*)*)['"]`)
 	actionEventAnchorRE   = regexp.MustCompile(`(?i)(?:^|[._:-])(action|event)(?:[._:-]|$)`)
 	featureFlagAnchorRE   = regexp.MustCompile(`(?i)(?:^|[._:-])(feature|flag|ff)(?:[._:-]|$)|^(FEATURE|FF|ENABLE)_[A-Z0-9_]+$`)
 )
@@ -294,87 +283,7 @@ func extractBundleAnalysisRecords(dataDir string, records []jsBundleRecord) ([]j
 }
 
 func parseIndexedBundleSource(source string) (jsBundleExtracted, error) {
-	if err := validateBalancedSyntax(source); err != nil {
-		return jsBundleExtracted{}, err
-	}
-
-	functions := make(map[string]struct{})
-	classes := make(map[string]struct{})
-	exports := make(map[string]struct{})
-	importEdges := make(map[string]struct{})
-	requireEdges := make(map[string]struct{})
-	anchorByKey := make(map[string]jsSignalAnchor)
-
-	addMatches(functions, functionDeclPattern, source)
-	addMatches(functions, functionAssignPattern, source)
-	addMatches(functions, arrowAssignPattern, source)
-	addMatches(classes, classPattern, source)
-	addMatches(exports, exportDeclPattern, source)
-	addMatches(exports, exportsAssignPattern, source)
-
-	if strings.Contains(source, "export default") {
-		exports["default"] = struct{}{}
-	}
-	if strings.Contains(source, "module.exports") {
-		exports["module.exports"] = struct{}{}
-	}
-
-	for _, match := range exportBracesPattern.FindAllStringSubmatch(source, -1) {
-		if len(match) < 2 {
-			continue
-		}
-		for _, part := range strings.Split(match[1], ",") {
-			name := strings.TrimSpace(strings.Split(part, " as ")[0])
-			if name != "" {
-				exports[name] = struct{}{}
-			}
-		}
-	}
-
-	addMatches(importEdges, importPattern, source)
-	addMatches(importEdges, dynamicImportPattern, source)
-	addMatches(requireEdges, requirePattern, source)
-
-	for _, match := range stringLiteralPattern.FindAllStringSubmatch(source, -1) {
-		if len(match) < 2 {
-			continue
-		}
-		candidate := decodeQuotedContent(match[1])
-		anchorType, ok := classifySignalAnchor(candidate)
-		if !ok {
-			continue
-		}
-		key := anchorType + "\x00" + candidate
-		anchorByKey[key] = jsSignalAnchor{Type: anchorType, Value: candidate}
-	}
-
-	anchors := make([]jsSignalAnchor, 0, len(anchorByKey))
-	for _, anchor := range anchorByKey {
-		anchors = append(anchors, anchor)
-	}
-	sort.Slice(anchors, func(i, j int) bool {
-		if anchors[i].Type == anchors[j].Type {
-			return anchors[i].Value < anchors[j].Value
-		}
-		return anchors[i].Type < anchors[j].Type
-	})
-
-	return jsBundleExtracted{
-		Functions:    mapKeys(functions),
-		Classes:      mapKeys(classes),
-		Exports:      mapKeys(exports),
-		ImportEdges:  mapKeys(importEdges),
-		RequireEdges: mapKeys(requireEdges),
-		Anchors:      anchors,
-	}, nil
-}
-
-func addMatches(dst map[string]struct{}, pattern *regexp.Regexp, source string) {
-	for _, match := range pattern.FindAllStringSubmatch(source, -1) {
-		if len(match) >= 2 && match[1] != "" {
-			dst[match[1]] = struct{}{}
-		}
-	}
+	return parseIndexedBundleSourceAST(source)
 }
 
 func mapKeys(m map[string]struct{}) []string {
