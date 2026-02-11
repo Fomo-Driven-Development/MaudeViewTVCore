@@ -2,10 +2,13 @@ package cdpcontrol
 
 import "fmt"
 
-func jsGetSymbol() string {
-	return wrapJSEval(`
+// jsPreamble is the common setup that resolves the TradingView API and active chart.
+const jsPreamble = `
 var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
+var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;`
+
+func jsGetSymbol() string {
+	return wrapJSEval(jsPreamble + `
 var symbol = "";
 if (api && typeof api.getSymbol === "function") symbol = String(api.getSymbol() || "");
 if (!symbol && chart && typeof chart.symbol === "function") symbol = String(chart.symbol() || "");
@@ -16,10 +19,8 @@ return JSON.stringify({ok:true,data:{symbol:symbol}});
 }
 
 func jsSetSymbol(symbol string) string {
-	return wrapJSEval(fmt.Sprintf(`
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var requested = %s;
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
 var changed = false;
 if (api && typeof api.setSymbol === "function") {
   api.setSymbol(requested);
@@ -37,9 +38,7 @@ return JSON.stringify({ok:true,data:{current_symbol:current}});
 }
 
 func jsGetResolution() string {
-	return wrapJSEval(`
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
+	return wrapJSEval(jsPreamble + `
 var resolution = "";
 if (api && typeof api.getResolution === "function") resolution = String(api.getResolution() || "");
 if (!resolution && chart && typeof chart.resolution === "function") resolution = String(chart.resolution() || "");
@@ -49,10 +48,8 @@ return JSON.stringify({ok:true,data:{resolution:resolution}});
 }
 
 func jsSetResolution(resolution string) string {
-	return wrapJSEval(fmt.Sprintf(`
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var requested = %s;
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
 if (chart && typeof chart.setResolution === "function") {
   chart.setResolution(requested);
   return JSON.stringify({ok:true,data:{}});
@@ -62,10 +59,8 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setR
 }
 
 func jsExecuteAction(actionID string) string {
-	return wrapJSEval(fmt.Sprintf(`
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var action = %s;
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
 if (api && typeof api.executeActionById === "function") {
   api.executeActionById(action);
   return JSON.stringify({ok:true,data:{status:"executed"}});
@@ -83,9 +78,7 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"acti
 }
 
 func jsListStudies() string {
-	return wrapJSEval(`
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
+	return wrapJSEval(jsPreamble + `
 if (!chart || typeof chart.getAllStudies !== "function") {
   return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getAllStudies unavailable"});
 }
@@ -100,12 +93,10 @@ return JSON.stringify({ok:true,data:{studies:studies}});
 }
 
 func jsAddStudy(name string, inputs map[string]any, forceOverlay bool) string {
-	return wrapJSEvalAsync(fmt.Sprintf(`
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
 var name = %s;
 var inputs = %s;
 var forceOverlay = %t;
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
 if (!chart || typeof chart.createStudy !== "function") {
   return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"createStudy unavailable"});
 }
@@ -121,10 +112,8 @@ return JSON.stringify({ok:true,data:{study:{id:String(id),name:String(name)}}});
 }
 
 func jsRemoveStudy(studyID string) string {
-	return wrapJSEval(fmt.Sprintf(`
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;
-var api = window.TradingViewApi;
-var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;
 if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
 if (typeof chart.removeEntity === "function") {
   chart.removeEntity(id);
