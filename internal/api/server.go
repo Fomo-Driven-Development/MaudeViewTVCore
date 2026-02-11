@@ -28,6 +28,9 @@ type Service interface {
 	RemoveStudy(ctx context.Context, chartID, studyID string) error
 	GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error)
 	ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error)
+	ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error)
+	GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error)
+	SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -312,6 +315,57 @@ func NewServer(svc Service) http.Handler {
 			out := &getStudyOutput{}
 			out.Body.ChartID = input.ChartID
 			out.Body.Study = detail
+			return out, nil
+		})
+
+	// --- Watchlist endpoints ---
+
+	type listWatchlistsOutput struct {
+		Body struct {
+			Watchlists []cdpcontrol.WatchlistInfo `json:"watchlists"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-watchlists", Method: http.MethodGet, Path: "/api/v1/watchlists", Summary: "List all watchlists", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct{}) (*listWatchlistsOutput, error) {
+			wls, err := svc.ListWatchlists(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &listWatchlistsOutput{}
+			out.Body.Watchlists = wls
+			return out, nil
+		})
+
+	type watchlistDetailOutput struct {
+		Body cdpcontrol.WatchlistDetail
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-active-watchlist", Method: http.MethodGet, Path: "/api/v1/watchlists/active", Summary: "Get active watchlist with symbols", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct{}) (*watchlistDetailOutput, error) {
+			detail, err := svc.GetActiveWatchlist(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistDetailOutput{}
+			out.Body = detail
+			return out, nil
+		})
+
+	type setActiveWatchlistInput struct {
+		Body struct {
+			ID string `json:"id" required:"true"`
+		}
+	}
+	type watchlistInfoOutput struct {
+		Body cdpcontrol.WatchlistInfo
+	}
+	huma.Register(api, huma.Operation{OperationID: "set-active-watchlist", Method: http.MethodPut, Path: "/api/v1/watchlists/active", Summary: "Set active watchlist by ID", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *setActiveWatchlistInput) (*watchlistInfoOutput, error) {
+			info, err := svc.SetActiveWatchlist(ctx, input.Body.ID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistInfoOutput{}
+			out.Body = info
 			return out, nil
 		})
 

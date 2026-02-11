@@ -76,3 +76,20 @@ type StudyDetail struct {
 	Name   string         `json:"name"`
 	Inputs map[string]any `json:"inputs"`
 }
+
+// WatchlistInfo describes a watchlist summary.
+type WatchlistInfo struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Type   string `json:"type,omitempty"`
+	Active bool   `json:"active,omitempty"`
+	Count  int    `json:"count"`
+}
+
+// WatchlistDetail describes a watchlist with its symbols.
+type WatchlistDetail struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type,omitempty"`
+	Symbols []string `json:"symbols"`
+}

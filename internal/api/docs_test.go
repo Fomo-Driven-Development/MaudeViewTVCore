@@ -45,6 +45,15 @@ func (s *stubService) GetStudyInputs(ctx context.Context, chartID, studyID strin
 func (s *stubService) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error) {
 	return cdpcontrol.StudyDetail{}, nil
 }
+func (s *stubService) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
+	return []cdpcontrol.WatchlistInfo{}, nil
+}
+func (s *stubService) GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error) {
+	return cdpcontrol.WatchlistDetail{}, nil
+}
+func (s *stubService) SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
+	return cdpcontrol.WatchlistInfo{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

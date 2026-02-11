@@ -91,3 +91,18 @@ func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) erro
 	}
 	return s.cdp.RemoveStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
+
+func (s *Service) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
+	return s.cdp.ListWatchlists(ctx)
+}
+
+func (s *Service) GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error) {
+	return s.cdp.GetActiveWatchlist(ctx)
+}
+
+func (s *Service) SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
+	if strings.TrimSpace(id) == "" {
+		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist id is required"}
+	}
+	return s.cdp.SetActiveWatchlist(ctx, strings.TrimSpace(id))
+}

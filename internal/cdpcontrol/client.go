@@ -316,6 +316,51 @@ func (c *Client) RemoveStudy(ctx context.Context, chartID, studyID string) error
 	return nil
 }
 
+func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
+	var out struct {
+		Watchlists []WatchlistInfo `json:"watchlists"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListWatchlists(), &out); err != nil {
+		return nil, err
+	}
+	if out.Watchlists == nil {
+		return []WatchlistInfo{}, nil
+	}
+	return out.Watchlists, nil
+}
+
+func (c *Client) GetActiveWatchlist(ctx context.Context) (WatchlistDetail, error) {
+	var out WatchlistDetail
+	if err := c.evalOnAnyChart(ctx, jsGetActiveWatchlist(), &out); err != nil {
+		return WatchlistDetail{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetActiveWatchlist(ctx context.Context, id string) (WatchlistInfo, error) {
+	var out WatchlistInfo
+	if err := c.evalOnAnyChart(ctx, jsSetActiveWatchlist(id), &out); err != nil {
+		return WatchlistInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
+	charts, err := c.ListCharts(ctx)
+	if err != nil {
+		return err
+	}
+	if len(charts) == 0 {
+		return newError(CodeChartNotFound, "no chart tabs found", nil)
+	}
+	for _, ch := range charts {
+		if evalErr := c.evalOnChart(ctx, ch.ChartID, js, out); evalErr == nil {
+			return nil
+		}
+	}
+	return c.evalOnChart(ctx, charts[0].ChartID, js, out)
+}
+
 func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) error {
 	chartID = strings.TrimSpace(chartID)
 	if chartID == "" {

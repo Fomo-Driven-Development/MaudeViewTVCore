@@ -231,6 +231,111 @@ return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:current}});
 `, jsString(studyID), jsJSON(inputs)))
 }
 
+// --- Watchlist JS functions ---
+
+// jsWatchlistPreamble discovers the watchlist/symbol-list facade.
+const jsWatchlistPreamble = `
+var wl = null;
+if (window.TradingViewApi && typeof window.TradingViewApi.getWatchlist === "function") {
+  wl = window.TradingViewApi;
+}
+if (!wl) {
+  var frames = document.querySelectorAll("iframe");
+  for (var fi = 0; fi < frames.length; fi++) {
+    try {
+      var fw = frames[fi].contentWindow;
+      if (fw && fw.TradingViewApi && typeof fw.TradingViewApi.getWatchlist === "function") {
+        wl = fw.TradingViewApi;
+        break;
+      }
+    } catch(_){}
+  }
+}
+`
+
+func jsListWatchlists() string {
+	return wrapJSEvalAsync(jsWatchlistPreamble + `
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var raw = null;
+if (typeof wl.getWatchlist === "function") {
+  try { raw = await wl.getWatchlist(); } catch(_){}
+}
+if (!raw && typeof wl.getSymbolLists === "function") {
+  try { raw = await wl.getSymbolLists(); } catch(_){}
+}
+if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getWatchlist returned null"});
+var lists = [];
+if (Array.isArray(raw)) {
+  for (var i = 0; i < raw.length; i++) {
+    var it = raw[i] || {};
+    lists.push({
+      id: String(it.id || it.listId || ""),
+      name: String(it.name || it.title || ""),
+      type: String(it.type || ""),
+      active: !!(it.active || it.isActive),
+      count: Number(it.count || (it.symbols && it.symbols.length) || 0)
+    });
+  }
+} else if (typeof raw === "object") {
+  var keys = Object.keys(raw);
+  for (var k = 0; k < keys.length; k++) {
+    var it = raw[keys[k]] || {};
+    lists.push({
+      id: String(it.id || it.listId || keys[k]),
+      name: String(it.name || it.title || ""),
+      type: String(it.type || ""),
+      active: !!(it.active || it.isActive),
+      count: Number(it.count || (it.symbols && it.symbols.length) || 0)
+    });
+  }
+}
+return JSON.stringify({ok:true,data:{watchlists:lists}});
+`)
+}
+
+func jsGetActiveWatchlist() string {
+	return wrapJSEvalAsync(jsWatchlistPreamble + `
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var raw = null;
+if (typeof wl.getActiveWatchlist === "function") {
+  try { raw = await wl.getActiveWatchlist(); } catch(_){}
+}
+if (!raw && typeof wl.getActiveSymbolList === "function") {
+  try { raw = await wl.getActiveSymbolList(); } catch(_){}
+}
+if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getActiveWatchlist returned null"});
+var syms = [];
+if (raw.symbols && Array.isArray(raw.symbols)) {
+  for (var i = 0; i < raw.symbols.length; i++) {
+    var s = raw.symbols[i];
+    syms.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+  }
+}
+return JSON.stringify({ok:true,data:{
+  id: String(raw.id || raw.listId || ""),
+  name: String(raw.name || raw.title || ""),
+  type: String(raw.type || ""),
+  symbols: syms
+}});
+`)
+}
+
+func jsSetActiveWatchlist(id string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var ok = false;
+if (typeof wl.setActiveWatchlist === "function") {
+  try { await wl.setActiveWatchlist(listId); ok = true; } catch(_){}
+}
+if (!ok && typeof wl.selectSymbolList === "function") {
+  try { await wl.selectSymbolList(listId); ok = true; } catch(_){}
+}
+if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setActiveWatchlist unavailable"});
+return JSON.stringify({ok:true,data:{id:listId,name:""}});
+`, jsString(id)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;
