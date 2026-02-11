@@ -5,6 +5,8 @@ logs/
 research_data/
 bin/
 
+/controller
+
 .playwright-mcp
 .obsidian/
 

@@ -70,7 +70,7 @@ if [ "${CHROMIUM_MCP_SERVER}" != "playwright" ] && [ "${CHROMIUM_MCP_SERVER}" !=
     exit 1
 fi
 
-echo "MCP Server: ${CHROMIUM_MCP_SERVER}"
+echo "MCP Server: ${CHROMIUM_MCP_SERVER}" >&2
 
 # Fetch the WebSocket debugger URL from the running Chromium instance
 # The CDP endpoint returns JSON with the webSocketDebuggerUrl
@@ -87,8 +87,19 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-# Fetch the WebSocket URL with a timeout
-CDP_ENDPOINT=$(curl -s --connect-timeout 5 "${CDP_JSON_URL}" | python3 -c "import sys, json; print(json.load(sys.stdin).get('webSocketDebuggerUrl', ''))" 2>/dev/null)
+# Fetch the WebSocket URL with a timeout.
+# Guard command substitution so JSON parse/network issues don't silently abort under `set -e`.
+CDP_ENDPOINT=$(
+    curl -s --connect-timeout 5 "${CDP_JSON_URL}" 2>/dev/null \
+    | python3 -c "import sys,json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print('')
+    raise SystemExit(0)
+print(data.get('webSocketDebuggerUrl', ''))" 2>/dev/null \
+    || true
+)
 
 if [ -z "${CDP_ENDPOINT}" ]; then
     echo "ERROR: Could not connect to Chromium at port ${CHROMIUM_CDP_PORT}" >&2
@@ -101,9 +112,9 @@ fi
 
 # Launch MCP server with CDP connection
 if [ "${CHROMIUM_MCP_SERVER}" = "playwright" ]; then
-    echo "Launching Playwright MCP server..."
-    exec npx @playwright/mcp@latest --cdp-endpoint "${CDP_ENDPOINT}"
+    echo "Launching Playwright MCP server..." >&2
+    exec npx -y @playwright/mcp@latest --cdp-endpoint "${CDP_ENDPOINT}"
 else
-    echo "Launching Chrome DevTools MCP server..."
+    echo "Launching Chrome DevTools MCP server..." >&2
     exec npx -y chrome-devtools-mcp@latest --wsEndpoint="${CDP_ENDPOINT}"
 fi

@@ -10,7 +10,9 @@ help:
 	@echo ""
 	@echo "  just start-browser       Start Chrome with remote debugging"
 	@echo "  just start-browser-logs  Start Chrome with debugging and console logs"
+	@echo "  just crash-report        Bundle latest controller/chromium diagnostics"
 	@echo "  just run-researcher      Build and run passive TradingView researcher"
+	@echo "  just run-controller      Build and run Huma control API"
 	@echo "  just mapper-static-only  Run static analysis stage only"
 	@echo "  just mapper-runtime-only Run runtime probes stage only"
 	@echo "  just mapper-correlate    Run correlation stage only"
@@ -20,17 +22,21 @@ help:
 	@echo "  just mapper-full         Run full mapper pipeline"
 	@echo ""
 
-# Start Chrome with remote debugging enabled
-start-browser:
-    ./scripts/start-chromium.sh
-
 # Start Chrome with debugging and console logs
-start-browser-logs:
+start-browser:
     ./scripts/start-chromium.sh --with-logs
+
+# Bundle crash diagnostics
+crash-report:
+    ./scripts/collect-crash-report.sh
 
 # Build and run the passive researcher
 run-researcher:
     go build -o ./bin/researcher ./cmd/researcher && ./bin/researcher
+
+# Build and run the Huma controller API
+run-controller:
+    go build -o ./bin/controller ./cmd/controller && ./bin/controller
 
 # Mapper stage: static analysis only
 mapper-static-only:

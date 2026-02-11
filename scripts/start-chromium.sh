@@ -17,6 +17,9 @@
 # Optional:
 #   CHROMIUM_PROFILE_DIR (default: ./chromium-profile)
 #   CHROMIUM_LOG_FILE_DIR (default: logs)
+#   CHROMIUM_CRASH_DUMP_DIR (default: logs/chromium-crash-dumps)
+#   CHROMIUM_PID_FILE (default: logs/chromium.pid)
+#   CHROMIUM_ENABLE_CRASH_REPORTER (default: false)
 #
 # The browser uses a local profile directory to keep
 # test browsing isolated from your personal browser data.
@@ -118,12 +121,27 @@ if [ -z "${CHROMIUM_LOG_FILE_DIR}" ]; then
     CHROMIUM_LOG_FILE_DIR="logs"
 fi
 
+if [ -z "${CHROMIUM_CRASH_DUMP_DIR}" ]; then
+    CHROMIUM_CRASH_DUMP_DIR="${CHROMIUM_LOG_FILE_DIR}/chromium-crash-dumps"
+fi
+
+if [ -z "${CHROMIUM_PID_FILE}" ]; then
+    CHROMIUM_PID_FILE="${CHROMIUM_LOG_FILE_DIR}/chromium.pid"
+fi
+
+if [ -z "${CHROMIUM_ENABLE_CRASH_REPORTER}" ]; then
+    CHROMIUM_ENABLE_CRASH_REPORTER="false"
+fi
+
 print_success "Loaded configuration from .env"
 print_info "CDP Address: ${CHROMIUM_CDP_ADDRESS}"
 print_info "CDP Port: ${CHROMIUM_CDP_PORT}"
 print_info "Start URL: ${CHROMIUM_START_URL}"
 print_info "Profile Directory: ${CHROMIUM_PROFILE_DIR}"
 print_info "Log File Directory: ${CHROMIUM_LOG_FILE_DIR}"
+print_info "Crash Dump Directory: ${CHROMIUM_CRASH_DUMP_DIR}"
+print_info "PID File: ${CHROMIUM_PID_FILE}"
+print_info "Crash Reporter Enabled: ${CHROMIUM_ENABLE_CRASH_REPORTER}"
 
 # Configuration
 DEBUG_ADDRESS="${CHROMIUM_CDP_ADDRESS}"
@@ -204,6 +222,15 @@ main() {
 
     # Create logs directory if it doesn't exist
     mkdir -p "${CHROMIUM_LOG_FILE_DIR}"
+    mkdir -p "${CHROMIUM_CRASH_DUMP_DIR}"
+
+    CRASH_REPORTER_FLAGS=""
+    if [ "${CHROMIUM_ENABLE_CRASH_REPORTER}" = "true" ]; then
+        print_info "Crash reporter flags enabled"
+        CRASH_REPORTER_FLAGS="--enable-crash-reporter --crash-dumps-dir=${CHROMIUM_CRASH_DUMP_DIR}"
+    else
+        print_info "Crash reporter flags disabled (recommended for stability on sandboxed Linux setups)"
+    fi
 
     # Build browser command with base flags
     # Flags explained:
@@ -213,38 +240,72 @@ main() {
     #   --no-first-run: Skip welcome screens and setup
     #   --disable-dev-shm-usage: Prevent /dev/shm issues in containers
     #   --window-size: Consistent viewport for testing
+    #   --disable-breakpad/--disable-crash-reporter: avoid Crashpad startup traps
+    #     on restricted Linux environments where crash socket setup is denied.
 
     if [ "$ENABLE_LOGGING" = true ]; then
         # Launch with logging enabled
         print_info "Chromium logging enabled: ${CHROMIUM_LOG_FILE_DIR}/chromium-debug.log"
+        print_info "Crash dumps enabled: ${CHROMIUM_CRASH_DUMP_DIR}"
         # Clear previous log file for fresh start
         if [ -f "${CHROMIUM_LOG_FILE_DIR}/chromium-debug.log" ]; then
             truncate -s 0 "${CHROMIUM_LOG_FILE_DIR}/chromium-debug.log"
             print_info "Cleared previous log file"
         fi
-        exec "${BROWSER}" \
+        "${BROWSER}" \
             --remote-debugging-port=${CHROMIUM_CDP_PORT} \
             --remote-debugging-address=${DEBUG_ADDRESS} \
             --user-data-dir="${PROFILE_DIR}" \
             --no-first-run \
             --disable-dev-shm-usage \
+            --disable-breakpad \
+            --disable-crash-reporter \
             --window-size=${WINDOW_SIZE} \
+            ${CRASH_REPORTER_FLAGS} \
             --enable-logging \
             --v=1 \
             --log-file="${CHROMIUM_LOG_FILE_DIR}/chromium-debug.log" \
-            "${CHROMIUM_START_URL}"
+            "${CHROMIUM_START_URL}" &
     else
         # Launch without logging
-        print_info "Chromium logging disabled"
-        exec "${BROWSER}" \
+        print_info "Chromium logging disabled (crash dumps still enabled)"
+        print_info "Crash dumps enabled: ${CHROMIUM_CRASH_DUMP_DIR}"
+        "${BROWSER}" \
             --remote-debugging-port=${CHROMIUM_CDP_PORT} \
             --remote-debugging-address=${DEBUG_ADDRESS} \
             --user-data-dir="${PROFILE_DIR}" \
             --no-first-run \
             --disable-dev-shm-usage \
+            --disable-breakpad \
+            --disable-crash-reporter \
             --window-size=${WINDOW_SIZE} \
-            "${CHROMIUM_START_URL}"
+            ${CRASH_REPORTER_FLAGS} \
+            "${CHROMIUM_START_URL}" &
     fi
+
+    BROWSER_PID=$!
+    echo "${BROWSER_PID}" > "${CHROMIUM_PID_FILE}"
+    print_info "Chromium PID: ${BROWSER_PID}"
+
+    forward_signal() {
+        if kill -0 "${BROWSER_PID}" >/dev/null 2>&1; then
+            kill "${BROWSER_PID}" >/dev/null 2>&1 || true
+        fi
+    }
+
+    trap 'forward_signal' INT TERM
+    wait "${BROWSER_PID}"
+    EXIT_CODE=$?
+    trap - INT TERM
+
+    if [ "${EXIT_CODE}" -ne 0 ]; then
+        print_error "Chromium exited with code ${EXIT_CODE}"
+        print_info "Check logs: ${CHROMIUM_LOG_FILE_DIR}/chromium-debug.log"
+        print_info "Crash dumps: ${CHROMIUM_CRASH_DUMP_DIR}"
+    else
+        print_info "Chromium exited cleanly"
+    fi
+    return "${EXIT_CODE}"
 }
 
 main "$@"
