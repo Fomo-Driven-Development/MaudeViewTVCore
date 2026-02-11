@@ -25,6 +25,7 @@ type Service interface {
 	AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error)
 	RemoveStudy(ctx context.Context, chartID, studyID string) error
 	GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error)
+	ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -251,6 +252,26 @@ func NewServer(svc Service) http.Handler {
 	huma.Register(api, huma.Operation{OperationID: "get-study", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Get study detail with inputs", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *removeStudyInput) (*getStudyOutput, error) {
 			detail, err := svc.GetStudyInputs(ctx, input.ChartID, input.StudyID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &getStudyOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Study = detail
+			return out, nil
+		})
+
+	type modifyStudyInput struct {
+		ChartID string `path:"chart_id"`
+		StudyID string `path:"study_id"`
+		Body    struct {
+			Inputs map[string]any `json:"inputs" required:"true"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "modify-study", Method: http.MethodPatch, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Modify study input parameters", Tags: []string{"Studies"}},
+		func(ctx context.Context, input *modifyStudyInput) (*getStudyOutput, error) {
+			detail, err := svc.ModifyStudyInputs(ctx, input.ChartID, input.StudyID, input.Body.Inputs)
 			if err != nil {
 				return nil, mapErr(err)
 			}

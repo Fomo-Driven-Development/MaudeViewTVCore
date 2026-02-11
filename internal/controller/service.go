@@ -67,6 +67,16 @@ func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string) (
 	return s.cdp.GetStudyInputs(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
 
+func (s *Service) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error) {
+	if strings.TrimSpace(studyID) == "" {
+		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	}
+	if len(inputs) == 0 {
+		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "inputs must not be empty"}
+	}
+	return s.cdp.ModifyStudyInputs(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID), inputs)
+}
+
 func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) error {
 	if strings.TrimSpace(studyID) == "" {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}

@@ -137,6 +137,38 @@ return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:inputs}});
 `, jsString(studyID)))
 }
 
+func jsModifyStudyInputs(studyID string, inputs map[string]any) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var id = %s;
+var newInputs = %s;
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var study = null;
+if (typeof chart.getStudyById === "function") study = chart.getStudyById(id);
+if (!study) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"study not found: "+id});
+var merged = false;
+if (typeof study.mergeUp === "function") {
+  study.mergeUp(newInputs);
+  merged = true;
+}
+if (!merged && typeof study.setInputValues === "function") {
+  study.setInputValues(newInputs);
+}
+if (!merged && typeof study.setInputValues !== "function") {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"modify study inputs unavailable"});
+}
+var name = String(study.name || study.title || "");
+var current = {};
+if (typeof study.getInputValues === "function") {
+  current = study.getInputValues() || {};
+} else if (typeof study.inputs === "function") {
+  current = study.inputs() || {};
+} else if (study.inputs) {
+  current = study.inputs || {};
+}
+return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:current}});
+`, jsString(studyID), jsJSON(inputs)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;
