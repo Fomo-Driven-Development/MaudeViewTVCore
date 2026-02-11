@@ -250,6 +250,8 @@ func mapErr(err error) error {
 	var coded *cdpcontrol.CodedError
 	if errors.As(err, &coded) {
 		switch coded.Code {
+		case cdpcontrol.CodeValidation:
+			return huma.Error400BadRequest(coded.Message)
 		case cdpcontrol.CodeChartNotFound:
 			return huma.Error404NotFound(coded.Message)
 		case cdpcontrol.CodeEvalTimeout:
@@ -259,9 +261,6 @@ func mapErr(err error) error {
 		default:
 			return huma.Error500InternalServerError(fmt.Sprintf("%s: %s", coded.Code, coded.Message))
 		}
-	}
-	if strings.Contains(err.Error(), "required") {
-		return huma.Error400BadRequest(err.Error())
 	}
 	return huma.Error500InternalServerError(err.Error())
 }

@@ -3,6 +3,7 @@ package cdpcontrol
 import "fmt"
 
 const (
+	CodeValidation     = "VALIDATION"
 	CodeChartNotFound  = "CHART_NOT_FOUND"
 	CodeAPIUnavailable = "API_UNAVAILABLE"
 	CodeEvalFailure    = "EVAL_FAILURE"

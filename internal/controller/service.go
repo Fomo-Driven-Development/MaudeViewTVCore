@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
@@ -27,7 +26,7 @@ func (s *Service) GetSymbol(ctx context.Context, chartID string) (string, error)
 
 func (s *Service) SetSymbol(ctx context.Context, chartID, symbol string) (string, error) {
 	if strings.TrimSpace(symbol) == "" {
-		return "", errors.New("symbol is required")
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
 	}
 	return s.cdp.SetSymbol(ctx, strings.TrimSpace(chartID), strings.TrimSpace(symbol))
 }
@@ -38,14 +37,14 @@ func (s *Service) GetResolution(ctx context.Context, chartID string) (string, er
 
 func (s *Service) SetResolution(ctx context.Context, chartID, resolution string) (string, error) {
 	if strings.TrimSpace(resolution) == "" {
-		return "", errors.New("resolution is required")
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "resolution is required"}
 	}
 	return s.cdp.SetResolution(ctx, strings.TrimSpace(chartID), strings.TrimSpace(resolution))
 }
 
 func (s *Service) ExecuteAction(ctx context.Context, chartID, actionID string) error {
 	if strings.TrimSpace(actionID) == "" {
-		return errors.New("action_id is required")
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "action_id is required"}
 	}
 	return s.cdp.ExecuteAction(ctx, strings.TrimSpace(chartID), strings.TrimSpace(actionID))
 }
@@ -56,14 +55,14 @@ func (s *Service) ListStudies(ctx context.Context, chartID string) ([]cdpcontrol
 
 func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error) {
 	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.Study{}, errors.New("study name is required")
+		return cdpcontrol.Study{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study name is required"}
 	}
 	return s.cdp.AddStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name), inputs, forceOverlay)
 }
 
 func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) error {
 	if strings.TrimSpace(studyID) == "" {
-		return errors.New("study_id is required")
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
 	}
 	return s.cdp.RemoveStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
