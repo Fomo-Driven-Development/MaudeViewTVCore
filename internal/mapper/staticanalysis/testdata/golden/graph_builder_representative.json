@@ -1,0 +1,35 @@
+[
+  {
+    "primary_key": "2026-02-11/chart_a/resources/js/main.001122.js",
+    "file_path": "2026-02-11/chart_a/resources/js/main.001122.js",
+    "chunk_name": "main",
+    "dependencies": [
+      {
+        "type": "require",
+        "target": "./tradingPanel",
+        "resolved_primary_key": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+        "resolved_chunk_name": "tradingPanel"
+      }
+    ],
+    "source_references": [
+      {
+        "type": "index_record_primary_key",
+        "value": "2026-02-11/chart_a/resources/js/main.001122.js"
+      },
+      {
+        "type": "analysis_record_primary_key",
+        "value": "2026-02-11/chart_a/resources/js/main.001122.js"
+      }
+    ],
+    "domain_hints": [
+      {
+        "domain": "chart",
+        "rationale": "matched keyword \"chart\" in class \"ChartEngine\""
+      },
+      {
+        "domain": "trading",
+        "rationale": "matched keyword \"order\" in signal_anchor_api_route \"/api/v1/orders\""
+      }
+    ]
+  }
+]

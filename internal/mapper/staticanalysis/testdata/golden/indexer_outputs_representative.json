@@ -1,0 +1,200 @@
+{
+  "index": [
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/broken.334455.js",
+      "file_path": "2026-02-11/chart_a/resources/js/broken.334455.js",
+      "size_bytes": 18,
+      "sha256": "34045a4245863e836746ea6073f119293dad0bf0ad0bcfb919cffdb72f482b92",
+      "chunk_name": "broken"
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/chartView.js",
+      "file_path": "2026-02-11/chart_a/resources/js/chartView.js",
+      "size_bytes": 62,
+      "sha256": "fadfe98a313fb1c7d97a275b2cb79cea213e081b1a8739ed18b567630337dc2b",
+      "chunk_name": "chartView"
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "file_path": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "size_bytes": 278,
+      "sha256": "45305f0c6a2d80c81cd22eede020b40a289f4c43ef0f6fc37fc246eda9a3864c",
+      "chunk_name": "main"
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "file_path": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "size_bytes": 53,
+      "sha256": "376fb4b69b6d0ba9c8e422be7f7059c48653e6a846fb6774391d8c3ee1252e31",
+      "chunk_name": "tradingPanel"
+    }
+  ],
+  "analysis": [
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/chartView.js",
+      "file_path": "2026-02-11/chart_a/resources/js/chartView.js",
+      "chunk_name": "chartView",
+      "functions": [
+        "chartController"
+      ],
+      "classes": [],
+      "exports": [
+        "chartController"
+      ],
+      "import_edges": [],
+      "require_edges": [],
+      "signal_anchors": [
+        {
+          "type": "api_route",
+          "value": "/api/v1/chart/list"
+        }
+      ]
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "file_path": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "chunk_name": "main",
+      "functions": [
+        "boot",
+        "ev"
+      ],
+      "classes": [
+        "ChartEngine"
+      ],
+      "exports": [
+        "ChartEngine",
+        "boot",
+        "emitAction"
+      ],
+      "import_edges": [],
+      "require_edges": [
+        "./tradingPanel"
+      ],
+      "signal_anchors": [
+        {
+          "type": "action_event",
+          "value": "chart:event:update"
+        },
+        {
+          "type": "api_route",
+          "value": "/api/v1/orders"
+        },
+        {
+          "type": "feature_flag",
+          "value": "FEATURE_TRADING_PANEL"
+        },
+        {
+          "type": "websocket_channel",
+          "value": "wss://feed.example/ws/prices"
+        }
+      ]
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "file_path": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "chunk_name": "tradingPanel",
+      "functions": [
+        "placeOrder"
+      ],
+      "classes": [],
+      "exports": [
+        "placeOrder"
+      ],
+      "import_edges": [],
+      "require_edges": [],
+      "signal_anchors": [
+        {
+          "type": "api_route",
+          "value": "/api/v1/orders"
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/broken.334455.js",
+      "file_path": "2026-02-11/chart_a/resources/js/broken.334455.js",
+      "chunk_name": "broken",
+      "error": "unclosed delimiter \"{\""
+    }
+  ],
+  "graph": [
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/chartView.js",
+      "file_path": "2026-02-11/chart_a/resources/js/chartView.js",
+      "chunk_name": "chartView",
+      "dependencies": [],
+      "source_references": [
+        {
+          "type": "index_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/chartView.js"
+        },
+        {
+          "type": "analysis_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/chartView.js"
+        }
+      ],
+      "domain_hints": [
+        {
+          "domain": "chart",
+          "rationale": "matched keyword \"chart\" in chunk_name \"chartView\""
+        }
+      ]
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "file_path": "2026-02-11/chart_a/resources/js/main.001122.js",
+      "chunk_name": "main",
+      "dependencies": [
+        {
+          "type": "require",
+          "target": "./tradingPanel",
+          "resolved_primary_key": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+          "resolved_chunk_name": "tradingPanel"
+        }
+      ],
+      "source_references": [
+        {
+          "type": "index_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/main.001122.js"
+        },
+        {
+          "type": "analysis_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/main.001122.js"
+        }
+      ],
+      "domain_hints": [
+        {
+          "domain": "chart",
+          "rationale": "matched keyword \"chart\" in class \"ChartEngine\""
+        },
+        {
+          "domain": "trading",
+          "rationale": "matched keyword \"order\" in signal_anchor_api_route \"/api/v1/orders\""
+        }
+      ]
+    },
+    {
+      "primary_key": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "file_path": "2026-02-11/chart_a/resources/js/tradingPanel.js",
+      "chunk_name": "tradingPanel",
+      "dependencies": [],
+      "source_references": [
+        {
+          "type": "index_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/tradingPanel.js"
+        },
+        {
+          "type": "analysis_record_primary_key",
+          "value": "2026-02-11/chart_a/resources/js/tradingPanel.js"
+        }
+      ],
+      "domain_hints": [
+        {
+          "domain": "trading",
+          "rationale": "matched keyword \"trading\" in chunk_name \"tradingPanel\""
+        }
+      ]
+    }
+  ]
+}
