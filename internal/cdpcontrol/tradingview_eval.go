@@ -42,6 +42,7 @@ func jsGetResolution() string {
 var resolution = "";
 if (api && typeof api.getResolution === "function") resolution = String(api.getResolution() || "");
 if (!resolution && chart && typeof chart.resolution === "function") resolution = String(chart.resolution() || "");
+if (!resolution && chart && chart.resolution) resolution = String(chart.resolution || "");
 if (!resolution) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"resolution getter unavailable"});
 return JSON.stringify({ok:true,data:{resolution:resolution}});
 `)
@@ -50,11 +51,16 @@ return JSON.stringify({ok:true,data:{resolution:resolution}});
 func jsSetResolution(resolution string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var requested = %s;
-if (chart && typeof chart.setResolution === "function") {
+var changed = false;
+if (api && typeof api.setResolution === "function") {
+  api.setResolution(requested);
+  changed = true;
+} else if (chart && typeof chart.setResolution === "function") {
   chart.setResolution(requested);
-  return JSON.stringify({ok:true,data:{}});
+  changed = true;
 }
-return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setResolution unavailable"});
+if (!changed) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setResolution unavailable"});
+return JSON.stringify({ok:true,data:{}});
 `, jsString(resolution)))
 }
 
