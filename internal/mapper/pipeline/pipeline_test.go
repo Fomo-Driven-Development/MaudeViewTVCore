@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -21,6 +22,7 @@ func TestRunModes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("RESEARCHER_DATA_DIR", filepath.Join(t.TempDir(), "research_data"))
 			var out bytes.Buffer
 			if err := Run(context.Background(), &out, tc.mode); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -33,6 +35,7 @@ func TestRunModes(t *testing.T) {
 }
 
 func TestRunFullModeOrder(t *testing.T) {
+	t.Setenv("RESEARCHER_DATA_DIR", filepath.Join(t.TempDir(), "research_data"))
 	var out bytes.Buffer
 	if err := Run(context.Background(), &out, ModeFull); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -65,6 +68,7 @@ func TestRunUnknownMode(t *testing.T) {
 }
 
 func TestRunContextCancelled(t *testing.T) {
+	t.Setenv("RESEARCHER_DATA_DIR", filepath.Join(t.TempDir(), "research_data"))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
