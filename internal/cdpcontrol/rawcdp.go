@@ -300,6 +300,9 @@ func (r *rawCDP) listTargets(ctx context.Context) ([]*target.Info, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("rawcdp: /json/list: HTTP %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -342,6 +345,9 @@ func (r *rawCDP) browserWSURL(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("rawcdp: /json/version: HTTP %d", resp.StatusCode)
+	}
 
 	var info struct {
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
