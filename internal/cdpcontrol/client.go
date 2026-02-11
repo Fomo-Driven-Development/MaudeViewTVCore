@@ -150,6 +150,44 @@ func (c *Client) ListCharts(ctx context.Context) ([]ChartInfo, error) {
 	return charts, nil
 }
 
+func (c *Client) GetActiveChart(ctx context.Context) (ActiveChartInfo, error) {
+	charts, err := c.ListCharts(ctx)
+	if err != nil {
+		return ActiveChartInfo{}, err
+	}
+	if len(charts) == 0 {
+		return ActiveChartInfo{}, newError(CodeChartNotFound, "no chart tabs found", nil)
+	}
+
+	for _, ch := range charts {
+		var out struct {
+			ChartIndex int `json:"chart_index"`
+			ChartCount int `json:"chart_count"`
+		}
+		if evalErr := c.evalOnChart(ctx, ch.ChartID, jsGetActiveChart(), &out); evalErr != nil {
+			continue
+		}
+		return ActiveChartInfo{
+			ChartID:    ch.ChartID,
+			TargetID:   ch.TargetID,
+			URL:        ch.URL,
+			Title:      ch.Title,
+			ChartIndex: out.ChartIndex,
+			ChartCount: out.ChartCount,
+		}, nil
+	}
+
+	// Fallback: return the first chart if JS eval fails on all.
+	return ActiveChartInfo{
+		ChartID:    charts[0].ChartID,
+		TargetID:   charts[0].TargetID,
+		URL:        charts[0].URL,
+		Title:      charts[0].Title,
+		ChartIndex: 0,
+		ChartCount: len(charts),
+	}, nil
+}
+
 func (c *Client) GetSymbol(ctx context.Context, chartID string) (string, error) {
 	var out struct {
 		Symbol string `json:"symbol"`

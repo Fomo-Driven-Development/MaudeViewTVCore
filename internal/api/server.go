@@ -16,6 +16,7 @@ import (
 
 type Service interface {
 	ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error)
+	GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
 	GetSymbol(ctx context.Context, chartID string) (string, error)
 	SetSymbol(ctx context.Context, chartID, symbol string) (string, error)
 	GetResolution(ctx context.Context, chartID string) (string, error)
@@ -68,6 +69,20 @@ func NewServer(svc Service) http.Handler {
 			}
 			out := &listChartsOutput{}
 			out.Body.Charts = charts
+			return out, nil
+		})
+
+	type activeChartOutput struct {
+		Body cdpcontrol.ActiveChartInfo
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-active-chart", Method: http.MethodGet, Path: "/api/v1/charts/active", Summary: "Get active chart", Tags: []string{"Charts"}},
+		func(ctx context.Context, input *struct{}) (*activeChartOutput, error) {
+			info, err := svc.GetActiveChart(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &activeChartOutput{}
+			out.Body = info
 			return out, nil
 		})
 

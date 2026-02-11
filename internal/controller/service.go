@@ -20,6 +20,10 @@ func (s *Service) ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error
 	return s.cdp.ListCharts(ctx)
 }
 
+func (s *Service) GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return s.cdp.GetActiveChart(ctx)
+}
+
 func (s *Service) GetSymbol(ctx context.Context, chartID string) (string, error) {
 	return s.cdp.GetSymbol(ctx, strings.TrimSpace(chartID))
 }

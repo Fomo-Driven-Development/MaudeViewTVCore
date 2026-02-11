@@ -15,6 +15,9 @@ type stubService struct{}
 func (s *stubService) ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error) {
 	return []cdpcontrol.ChartInfo{}, nil
 }
+func (s *stubService) GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return cdpcontrol.ActiveChartInfo{}, nil
+}
 func (s *stubService) GetSymbol(ctx context.Context, chartID string) (string, error) { return "", nil }
 func (s *stubService) SetSymbol(ctx context.Context, chartID, symbol string) (string, error) {
 	return symbol, nil

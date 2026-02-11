@@ -117,6 +117,17 @@ return JSON.stringify({ok:true,data:{study:{id:String(id),name:String(name)}}});
 `, jsString(name), jsJSON(inputs), forceOverlay))
 }
 
+func jsGetActiveChart() string {
+	return wrapJSEval(jsPreamble + `
+if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingView API unavailable"});
+var chartCount = 1;
+var chartIndex = 0;
+if (typeof api.chartsCount === "function") chartCount = api.chartsCount() || 1;
+if (typeof api.activeChartIndex === "function") chartIndex = api.activeChartIndex() || 0;
+return JSON.stringify({ok:true,data:{chart_index:chartIndex,chart_count:chartCount}});
+`)
+}
+
 func jsGetStudyInputs(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

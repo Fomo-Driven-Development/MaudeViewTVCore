@@ -45,6 +45,16 @@ type Study struct {
 	Name string `json:"name"`
 }
 
+// ActiveChartInfo describes the currently active chart.
+type ActiveChartInfo struct {
+	ChartID    string `json:"chart_id"`
+	TargetID   string `json:"target_id"`
+	URL        string `json:"url"`
+	Title      string `json:"title,omitempty"`
+	ChartIndex int    `json:"chart_index"`
+	ChartCount int    `json:"chart_count"`
+}
+
 // StudyDetail describes a study with its input parameters.
 type StudyDetail struct {
 	ID     string         `json:"id"`
