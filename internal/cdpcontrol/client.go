@@ -345,6 +345,40 @@ func (c *Client) SetActiveWatchlist(ctx context.Context, id string) (WatchlistIn
 	return out, nil
 }
 
+func (c *Client) GetWatchlist(ctx context.Context, id string) (WatchlistDetail, error) {
+	var out WatchlistDetail
+	if err := c.evalOnAnyChart(ctx, jsGetWatchlist(id), &out); err != nil {
+		return WatchlistDetail{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateWatchlist(ctx context.Context, name string) (WatchlistInfo, error) {
+	var out WatchlistInfo
+	if err := c.evalOnAnyChart(ctx, jsCreateWatchlist(name), &out); err != nil {
+		return WatchlistInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) RenameWatchlist(ctx context.Context, id, name string) (WatchlistInfo, error) {
+	var out WatchlistInfo
+	if err := c.evalOnAnyChart(ctx, jsRenameWatchlist(id, name), &out); err != nil {
+		return WatchlistInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) DeleteWatchlist(ctx context.Context, id string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsDeleteWatchlist(id), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

@@ -336,6 +336,88 @@ return JSON.stringify({ok:true,data:{id:listId,name:""}});
 `, jsString(id)))
 }
 
+func jsGetWatchlist(id string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var raw = null;
+if (typeof wl.getWatchlistById === "function") {
+  try { raw = await wl.getWatchlistById(listId); } catch(_){}
+}
+if (!raw && typeof wl.getSymbolList === "function") {
+  try { raw = await wl.getSymbolList(listId); } catch(_){}
+}
+if (!raw) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"watchlist not found: "+listId});
+var syms = [];
+if (raw.symbols && Array.isArray(raw.symbols)) {
+  for (var i = 0; i < raw.symbols.length; i++) {
+    var s = raw.symbols[i];
+    syms.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+  }
+}
+return JSON.stringify({ok:true,data:{
+  id: String(raw.id || raw.listId || listId),
+  name: String(raw.name || raw.title || ""),
+  type: String(raw.type || ""),
+  symbols: syms
+}});
+`, jsString(id)))
+}
+
+func jsCreateWatchlist(name string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listName = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var raw = null;
+if (typeof wl.createWatchlist === "function") {
+  try { raw = await wl.createWatchlist(listName); } catch(_){}
+}
+if (!raw && typeof wl.createSymbolList === "function") {
+  try { raw = await wl.createSymbolList(listName); } catch(_){}
+}
+if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"createWatchlist unavailable"});
+return JSON.stringify({ok:true,data:{
+  id: String(raw.id || raw.listId || ""),
+  name: String(raw.name || raw.title || listName),
+  type: String(raw.type || ""),
+  count: Number(raw.count || (raw.symbols && raw.symbols.length) || 0)
+}});
+`, jsString(name)))
+}
+
+func jsRenameWatchlist(id, name string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+var newName = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var ok = false;
+if (typeof wl.renameWatchlist === "function") {
+  try { await wl.renameWatchlist(listId, newName); ok = true; } catch(_){}
+}
+if (!ok && typeof wl.renameSymbolList === "function") {
+  try { await wl.renameSymbolList(listId, newName); ok = true; } catch(_){}
+}
+if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"renameWatchlist unavailable"});
+return JSON.stringify({ok:true,data:{id:listId,name:newName,type:"",count:0}});
+`, jsString(id), jsString(name)))
+}
+
+func jsDeleteWatchlist(id string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var ok = false;
+if (typeof wl.deleteWatchlist === "function") {
+  try { await wl.deleteWatchlist(listId); ok = true; } catch(_){}
+}
+if (!ok && typeof wl.removeSymbolList === "function") {
+  try { await wl.removeSymbolList(listId); ok = true; } catch(_){}
+}
+if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"deleteWatchlist unavailable"});
+return JSON.stringify({ok:true,data:{status:"deleted"}});
+`, jsString(id)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

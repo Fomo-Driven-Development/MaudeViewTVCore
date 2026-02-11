@@ -54,6 +54,16 @@ func (s *stubService) GetActiveWatchlist(ctx context.Context) (cdpcontrol.Watchl
 func (s *stubService) SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
 	return cdpcontrol.WatchlistInfo{}, nil
 }
+func (s *stubService) GetWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistDetail, error) {
+	return cdpcontrol.WatchlistDetail{}, nil
+}
+func (s *stubService) CreateWatchlist(ctx context.Context, name string) (cdpcontrol.WatchlistInfo, error) {
+	return cdpcontrol.WatchlistInfo{}, nil
+}
+func (s *stubService) RenameWatchlist(ctx context.Context, id, name string) (cdpcontrol.WatchlistInfo, error) {
+	return cdpcontrol.WatchlistInfo{}, nil
+}
+func (s *stubService) DeleteWatchlist(ctx context.Context, id string) error { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

@@ -31,6 +31,10 @@ type Service interface {
 	ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error)
 	GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error)
 	SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error)
+	GetWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistDetail, error)
+	CreateWatchlist(ctx context.Context, name string) (cdpcontrol.WatchlistInfo, error)
+	RenameWatchlist(ctx context.Context, id, name string) (cdpcontrol.WatchlistInfo, error)
+	DeleteWatchlist(ctx context.Context, id string) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -367,6 +371,60 @@ func NewServer(svc Service) http.Handler {
 			out := &watchlistInfoOutput{}
 			out.Body = info
 			return out, nil
+		})
+
+	type watchlistIDInput struct {
+		WatchlistID string `path:"watchlist_id"`
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "create-watchlist", Method: http.MethodPost, Path: "/api/v1/watchlists", Summary: "Create new watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Name string `json:"name" required:"true"`
+			}
+		}) (*watchlistInfoOutput, error) {
+			info, err := svc.CreateWatchlist(ctx, input.Body.Name)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistInfoOutput{}
+			out.Body = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-watchlist", Method: http.MethodGet, Path: "/api/v1/watchlist/{watchlist_id}", Summary: "Get watchlist detail with symbols", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *watchlistIDInput) (*watchlistDetailOutput, error) {
+			detail, err := svc.GetWatchlist(ctx, input.WatchlistID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistDetailOutput{}
+			out.Body = detail
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "rename-watchlist", Method: http.MethodPatch, Path: "/api/v1/watchlist/{watchlist_id}", Summary: "Rename watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct {
+			WatchlistID string `path:"watchlist_id"`
+			Body        struct {
+				Name string `json:"name" required:"true"`
+			}
+		}) (*watchlistInfoOutput, error) {
+			info, err := svc.RenameWatchlist(ctx, input.WatchlistID, input.Body.Name)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistInfoOutput{}
+			out.Body = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "delete-watchlist", Method: http.MethodDelete, Path: "/api/v1/watchlist/{watchlist_id}", Summary: "Delete watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *watchlistIDInput) (*struct{}, error) {
+			if err := svc.DeleteWatchlist(ctx, input.WatchlistID); err != nil {
+				return nil, mapErr(err)
+			}
+			return &struct{}{}, nil
 		})
 
 	return router

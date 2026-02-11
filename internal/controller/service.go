@@ -106,3 +106,34 @@ func (s *Service) SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol
 	}
 	return s.cdp.SetActiveWatchlist(ctx, strings.TrimSpace(id))
 }
+
+func (s *Service) GetWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistDetail, error) {
+	if strings.TrimSpace(id) == "" {
+		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	return s.cdp.GetWatchlist(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) CreateWatchlist(ctx context.Context, name string) (cdpcontrol.WatchlistInfo, error) {
+	if strings.TrimSpace(name) == "" {
+		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.CreateWatchlist(ctx, strings.TrimSpace(name))
+}
+
+func (s *Service) RenameWatchlist(ctx context.Context, id, name string) (cdpcontrol.WatchlistInfo, error) {
+	if strings.TrimSpace(id) == "" {
+		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	if strings.TrimSpace(name) == "" {
+		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.RenameWatchlist(ctx, strings.TrimSpace(id), strings.TrimSpace(name))
+}
+
+func (s *Service) DeleteWatchlist(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	return s.cdp.DeleteWatchlist(ctx, strings.TrimSpace(id))
+}
