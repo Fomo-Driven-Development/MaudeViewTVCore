@@ -117,6 +117,37 @@ return JSON.stringify({ok:true,data:{study:{id:String(id),name:String(name)}}});
 `, jsString(name), jsJSON(inputs), forceOverlay))
 }
 
+func jsGetSymbolInfo() string {
+	return wrapJSEval(jsPreamble + `
+if (!api && !chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingView API unavailable"});
+var info = null;
+if (chart && typeof chart.symbolExt === "function") {
+  try { info = chart.symbolExt(); } catch(_) {}
+}
+if (!info && api && typeof api.getSymbolInfo === "function") {
+  try { info = api.getSymbolInfo(); } catch(_) {}
+}
+var sym = "";
+if (info && info.symbol) sym = String(info.symbol);
+if (!sym && chart && typeof chart.symbol === "function") sym = String(chart.symbol() || "");
+if (!sym && api && typeof api.getSymbol === "function") sym = String(api.getSymbol() || "");
+if (!sym) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"symbol info unavailable"});
+var i = info || {};
+var result = {symbol:sym};
+result.name = String(i.name || i.full_name || "");
+result.description = String(i.description || i.short_description || "");
+result.exchange = String(i.listed_exchange || i.exchange || "");
+result.type = String(i.type || i.security_type || "");
+result.currency = String(i.currency_code || i.currency || "");
+result.timezone = String(i.timezone || "");
+result.pricescale = Number(i.pricescale || i.price_scale || 0);
+result.minmov = Number(i.minmov || i.min_mov || 0);
+result.has_intraday = !!(i.has_intraday);
+result.has_daily = !!(i.has_daily);
+return JSON.stringify({ok:true,data:result});
+`)
+}
+
 func jsGetActiveChart() string {
 	return wrapJSEval(jsPreamble + `
 if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingView API unavailable"});

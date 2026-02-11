@@ -17,6 +17,7 @@ import (
 type Service interface {
 	ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error)
 	GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
+	GetSymbolInfo(ctx context.Context, chartID string) (cdpcontrol.SymbolInfo, error)
 	GetSymbol(ctx context.Context, chartID string) (string, error)
 	SetSymbol(ctx context.Context, chartID, symbol string) (string, error)
 	GetResolution(ctx context.Context, chartID string) (string, error)
@@ -123,6 +124,24 @@ func NewServer(svc Service) http.Handler {
 			out.Body.ChartID = input.ChartID
 			out.Body.RequestedSymbol = input.Symbol
 			out.Body.CurrentSymbol = current
+			return out, nil
+		})
+
+	type symbolInfoOutput struct {
+		Body struct {
+			ChartID    string                `json:"chart_id"`
+			SymbolInfo cdpcontrol.SymbolInfo `json:"symbol_info"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-symbol-info", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/symbol/info", Summary: "Get extended symbol metadata", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *chartIDInput) (*symbolInfoOutput, error) {
+			info, err := svc.GetSymbolInfo(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &symbolInfoOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.SymbolInfo = info
 			return out, nil
 		})
 

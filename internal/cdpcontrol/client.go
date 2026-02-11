@@ -150,6 +150,15 @@ func (c *Client) ListCharts(ctx context.Context) ([]ChartInfo, error) {
 	return charts, nil
 }
 
+func (c *Client) GetSymbolInfo(ctx context.Context, chartID string) (SymbolInfo, error) {
+	var out SymbolInfo
+	err := c.evalOnChart(ctx, chartID, jsGetSymbolInfo(), &out)
+	if err != nil {
+		return SymbolInfo{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) GetActiveChart(ctx context.Context) (ActiveChartInfo, error) {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

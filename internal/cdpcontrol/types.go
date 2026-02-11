@@ -55,6 +55,21 @@ type ActiveChartInfo struct {
 	ChartCount int    `json:"chart_count"`
 }
 
+// SymbolInfo describes extended metadata for a symbol.
+type SymbolInfo struct {
+	Symbol      string `json:"symbol"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Exchange    string `json:"exchange,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Currency    string `json:"currency,omitempty"`
+	Timezone    string `json:"timezone,omitempty"`
+	PriceScale  int    `json:"pricescale,omitempty"`
+	MinMov      int    `json:"minmov,omitempty"`
+	HasIntraday bool   `json:"has_intraday,omitempty"`
+	HasDaily    bool   `json:"has_daily,omitempty"`
+}
+
 // StudyDetail describes a study with its input parameters.
 type StudyDetail struct {
 	ID     string         `json:"id"`
