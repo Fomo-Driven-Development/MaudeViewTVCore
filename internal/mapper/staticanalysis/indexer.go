@@ -10,13 +10,17 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 const (
-	defaultDataDir      = "./research_data"
-	indexRelativeOutput = "mapper/static-analysis/js-bundle-index.jsonl"
+	defaultDataDir         = "./research_data"
+	indexRelativeOutput    = "mapper/static-analysis/js-bundle-index.jsonl"
+	analysisRelativeOutput = "mapper/static-analysis/js-bundle-analysis.jsonl"
+	errorsRelativeOutput   = "mapper/static-analysis/js-bundle-analysis-errors.jsonl"
 )
 
 type jsBundleRecord struct {
@@ -27,6 +31,55 @@ type jsBundleRecord struct {
 	ChunkName  string `json:"chunk_name"`
 }
 
+type jsSignalAnchor struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type jsBundleAnalysisRecord struct {
+	PrimaryKey    string           `json:"primary_key"`
+	FilePath      string           `json:"file_path"`
+	ChunkName     string           `json:"chunk_name"`
+	Functions     []string         `json:"functions"`
+	Classes       []string         `json:"classes"`
+	Exports       []string         `json:"exports"`
+	ImportEdges   []string         `json:"import_edges"`
+	RequireEdges  []string         `json:"require_edges"`
+	SignalAnchors []jsSignalAnchor `json:"signal_anchors"`
+}
+
+type jsBundleAnalysisErrorRecord struct {
+	PrimaryKey string `json:"primary_key"`
+	FilePath   string `json:"file_path"`
+	ChunkName  string `json:"chunk_name"`
+	Error      string `json:"error"`
+}
+
+type jsBundleExtracted struct {
+	Functions    []string
+	Classes      []string
+	Exports      []string
+	ImportEdges  []string
+	RequireEdges []string
+	Anchors      []jsSignalAnchor
+}
+
+var (
+	functionDeclPattern   = regexp.MustCompile(`\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(`)
+	functionAssignPattern = regexp.MustCompile(`\b([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*function\b`)
+	arrowAssignPattern    = regexp.MustCompile(`\b([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>`)
+	classPattern          = regexp.MustCompile(`\bclass\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`)
+	exportDeclPattern     = regexp.MustCompile(`\bexport\s+(?:const|let|var|function|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	exportBracesPattern   = regexp.MustCompile(`\bexport\s*\{\s*([^}]*)\}`)
+	exportsAssignPattern  = regexp.MustCompile(`\bexports\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=`)
+	importPattern         = regexp.MustCompile(`\bimport\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]`)
+	dynamicImportPattern  = regexp.MustCompile(`\bimport\(\s*['"]([^'"]+)['"]\s*\)`)
+	requirePattern        = regexp.MustCompile(`\brequire\(\s*['"]([^'"]+)['"]\s*\)`)
+	stringLiteralPattern  = regexp.MustCompile(`['"]([^'"\\]*(?:\\.[^'"\\]*)*)['"]`)
+	actionEventAnchorRE   = regexp.MustCompile(`(?i)(?:^|[._:-])(action|event)(?:[._:-]|$)`)
+	featureFlagAnchorRE   = regexp.MustCompile(`(?i)(?:^|[._:-])(feature|flag|ff)(?:[._:-]|$)|^(FEATURE|FF|ENABLE)_[A-Z0-9_]+$`)
+)
+
 func indexJSBundles(ctx context.Context, dataDir string) error {
 	recordsByTopLevel, err := collectJSBundleRecords(ctx, dataDir)
 	if err != nil {
@@ -35,6 +88,13 @@ func indexJSBundles(ctx context.Context, dataDir string) error {
 
 	for topLevel, records := range recordsByTopLevel {
 		if err := writeIndexFile(filepath.Join(dataDir, topLevel, indexRelativeOutput), records); err != nil {
+			return err
+		}
+		analysisRecords, errorRecords := extractBundleAnalysisRecords(dataDir, records)
+		if err := writeAnalysisFile(filepath.Join(dataDir, topLevel, analysisRelativeOutput), analysisRecords); err != nil {
+			return err
+		}
+		if err := writeAnalysisErrorFile(filepath.Join(dataDir, topLevel, errorsRelativeOutput), errorRecords); err != nil {
 			return err
 		}
 	}
@@ -115,6 +175,18 @@ func buildRecord(dataDir, path string, d fs.DirEntry) (jsBundleRecord, string, e
 }
 
 func writeIndexFile(outputPath string, records []jsBundleRecord) error {
+	return writeJSONLFile(outputPath, records)
+}
+
+func writeAnalysisFile(outputPath string, records []jsBundleAnalysisRecord) error {
+	return writeJSONLFile(outputPath, records)
+}
+
+func writeAnalysisErrorFile(outputPath string, records []jsBundleAnalysisErrorRecord) error {
+	return writeJSONLFile(outputPath, records)
+}
+
+func writeJSONLFile[T any](outputPath string, records []T) error {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
@@ -140,6 +212,275 @@ func writeIndexFile(outputPath string, records []jsBundleRecord) error {
 	}
 
 	return w.Flush()
+}
+
+func extractBundleAnalysisRecords(dataDir string, records []jsBundleRecord) ([]jsBundleAnalysisRecord, []jsBundleAnalysisErrorRecord) {
+	analysisRecords := make([]jsBundleAnalysisRecord, 0, len(records))
+	errorRecords := make([]jsBundleAnalysisErrorRecord, 0)
+
+	for _, record := range records {
+		sourcePath := filepath.Join(dataDir, filepath.FromSlash(record.FilePath))
+		sourceBytes, err := os.ReadFile(sourcePath)
+		if err != nil {
+			errorRecords = append(errorRecords, jsBundleAnalysisErrorRecord{
+				PrimaryKey: record.PrimaryKey,
+				FilePath:   record.FilePath,
+				ChunkName:  record.ChunkName,
+				Error:      err.Error(),
+			})
+			continue
+		}
+
+		extracted, err := parseIndexedBundleSource(string(sourceBytes))
+		if err != nil {
+			errorRecords = append(errorRecords, jsBundleAnalysisErrorRecord{
+				PrimaryKey: record.PrimaryKey,
+				FilePath:   record.FilePath,
+				ChunkName:  record.ChunkName,
+				Error:      err.Error(),
+			})
+			continue
+		}
+
+		analysisRecords = append(analysisRecords, jsBundleAnalysisRecord{
+			PrimaryKey:    record.PrimaryKey,
+			FilePath:      record.FilePath,
+			ChunkName:     record.ChunkName,
+			Functions:     extracted.Functions,
+			Classes:       extracted.Classes,
+			Exports:       extracted.Exports,
+			ImportEdges:   extracted.ImportEdges,
+			RequireEdges:  extracted.RequireEdges,
+			SignalAnchors: extracted.Anchors,
+		})
+	}
+
+	return analysisRecords, errorRecords
+}
+
+func parseIndexedBundleSource(source string) (jsBundleExtracted, error) {
+	if err := validateBalancedSyntax(source); err != nil {
+		return jsBundleExtracted{}, err
+	}
+
+	functions := make(map[string]struct{})
+	classes := make(map[string]struct{})
+	exports := make(map[string]struct{})
+	importEdges := make(map[string]struct{})
+	requireEdges := make(map[string]struct{})
+	anchorByKey := make(map[string]jsSignalAnchor)
+
+	addMatches(functions, functionDeclPattern, source)
+	addMatches(functions, functionAssignPattern, source)
+	addMatches(functions, arrowAssignPattern, source)
+	addMatches(classes, classPattern, source)
+	addMatches(exports, exportDeclPattern, source)
+	addMatches(exports, exportsAssignPattern, source)
+
+	if strings.Contains(source, "export default") {
+		exports["default"] = struct{}{}
+	}
+	if strings.Contains(source, "module.exports") {
+		exports["module.exports"] = struct{}{}
+	}
+
+	for _, match := range exportBracesPattern.FindAllStringSubmatch(source, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		for _, part := range strings.Split(match[1], ",") {
+			name := strings.TrimSpace(strings.Split(part, " as ")[0])
+			if name != "" {
+				exports[name] = struct{}{}
+			}
+		}
+	}
+
+	addMatches(importEdges, importPattern, source)
+	addMatches(importEdges, dynamicImportPattern, source)
+	addMatches(requireEdges, requirePattern, source)
+
+	for _, match := range stringLiteralPattern.FindAllStringSubmatch(source, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		candidate := decodeQuotedContent(match[1])
+		anchorType, ok := classifySignalAnchor(candidate)
+		if !ok {
+			continue
+		}
+		key := anchorType + "\x00" + candidate
+		anchorByKey[key] = jsSignalAnchor{Type: anchorType, Value: candidate}
+	}
+
+	anchors := make([]jsSignalAnchor, 0, len(anchorByKey))
+	for _, anchor := range anchorByKey {
+		anchors = append(anchors, anchor)
+	}
+	sort.Slice(anchors, func(i, j int) bool {
+		if anchors[i].Type == anchors[j].Type {
+			return anchors[i].Value < anchors[j].Value
+		}
+		return anchors[i].Type < anchors[j].Type
+	})
+
+	return jsBundleExtracted{
+		Functions:    mapKeys(functions),
+		Classes:      mapKeys(classes),
+		Exports:      mapKeys(exports),
+		ImportEdges:  mapKeys(importEdges),
+		RequireEdges: mapKeys(requireEdges),
+		Anchors:      anchors,
+	}, nil
+}
+
+func addMatches(dst map[string]struct{}, pattern *regexp.Regexp, source string) {
+	for _, match := range pattern.FindAllStringSubmatch(source, -1) {
+		if len(match) >= 2 && match[1] != "" {
+			dst[match[1]] = struct{}{}
+		}
+	}
+}
+
+func mapKeys(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func decodeQuotedContent(raw string) string {
+	unquoted, err := strconv.Unquote(`"` + raw + `"`)
+	if err != nil {
+		return raw
+	}
+	return unquoted
+}
+
+func classifySignalAnchor(candidate string) (string, bool) {
+	value := strings.TrimSpace(candidate)
+	if len(value) < 3 || len(value) > 180 {
+		return "", false
+	}
+
+	lower := strings.ToLower(value)
+	switch {
+	case strings.HasPrefix(value, "/api"), strings.Contains(lower, "/api/"), strings.Contains(lower, "/graphql"):
+		return "api_route", true
+	case strings.HasPrefix(lower, "ws://"), strings.HasPrefix(lower, "wss://"), strings.Contains(lower, "/ws/"), strings.HasSuffix(lower, "/ws"), strings.Contains(lower, "websocket"):
+		return "websocket_channel", true
+	case featureFlagAnchorRE.MatchString(value):
+		return "feature_flag", true
+	case !strings.ContainsAny(value, " \t\r\n/") && actionEventAnchorRE.MatchString(value):
+		return "action_event", true
+	default:
+		return "", false
+	}
+}
+
+func validateBalancedSyntax(source string) error {
+	stack := make([]rune, 0, 16)
+	mode := byte(0) // 0 normal, 1 single quote, 2 double quote, 3 template, 4 line comment, 5 block comment
+
+	for i := 0; i < len(source); i++ {
+		ch := source[i]
+		next := byte(0)
+		if i+1 < len(source) {
+			next = source[i+1]
+		}
+
+		switch mode {
+		case 4:
+			if ch == '\n' {
+				mode = 0
+			}
+			continue
+		case 5:
+			if ch == '*' && next == '/' {
+				mode = 0
+				i++
+			}
+			continue
+		case 1:
+			if ch == '\\' {
+				i++
+				continue
+			}
+			if ch == '\'' {
+				mode = 0
+			}
+			continue
+		case 2:
+			if ch == '\\' {
+				i++
+				continue
+			}
+			if ch == '"' {
+				mode = 0
+			}
+			continue
+		case 3:
+			if ch == '\\' {
+				i++
+				continue
+			}
+			if ch == '`' {
+				mode = 0
+			}
+			continue
+		}
+
+		if ch == '/' && next == '/' {
+			mode = 4
+			i++
+			continue
+		}
+		if ch == '/' && next == '*' {
+			mode = 5
+			i++
+			continue
+		}
+		if ch == '\'' {
+			mode = 1
+			continue
+		}
+		if ch == '"' {
+			mode = 2
+			continue
+		}
+		if ch == '`' {
+			mode = 3
+			continue
+		}
+
+		switch ch {
+		case '(', '[', '{':
+			stack = append(stack, rune(ch))
+		case ')', ']', '}':
+			if len(stack) == 0 {
+				return fmt.Errorf("unbalanced delimiter %q", string(ch))
+			}
+			top := stack[len(stack)-1]
+			if !isDelimiterPair(top, rune(ch)) {
+				return fmt.Errorf("mismatched delimiter %q closing %q", string(ch), string(top))
+			}
+			stack = stack[:len(stack)-1]
+		}
+	}
+
+	if mode != 0 {
+		return fmt.Errorf("unterminated token sequence")
+	}
+	if len(stack) > 0 {
+		return fmt.Errorf("unclosed delimiter %q", string(stack[len(stack)-1]))
+	}
+	return nil
+}
+
+func isDelimiterPair(open, close rune) bool {
+	return (open == '(' && close == ')') || (open == '[' && close == ']') || (open == '{' && close == '}')
 }
 
 func validateNoDuplicatePrimaryKeys(records []jsBundleRecord) error {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -114,6 +115,75 @@ func TestValidateNoDuplicatePrimaryKeys(t *testing.T) {
 	}
 }
 
+func TestIndexJSBundlesWritesAnalysisAndErrorArtifacts(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "research_data")
+
+	validRelPath := "2026-02-11/chart_a/resources/js/main.001122.js"
+	validJS := strings.Join([]string{
+		`import apiClient from "./api/client";`,
+		`const lazy = import("./lazy/chunk.js");`,
+		`const util = require("./util");`,
+		`function bootstrap() { return "/api/v1/orders"; }`,
+		`const emitAction = () => "chart:event:update";`,
+		`class ChartEngine {}`,
+		`export { bootstrap, ChartEngine };`,
+		`exports.emitAction = emitAction;`,
+		`const wsChannel = "wss://feed.example/ws/prices";`,
+		`const flag = "FEATURE_TRADING_PANEL";`,
+	}, "\n")
+
+	invalidRelPath := "2026-02-11/chart_a/resources/js/broken.334455.js"
+	invalidJS := `function broken( {`
+
+	if err := writeFixtureJS(dataDir, validRelPath, validJS); err != nil {
+		t.Fatalf("writeFixtureJS(valid) error = %v", err)
+	}
+	if err := writeFixtureJS(dataDir, invalidRelPath, invalidJS); err != nil {
+		t.Fatalf("writeFixtureJS(invalid) error = %v", err)
+	}
+
+	if err := indexJSBundles(context.Background(), dataDir); err != nil {
+		t.Fatalf("indexJSBundles() error = %v", err)
+	}
+
+	analysisPath := filepath.Join(dataDir, "2026-02-11", analysisRelativeOutput)
+	errorPath := filepath.Join(dataDir, "2026-02-11", errorsRelativeOutput)
+
+	analysisRecords := parseJSONLAnalysisRecords(t, mustReadFile(t, analysisPath))
+	if got := len(analysisRecords); got != 1 {
+		t.Fatalf("analysis record count = %d, want 1", got)
+	}
+
+	rec := analysisRecords[0]
+	if rec.PrimaryKey != validRelPath {
+		t.Fatalf("analysis primary key = %q, want %q", rec.PrimaryKey, validRelPath)
+	}
+	assertContains(t, rec.Functions, "bootstrap")
+	assertContains(t, rec.Functions, "emitAction")
+	assertContains(t, rec.Classes, "ChartEngine")
+	assertContains(t, rec.Exports, "ChartEngine")
+	assertContains(t, rec.Exports, "bootstrap")
+	assertContains(t, rec.Exports, "emitAction")
+	assertContains(t, rec.ImportEdges, "./api/client")
+	assertContains(t, rec.ImportEdges, "./lazy/chunk.js")
+	assertContains(t, rec.RequireEdges, "./util")
+	assertContainsAnchor(t, rec.SignalAnchors, jsSignalAnchor{Type: "api_route", Value: "/api/v1/orders"})
+	assertContainsAnchor(t, rec.SignalAnchors, jsSignalAnchor{Type: "websocket_channel", Value: "wss://feed.example/ws/prices"})
+	assertContainsAnchor(t, rec.SignalAnchors, jsSignalAnchor{Type: "action_event", Value: "chart:event:update"})
+	assertContainsAnchor(t, rec.SignalAnchors, jsSignalAnchor{Type: "feature_flag", Value: "FEATURE_TRADING_PANEL"})
+
+	errorRecords := parseJSONLErrorRecords(t, mustReadFile(t, errorPath))
+	if got := len(errorRecords); got != 1 {
+		t.Fatalf("analysis error record count = %d, want 1", got)
+	}
+	if errorRecords[0].PrimaryKey != invalidRelPath {
+		t.Fatalf("error primary key = %q, want %q", errorRecords[0].PrimaryKey, invalidRelPath)
+	}
+	if errorRecords[0].Error == "" {
+		t.Fatal("expected non-empty parse error message")
+	}
+}
+
 func parseJSONLRecords(t *testing.T, data []byte) []jsBundleRecord {
 	t.Helper()
 	lines := slices.DeleteFunc(splitTrimLines(string(data)), func(line string) bool { return line == "" })
@@ -122,6 +192,34 @@ func parseJSONLRecords(t *testing.T, data []byte) []jsBundleRecord {
 		var rec jsBundleRecord
 		if err := json.Unmarshal([]byte(line), &rec); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+func parseJSONLAnalysisRecords(t *testing.T, data []byte) []jsBundleAnalysisRecord {
+	t.Helper()
+	lines := slices.DeleteFunc(splitTrimLines(string(data)), func(line string) bool { return line == "" })
+	records := make([]jsBundleAnalysisRecord, 0, len(lines))
+	for _, line := range lines {
+		var rec jsBundleAnalysisRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("json.Unmarshal() analysis error = %v", err)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+func parseJSONLErrorRecords(t *testing.T, data []byte) []jsBundleAnalysisErrorRecord {
+	t.Helper()
+	lines := slices.DeleteFunc(splitTrimLines(string(data)), func(line string) bool { return line == "" })
+	records := make([]jsBundleAnalysisErrorRecord, 0, len(lines))
+	for _, line := range lines {
+		var rec jsBundleAnalysisErrorRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("json.Unmarshal() parse error record error = %v", err)
 		}
 		records = append(records, rec)
 	}
@@ -168,4 +266,32 @@ func mustReadFile(t *testing.T, path string) []byte {
 func sha256Hex(data string) string {
 	sum := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(sum[:])
+}
+
+func writeFixtureJS(dataDir, relPath, content string) error {
+	fullPath := filepath.Join(dataDir, relPath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(fullPath, []byte(content), 0o644)
+}
+
+func assertContains(t *testing.T, values []string, want string) {
+	t.Helper()
+	for _, value := range values {
+		if value == want {
+			return
+		}
+	}
+	t.Fatalf("missing value %q in %v", want, values)
+}
+
+func assertContainsAnchor(t *testing.T, anchors []jsSignalAnchor, want jsSignalAnchor) {
+	t.Helper()
+	for _, anchor := range anchors {
+		if anchor == want {
+			return
+		}
+	}
+	t.Fatalf("missing anchor %+v in %+v", want, anchors)
 }
