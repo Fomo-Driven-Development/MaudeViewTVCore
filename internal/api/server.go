@@ -46,7 +46,7 @@ func NewServer(svc Service) http.Handler {
 			Status string `json:"status"`
 		}
 	}
-	huma.Register(api, huma.Operation{OperationID: "health", Method: http.MethodGet, Path: "/health", Summary: "Health check"},
+	huma.Register(api, huma.Operation{OperationID: "health", Method: http.MethodGet, Path: "/health", Summary: "Health check", Tags: []string{"Health"}},
 		func(ctx context.Context, input *struct{}) (*healthOutput, error) {
 			out := &healthOutput{}
 			out.Body.Status = "ok"
@@ -58,7 +58,7 @@ func NewServer(svc Service) http.Handler {
 			Charts []cdpcontrol.ChartInfo `json:"charts"`
 		}
 	}
-	huma.Register(api, huma.Operation{OperationID: "list-charts", Method: http.MethodGet, Path: "/api/v1/charts", Summary: "List chart tabs"},
+	huma.Register(api, huma.Operation{OperationID: "list-charts", Method: http.MethodGet, Path: "/api/v1/charts", Summary: "List chart tabs", Tags: []string{"Charts"}},
 		func(ctx context.Context, input *struct{}) (*listChartsOutput, error) {
 			charts, err := svc.ListCharts(ctx)
 			if err != nil {
@@ -84,7 +84,7 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 
-	huma.Register(api, huma.Operation{OperationID: "get-symbol", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Get chart symbol"},
+	huma.Register(api, huma.Operation{OperationID: "get-symbol", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Get chart symbol", Tags: []string{"Symbol"}},
 		func(ctx context.Context, input *chartIDInput) (*symbolOutput, error) {
 			symbol, err := svc.GetSymbol(ctx, input.ChartID)
 			if err != nil {
@@ -96,7 +96,7 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "set-symbol", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Set chart symbol"},
+	huma.Register(api, huma.Operation{OperationID: "set-symbol", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Set chart symbol", Tags: []string{"Symbol"}},
 		func(ctx context.Context, input *symbolInput) (*symbolOutput, error) {
 			current, err := svc.SetSymbol(ctx, input.ChartID, input.Symbol)
 			if err != nil {
@@ -121,7 +121,7 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 
-	huma.Register(api, huma.Operation{OperationID: "get-resolution", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Get chart resolution"},
+	huma.Register(api, huma.Operation{OperationID: "get-resolution", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Get chart resolution", Tags: []string{"Resolution"}},
 		func(ctx context.Context, input *chartIDInput) (*resolutionOutput, error) {
 			resolution, err := svc.GetResolution(ctx, input.ChartID)
 			if err != nil {
@@ -133,7 +133,7 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "set-resolution", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Set chart resolution"},
+	huma.Register(api, huma.Operation{OperationID: "set-resolution", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Set chart resolution", Tags: []string{"Resolution"}},
 		func(ctx context.Context, input *resolutionInput) (*resolutionOutput, error) {
 			current, err := svc.SetResolution(ctx, input.ChartID, input.Resolution)
 			if err != nil {
@@ -161,7 +161,7 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 
-	huma.Register(api, huma.Operation{OperationID: "execute-action", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/action", Summary: "Execute chart action"},
+	huma.Register(api, huma.Operation{OperationID: "execute-action", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/action", Summary: "Execute chart action", Tags: []string{"Action"}},
 		func(ctx context.Context, input *actionInput) (*actionOutput, error) {
 			actionID := strings.TrimSpace(input.Body.ActionID)
 			if actionID == "" {
@@ -207,7 +207,7 @@ func NewServer(svc Service) http.Handler {
 		StudyID string `path:"study_id"`
 	}
 
-	huma.Register(api, huma.Operation{OperationID: "list-studies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies", Summary: "List studies"},
+	huma.Register(api, huma.Operation{OperationID: "list-studies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies", Summary: "List studies", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *chartIDInput) (*studyListOutput, error) {
 			studies, err := svc.ListStudies(ctx, input.ChartID)
 			if err != nil {
@@ -219,7 +219,7 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "add-study", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/studies", Summary: "Add study"},
+	huma.Register(api, huma.Operation{OperationID: "add-study", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/studies", Summary: "Add study", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *addStudyInput) (*addStudyOutput, error) {
 			study, err := svc.AddStudy(ctx, input.ChartID, input.Body.Name, input.Body.Inputs, input.Body.ForceOverlay)
 			if err != nil {
@@ -232,7 +232,7 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "remove-study", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Remove study"},
+	huma.Register(api, huma.Operation{OperationID: "remove-study", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Remove study", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *removeStudyInput) (*struct{}, error) {
 			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID); err != nil {
 				return nil, mapErr(err)
