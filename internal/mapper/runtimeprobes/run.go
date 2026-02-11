@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -351,6 +353,7 @@ const passiveProbeDrainJS = `(function () {
 })();`
 
 const runtimeTraceRelativeOutput = "mapper/runtime-probes/runtime-trace.jsonl"
+const runtimeTraceSessionRelativeOutput = "mapper/runtime-probes/trace-sessions.jsonl"
 
 type jsRuntimeTraceEvent struct {
 	Timestamp     string         `json:"timestamp"`
@@ -373,6 +376,24 @@ type runtimeTraceRecord struct {
 	Payload       map[string]any `json:"payload,omitempty"`
 }
 
+type traceProfile struct {
+	Name     string
+	Keywords []string
+}
+
+type traceSessionArtifact struct {
+	SessionID    string    `json:"session_id"`
+	ProfileName  string    `json:"profile_name"`
+	TabID        string    `json:"tab_id"`
+	TabURL       string    `json:"tab_url"`
+	TabContext   string    `json:"tab_context"`
+	ActiveSymbol string    `json:"active_symbol"`
+	StartedAt    time.Time `json:"started_at"`
+	EndedAt      time.Time `json:"ended_at"`
+	TraceCount   int       `json:"trace_count"`
+	TraceIDs     []string  `json:"trace_ids,omitempty"`
+}
+
 var (
 	secretKVPattern        = regexp.MustCompile(`(?i)(token|session|auth|authorization|cookie|secret|api[_-]?key|jwt|bearer)=([^&\s]+)`)
 	bearerTokenPattern     = regexp.MustCompile(`(?i)bearer\s+[a-z0-9\-._~+/]+=*`)
@@ -380,6 +401,13 @@ var (
 	sensitiveKeyName       = regexp.MustCompile(`(?i)(token|session|auth|authorization|cookie|secret|password|pass|api[_-]?key|jwt|bearer|sid)`)
 	runtimeProbeSurfaces   = []string{"fetch", "xhr", "websocket", "event_bus"}
 	defaultRuntimeProbeDir = "./research_data"
+	runtimeTraceProfiles   = []traceProfile{
+		{Name: "chart_interaction", Keywords: []string{"chart", "crosshair", "interval", "resolution", "timeframe", "symbol"}},
+		{Name: "watchlist_edits", Keywords: []string{"watchlist", "watch-list", "symbol-list", "add", "remove", "delete", "rename"}},
+		{Name: "study_add_remove", Keywords: []string{"study", "indicator", "overlay", "add", "remove", "delete"}},
+		{Name: "replay_actions", Keywords: []string{"replay", "bar-replay", "playback", "play", "pause", "step"}},
+		{Name: "trading_panel_interactions", Keywords: []string{"trading", "order", "position", "broker", "dom", "panel"}},
+	}
 )
 
 func runProbeBootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (int, int, error) {
@@ -414,6 +442,10 @@ func runProbeBootstrap(ctx context.Context, cfg *config.Config, logger *slog.Log
 
 	if err := persistRuntimeTraceRecords(cfg.DataDir, time.Now().UTC(), records); err != nil {
 		return 0, 0, fmt.Errorf("persist runtime trace artifacts: %w", err)
+	}
+	sessions := buildTraceSessionArtifacts(records, runtimeTraceProfiles)
+	if err := persistTraceSessionArtifacts(cfg.DataDir, time.Now().UTC(), sessions); err != nil {
+		return 0, 0, fmt.Errorf("persist runtime trace session artifacts: %w", err)
 	}
 
 	return attached, injected, nil
@@ -458,6 +490,7 @@ func bootstrapTargets(ctx context.Context, logger *slog.Logger, targets []probeT
 
 		injected++
 		records = append(records, buildHookInstalledRecords(tab, lifecycle.Result.Installed)...)
+		records = append(records, buildProfileSeedRecords(tab, runtimeTraceProfiles)...)
 		records = append(records, normalizeRuntimeTraceRecords(tab, lifecycle.Events)...)
 		logger.Info(
 			"Runtime probe inject success",
@@ -521,6 +554,33 @@ func buildHookInstalledRecords(tab probeTarget, surfaces []string) []runtimeTrac
 			CorrelationID: corr,
 			Payload: map[string]any{
 				"source": "runtime_probe",
+			},
+		})
+	}
+	return out
+}
+
+func buildProfileSeedRecords(tab probeTarget, profiles []traceProfile) []runtimeTraceRecord {
+	now := time.Now().UTC()
+	context := inferTabContext(tab.URL)
+	activeSymbol := extractSymbolFromURL(tab.URL)
+	out := make([]runtimeTraceRecord, 0, len(profiles))
+	for idx, profile := range profiles {
+		sequence := idx + 1
+		corr := profile.Name + "-seed-" + strconv.Itoa(sequence)
+		out = append(out, runtimeTraceRecord{
+			Timestamp:     now,
+			TraceID:       buildTraceID(tab.ID, "trace_profile", corr, sequence),
+			TabID:         string(tab.ID),
+			TabURL:        tab.URL,
+			Surface:       "trace_profile",
+			EventType:     "profile_seed",
+			Sequence:      sequence,
+			CorrelationID: corr,
+			Payload: map[string]any{
+				"profile_name":  profile.Name,
+				"tab_context":   context,
+				"active_symbol": activeSymbol,
 			},
 		})
 	}
@@ -642,6 +702,190 @@ func persistRuntimeTraceRecords(dataDir string, now time.Time, records []runtime
 		}
 	}
 	return w.Flush()
+}
+
+func buildTraceSessionArtifacts(records []runtimeTraceRecord, profiles []traceProfile) []traceSessionArtifact {
+	if len(records) == 0 || len(profiles) == 0 {
+		return nil
+	}
+
+	type sessionAccumulator struct {
+		session traceSessionArtifact
+	}
+	acc := make(map[string]*sessionAccumulator)
+
+	for _, record := range records {
+		for _, profile := range profiles {
+			if !recordMatchesProfile(record, profile) {
+				continue
+			}
+			key := record.TabID + "|" + profile.Name
+			entry, exists := acc[key]
+			if !exists {
+				entry = &sessionAccumulator{
+					session: traceSessionArtifact{
+						SessionID:    record.TabID + ":" + profile.Name + ":" + strconv.FormatInt(record.Timestamp.UnixNano(), 10),
+						ProfileName:  profile.Name,
+						TabID:        record.TabID,
+						TabURL:       record.TabURL,
+						TabContext:   inferTabContext(record.TabURL),
+						ActiveSymbol: extractSymbolFromURL(record.TabURL),
+						StartedAt:    record.Timestamp,
+						EndedAt:      record.Timestamp,
+					},
+				}
+				acc[key] = entry
+			}
+			if record.Timestamp.Before(entry.session.StartedAt) {
+				entry.session.StartedAt = record.Timestamp
+			}
+			if record.Timestamp.After(entry.session.EndedAt) {
+				entry.session.EndedAt = record.Timestamp
+			}
+			if symbol := extractSymbolFromPayload(record.Payload); symbol != "" {
+				entry.session.ActiveSymbol = symbol
+			}
+			entry.session.TraceCount++
+			entry.session.TraceIDs = append(entry.session.TraceIDs, record.TraceID)
+		}
+	}
+
+	out := make([]traceSessionArtifact, 0, len(acc))
+	for _, entry := range acc {
+		if entry.session.ActiveSymbol == "" {
+			entry.session.ActiveSymbol = "unknown"
+		}
+		if entry.session.TabContext == "" {
+			entry.session.TabContext = "unknown"
+		}
+		out = append(out, entry.session)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].TabID == out[j].TabID {
+			return out[i].ProfileName < out[j].ProfileName
+		}
+		return out[i].TabID < out[j].TabID
+	})
+	return out
+}
+
+func persistTraceSessionArtifacts(dataDir string, now time.Time, sessions []traceSessionArtifact) error {
+	if dataDir == "" {
+		dataDir = defaultRuntimeProbeDir
+	}
+	datePart := now.UTC().Format("2006-01-02")
+	outputPath := filepath.Join(dataDir, datePart, runtimeTraceSessionRelativeOutput)
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	w := bufio.NewWriter(f)
+	enc := json.NewEncoder(w)
+	for i := range sessions {
+		if err := enc.Encode(sessions[i]); err != nil {
+			return err
+		}
+	}
+	return w.Flush()
+}
+
+func recordMatchesProfile(record runtimeTraceRecord, profile traceProfile) bool {
+	if record.Surface == "trace_profile" && record.EventType == "profile_seed" {
+		if name, ok := record.Payload["profile_name"].(string); ok && name == profile.Name {
+			return true
+		}
+	}
+
+	textParts := []string{record.Surface, record.EventType, record.TabURL}
+	collectPayloadStrings(record.Payload, &textParts)
+	text := strings.ToLower(strings.Join(textParts, " "))
+	for _, keyword := range profile.Keywords {
+		if strings.Contains(text, strings.ToLower(keyword)) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectPayloadStrings(v any, out *[]string) {
+	switch tv := v.(type) {
+	case map[string]any:
+		for k, val := range tv {
+			*out = append(*out, k)
+			collectPayloadStrings(val, out)
+		}
+	case []any:
+		for _, item := range tv {
+			collectPayloadStrings(item, out)
+		}
+	case string:
+		*out = append(*out, tv)
+	}
+}
+
+func inferTabContext(tabURL string) string {
+	lower := strings.ToLower(tabURL)
+	switch {
+	case strings.Contains(lower, "/watchlist"):
+		return "watchlist"
+	case strings.Contains(lower, "replay"):
+		return "replay"
+	case strings.Contains(lower, "trading") && strings.Contains(lower, "panel"):
+		return "trading_panel"
+	case strings.Contains(lower, "/chart"):
+		return "chart"
+	default:
+		return "unknown"
+	}
+}
+
+func extractSymbolFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err == nil {
+		for _, key := range []string{"symbol", "ticker"} {
+			if val := strings.TrimSpace(parsed.Query().Get(key)); val != "" {
+				return val
+			}
+		}
+	}
+	return "unknown"
+}
+
+func extractSymbolFromPayload(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	symbolKeys := []string{"active_symbol", "symbol", "ticker"}
+	for key, value := range payload {
+		for _, symbolKey := range symbolKeys {
+			if strings.EqualFold(key, symbolKey) {
+				if symbol, ok := value.(string); ok && strings.TrimSpace(symbol) != "" {
+					return symbol
+				}
+			}
+		}
+		switch tv := value.(type) {
+		case map[string]any:
+			if symbol := extractSymbolFromPayload(tv); symbol != "" {
+				return symbol
+			}
+		case []any:
+			for _, item := range tv {
+				if nested, ok := item.(map[string]any); ok {
+					if symbol := extractSymbolFromPayload(nested); symbol != "" {
+						return symbol
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func truncateURL(url string) string {
