@@ -482,6 +482,15 @@ func (c *Client) syncTabsLocked(ctx context.Context) error {
 		c.chartToTarget[session.info.ChartID] = targetID
 	}
 
+	// Prune chart locks for charts no longer present.
+	c.chartLocksMu.Lock()
+	for id := range c.chartLocks {
+		if _, ok := c.chartToTarget[id]; !ok {
+			delete(c.chartLocks, id)
+		}
+	}
+	c.chartLocksMu.Unlock()
+
 	slog.Debug("cdpcontrol tab sync", "targets", len(targets), "charts", len(c.chartToTarget))
 	return nil
 }
