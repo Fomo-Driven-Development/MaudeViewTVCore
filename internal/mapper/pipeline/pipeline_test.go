@@ -18,6 +18,7 @@ func TestRunModes(t *testing.T) {
 		{name: "runtime", mode: ModeRuntimeOnly, want: "runtime-probes: complete\n"},
 		{name: "correlate", mode: ModeCorrelate, want: "correlation: complete\n"},
 		{name: "report", mode: ModeReport, want: "reporting: complete\n"},
+		{name: "validate", mode: ModeValidate, want: "validation: complete\n"},
 	}
 
 	for _, tc := range tests {

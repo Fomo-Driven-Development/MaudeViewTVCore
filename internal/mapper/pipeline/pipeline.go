@@ -9,6 +9,7 @@ import (
 	"github.com/dgnsrekt/tv_agent/internal/mapper/reporting"
 	"github.com/dgnsrekt/tv_agent/internal/mapper/runtimeprobes"
 	"github.com/dgnsrekt/tv_agent/internal/mapper/staticanalysis"
+	"github.com/dgnsrekt/tv_agent/internal/mapper/validation"
 )
 
 const (
@@ -16,6 +17,7 @@ const (
 	ModeRuntimeOnly = "runtime-only"
 	ModeCorrelate   = "correlate"
 	ModeReport      = "report"
+	ModeValidate    = "validate"
 	ModeFull        = "full"
 )
 
@@ -30,6 +32,8 @@ func Run(ctx context.Context, w io.Writer, mode string) error {
 		return correlation.Run(ctx, w)
 	case ModeReport:
 		return reporting.Run(ctx, w)
+	case ModeValidate:
+		return validation.Run(ctx, w)
 	case ModeFull:
 		if err := staticanalysis.Run(ctx, w); err != nil {
 			return err

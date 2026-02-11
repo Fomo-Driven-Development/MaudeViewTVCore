@@ -15,6 +15,7 @@ help:
 	@echo "  just mapper-runtime-only Run runtime probes stage only"
 	@echo "  just mapper-correlate    Run correlation stage only"
 	@echo "  just mapper-report       Run reporting stage only"
+	@echo "  just mapper-validate     Validate mapper artifacts"
 	@echo "  just mapper-full         Run full mapper pipeline"
 	@echo ""
 
@@ -45,6 +46,10 @@ mapper-correlate:
 # Mapper stage: reporting only
 mapper-report:
     ./scripts/mapper-report.sh
+
+# Mapper stage: artifact validation
+mapper-validate:
+    ./scripts/mapper-validate.sh
 
 # Mapper pipeline: all stages
 mapper-full:
