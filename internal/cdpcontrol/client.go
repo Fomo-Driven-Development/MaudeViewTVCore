@@ -16,6 +16,20 @@ import (
 
 var chartURLPattern = regexp.MustCompile(`/chart/([^/?#]+)/?`)
 
+// transientHints are substrings in error causes that indicate a transient
+// failure worth retrying (e.g. broken connection, closed session).
+var transientHints = []string{
+	"context canceled",
+	"target closed",
+	"session closed",
+	"websocket",
+	"connection reset",
+	"broken pipe",
+	"eof",
+	"connection refused",
+	"connection closed",
+}
+
 type tabSession struct {
 	info      ChartInfo
 	mu        sync.Mutex
@@ -503,17 +517,6 @@ func (c *Client) shouldRetry(err error) bool {
 			return false
 		}
 		cause := strings.ToLower(coded.Cause.Error())
-		transientHints := []string{
-			"context canceled",
-			"target closed",
-			"session closed",
-			"websocket",
-			"connection reset",
-			"broken pipe",
-			"eof",
-			"connection refused",
-			"connection closed",
-		}
 		for _, hint := range transientHints {
 			if strings.Contains(cause, hint) {
 				return true
