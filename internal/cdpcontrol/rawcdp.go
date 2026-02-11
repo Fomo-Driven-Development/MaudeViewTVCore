@@ -120,8 +120,16 @@ func (r *rawCDP) closeAllPending() {
 	}
 }
 
-// send sends a CDP command and waits for the matching response.
-func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawMessage, error) {
+// deletePending removes a pending response channel by ID.
+func (r *rawCDP) deletePending(id int64) {
+	r.pendingMu.Lock()
+	delete(r.pending, id)
+	r.pendingMu.Unlock()
+}
+
+// sendRaw marshals an envelope, sends it over the WebSocket, and waits for
+// the response keyed by the given id.
+func (r *rawCDP) sendRaw(ctx context.Context, id int64, envelope any) (json.RawMessage, error) {
 	r.mu.Lock()
 	conn := r.conn
 	r.mu.Unlock()
@@ -129,24 +137,14 @@ func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawM
 		return nil, fmt.Errorf("rawcdp: not connected")
 	}
 
-	id := r.seq.Add(1)
-
-	req := struct {
-		ID     int64  `json:"id"`
-		Method string `json:"method"`
-		Params any    `json:"params,omitempty"`
-	}{ID: id, Method: method, Params: params}
-
 	ch := make(chan json.RawMessage, 1)
 	r.pendingMu.Lock()
 	r.pending[id] = ch
 	r.pendingMu.Unlock()
 
-	data, err := json.Marshal(req)
+	data, err := json.Marshal(envelope)
 	if err != nil {
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
+		r.deletePending(id)
 		return nil, fmt.Errorf("rawcdp: marshal: %w", err)
 	}
 
@@ -154,9 +152,7 @@ func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawM
 	err = wsutil.WriteClientText(conn, data)
 	r.mu.Unlock()
 	if err != nil {
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
+		r.deletePending(id)
 		return nil, fmt.Errorf("rawcdp: send: %w", err)
 	}
 
@@ -167,11 +163,20 @@ func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawM
 		}
 		return resp, nil
 	case <-ctx.Done():
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
+		r.deletePending(id)
 		return nil, ctx.Err()
 	}
+}
+
+// send sends a CDP command and waits for the matching response.
+func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	id := r.seq.Add(1)
+	req := struct {
+		ID     int64  `json:"id"`
+		Method string `json:"method"`
+		Params any    `json:"params,omitempty"`
+	}{ID: id, Method: method, Params: params}
+	return r.sendRaw(ctx, id, req)
 }
 
 // attachToTarget attaches a flat session to the given target.
@@ -242,15 +247,7 @@ func (r *rawCDP) evaluate(ctx context.Context, sessionID, js string) (string, er
 
 // sendFlat sends a command on a flattened session (sessionId in the outer envelope).
 func (r *rawCDP) sendFlat(ctx context.Context, sessionID, method string, params any) (json.RawMessage, error) {
-	r.mu.Lock()
-	conn := r.conn
-	r.mu.Unlock()
-	if conn == nil {
-		return nil, fmt.Errorf("rawcdp: not connected")
-	}
-
 	id := r.seq.Add(1)
-
 	req := struct {
 		ID        int64  `json:"id"`
 		Method    string `json:"method"`
@@ -258,54 +255,25 @@ func (r *rawCDP) sendFlat(ctx context.Context, sessionID, method string, params 
 		Params    any    `json:"params,omitempty"`
 	}{ID: id, Method: method, SessionID: sessionID, Params: params}
 
-	ch := make(chan json.RawMessage, 1)
-	r.pendingMu.Lock()
-	r.pending[id] = ch
-	r.pendingMu.Unlock()
-
-	data, err := json.Marshal(req)
+	resp, err := r.sendRaw(ctx, id, req)
 	if err != nil {
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
-		return nil, fmt.Errorf("rawcdp: marshal: %w", err)
+		return nil, err
 	}
 
-	r.mu.Lock()
-	err = wsutil.WriteClientText(conn, data)
-	r.mu.Unlock()
-	if err != nil {
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
-		return nil, fmt.Errorf("rawcdp: send: %w", err)
+	// Extract the inner "result" field.
+	var envelope struct {
+		Result json.RawMessage `json:"result"`
+		Error  *struct {
+			Message string `json:"message"`
+		} `json:"error"`
 	}
-
-	select {
-	case resp, ok := <-ch:
-		if !ok {
-			return nil, fmt.Errorf("rawcdp: connection closed")
-		}
-		// Extract the inner "result" field.
-		var envelope struct {
-			Result json.RawMessage `json:"result"`
-			Error  *struct {
-				Message string `json:"message"`
-			} `json:"error"`
-		}
-		if err := json.Unmarshal(resp, &envelope); err != nil {
-			return resp, nil
-		}
-		if envelope.Error != nil {
-			return nil, fmt.Errorf("rawcdp: %s: %s", method, envelope.Error.Message)
-		}
-		return envelope.Result, nil
-	case <-ctx.Done():
-		r.pendingMu.Lock()
-		delete(r.pending, id)
-		r.pendingMu.Unlock()
-		return nil, ctx.Err()
+	if err := json.Unmarshal(resp, &envelope); err != nil {
+		return resp, nil
 	}
+	if envelope.Error != nil {
+		return nil, fmt.Errorf("rawcdp: %s: %s", method, envelope.Error.Message)
+	}
+	return envelope.Result, nil
 }
 
 // detachFromTarget detaches from a session without closing the target.
