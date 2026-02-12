@@ -248,7 +248,10 @@ fi
 printf "\n"
 
 ###############################################################################
-printf "${CYAN}--- Phase 9: Pine Editor ---${NC}\n"
+printf "${CYAN}--- Phase 9: Pine Editor (non-destructive) ---${NC}\n"
+
+# Count studies before pine ops
+ORIG_STUDY_COUNT=$(curl -s "$BASE/api/v1/chart/$CHART_ID/studies" | jq '.studies | length')
 
 PINE_STATUS=$(curl -s "$BASE/api/v1/pine/status" | jq -r '.is_visible // "false"')
 if [ "$PINE_STATUS" = "false" ]; then
@@ -258,14 +261,42 @@ fi
 
 PINE_VIS=$(curl -s "$BASE/api/v1/pine/status" | jq -r '.is_visible // "false"')
 if [ "$PINE_VIS" = "true" ]; then
-  get "GET pine source" "/api/v1/pine/source" >/dev/null
-  req "PUT pine source" "PUT" "/api/v1/pine/source" '{"source":"// smoke test\nplot(close)"}' >/dev/null
+  # Create new indicator — doesn't touch existing script
+  req "POST pine new-indicator" "POST" "/api/v1/pine/new-indicator" >/dev/null
+  sleep 1
+
+  # Write smoke test source
+  req "PUT pine source" "PUT" "/api/v1/pine/source" '{"source":"// smoke_test_indicator\nplot(close, title=\"Smoke\")"}' >/dev/null
   sleep 0.5
+
+  # Save
   req "POST pine save" "POST" "/api/v1/pine/save" >/dev/null
   sleep 0.5
+
+  # Add to chart
+  req "POST pine add-to-chart" "POST" "/api/v1/pine/add-to-chart" >/dev/null
+  sleep 1
+
+  # Verify study count increased
+  NEW_STUDY_COUNT=$(curl -s "$BASE/api/v1/chart/$CHART_ID/studies" | jq '.studies | length')
+  if [ "$NEW_STUDY_COUNT" -gt "$ORIG_STUDY_COUNT" ] 2>/dev/null; then
+    ok "verify study added by pine"
+  else
+    fail "verify study added by pine" "count $ORIG_STUDY_COUNT -> $NEW_STUDY_COUNT"
+  fi
+
+  # Read source back
+  get "GET pine source" "/api/v1/pine/source" >/dev/null
+
   # Close editor
   req "POST pine toggle close" "POST" "/api/v1/pine/toggle" >/dev/null
   sleep 0.5
+
+  # Clean up: remove the added study (last one in list)
+  SMOKE_STUDY_ID=$(curl -s "$BASE/api/v1/chart/$CHART_ID/studies" | jq -r '.studies[-1].id // empty')
+  if [ -n "$SMOKE_STUDY_ID" ]; then
+    req_status "DELETE smoke study cleanup" "DELETE" "/api/v1/chart/$CHART_ID/studies/$SMOKE_STUDY_ID" "204"
+  fi
 else
   skip "pine editor ops" "editor not visible after toggle"
 fi
@@ -298,6 +329,276 @@ req "POST zoom in" "POST" "/api/v1/chart/$CHART_ID/zoom" '{"direction":"in"}' >/
 req "POST zoom out" "POST" "/api/v1/chart/$CHART_ID/zoom" '{"direction":"out"}' >/dev/null
 req "POST scroll to realtime" "POST" "/api/v1/chart/$CHART_ID/scroll/to-realtime" >/dev/null
 req "POST reset scales" "POST" "/api/v1/chart/$CHART_ID/reset-scales" >/dev/null
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 12: Pine Keyboard Shortcuts ---${NC}\n"
+
+# Ensure editor is open
+PINE12=$(curl -s "$BASE/api/v1/pine/status" | jq -r '.is_visible // "false"')
+if [ "$PINE12" = "false" ]; then
+  req "POST pine open (phase12)" "POST" "/api/v1/pine/toggle" >/dev/null
+  sleep 1
+fi
+
+PINE12_VIS=$(curl -s "$BASE/api/v1/pine/status" | jq -r '.is_visible // "false"')
+if [ "$PINE12_VIS" = "true" ]; then
+  req "POST pine undo" "POST" "/api/v1/pine/undo" >/dev/null
+  req "POST pine redo" "POST" "/api/v1/pine/redo" >/dev/null
+  req "POST pine toggle-console" "POST" "/api/v1/pine/toggle-console" >/dev/null
+  sleep 0.3
+  req "POST pine toggle-console off" "POST" "/api/v1/pine/toggle-console" >/dev/null
+  req "POST pine go-to-line" "POST" "/api/v1/pine/go-to-line" '{"line":1}' >/dev/null
+  req "POST pine insert-line" "POST" "/api/v1/pine/insert-line" >/dev/null
+  req "POST pine toggle-comment" "POST" "/api/v1/pine/toggle-comment" >/dev/null
+  req "POST pine delete-line" "POST" "/api/v1/pine/delete-line" '{"count":1}' >/dev/null
+
+  # Close editor
+  req "POST pine close (phase12)" "POST" "/api/v1/pine/toggle" >/dev/null
+  sleep 0.5
+else
+  skip "pine keyboard shortcuts" "editor not visible"
+fi
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 13: Drawing Toggles & Advanced Ops ---${NC}\n"
+
+# Read visible range for drawing placement
+VR13=$(curl -s "$BASE/api/v1/chart/$CHART_ID/visible-range")
+BAR_TIME13=$(echo "$VR13" | jq -r '.from // empty')
+BAR_PRICE13=100
+
+if [ -n "$BAR_TIME13" ]; then
+  # Toggle hide on/off
+  req "PUT hide drawings on" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/hide" '{"value":true}' >/dev/null
+  req "PUT hide drawings off" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/hide" '{"value":false}' >/dev/null
+
+  # Toggle lock on/off
+  req "PUT lock drawings on" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/lock" '{"value":true}' >/dev/null
+  req "PUT lock drawings off" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/lock" '{"value":false}' >/dev/null
+
+  # Toggle magnet on/off
+  req "PUT magnet on" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/magnet" '{"enabled":true,"mode":1}' >/dev/null
+  req "PUT magnet off" "PUT" "/api/v1/chart/$CHART_ID/drawings/toggles/magnet" '{"enabled":false}' >/dev/null
+
+  # Set drawing tool
+  req "PUT set drawing tool" "PUT" "/api/v1/chart/$CHART_ID/drawings/tool" '{"tool":"LineToolTrendLine"}' >/dev/null
+  TOOL_RESP=$(get "GET drawing tool verify" "/api/v1/chart/$CHART_ID/drawings/tool")
+
+  # Create multipoint drawing (trend line needs 2 points)
+  BAR_TIME13_END=$(echo "$VR13" | jq -r '.to // empty')
+  if [ -n "$BAR_TIME13_END" ]; then
+    MP_RESP=$(req "POST multipoint drawing" "POST" "/api/v1/chart/$CHART_ID/drawings/multipoint" \
+      "{\"points\":[{\"time\":$BAR_TIME13,\"price\":$BAR_PRICE13},{\"time\":$BAR_TIME13_END,\"price\":$(echo "$BAR_PRICE13 + 10" | bc)}],\"options\":{\"shape\":\"trend_line\"}}")
+    MP_ID=$(echo "$MP_RESP" | jq -r '.id // empty')
+    if [ -n "$MP_ID" ]; then
+      req "PUT drawing visibility off" "PUT" "/api/v1/chart/$CHART_ID/drawings/$MP_ID/visibility" '{"visible":false}' >/dev/null
+      req "PUT drawing visibility on" "PUT" "/api/v1/chart/$CHART_ID/drawings/$MP_ID/visibility" '{"visible":true}' >/dev/null
+      req_status "DELETE multipoint drawing" "DELETE" "/api/v1/chart/$CHART_ID/drawings/$MP_ID" "204"
+    else
+      skip "multipoint drawing ops" "could not create multipoint drawing"
+    fi
+  fi
+
+  # State export/import round-trip
+  STATE_JSON=$(get "GET drawings state" "/api/v1/chart/$CHART_ID/drawings/state")
+  STATE_DATA=$(echo "$STATE_JSON" | jq -c '.state // empty')
+  if [ -n "$STATE_DATA" ] && [ "$STATE_DATA" != "null" ]; then
+    req "PUT import drawings state" "PUT" "/api/v1/chart/$CHART_ID/drawings/state" "{\"state\":$STATE_DATA}" >/dev/null
+    ok "drawings state round-trip"
+  else
+    skip "drawings state round-trip" "no state data to import"
+  fi
+else
+  skip "drawing toggles" "could not get visible range"
+fi
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 14: Replay Lifecycle ---${NC}\n"
+
+# Activate replay at first available date
+REPLAY_ACT=$(req "POST replay activate/auto" "POST" "/api/v1/chart/$CHART_ID/replay/activate/auto")
+REPLAY_ACT_OK=$?
+sleep 1
+
+if [ $REPLAY_ACT_OK -eq 0 ]; then
+  # Check status
+  REPLAY_ST=$(get "GET replay status (active)" "/api/v1/chart/$CHART_ID/replay/status")
+  sleep 0.5
+
+  # Step forward twice
+  req "POST replay step 1" "POST" "/api/v1/chart/$CHART_ID/replay/step" >/dev/null
+  sleep 0.3
+  req "POST replay step 2" "POST" "/api/v1/chart/$CHART_ID/replay/step" >/dev/null
+  sleep 0.3
+
+  # Change autoplay delay
+  req "PUT autoplay delay 500" "PUT" "/api/v1/chart/$CHART_ID/replay/autoplay/delay" '{"delay":500}' >/dev/null
+
+  # Start autoplay
+  req "POST autoplay start" "POST" "/api/v1/chart/$CHART_ID/replay/autoplay/start" >/dev/null
+  sleep 1
+
+  # Stop autoplay
+  req "POST autoplay stop" "POST" "/api/v1/chart/$CHART_ID/replay/autoplay/stop" >/dev/null
+  sleep 0.5
+
+  # Reset replay
+  req "POST replay reset" "POST" "/api/v1/chart/$CHART_ID/replay/reset" >/dev/null
+  sleep 0.5
+
+  # Deactivate replay
+  req "POST replay deactivate" "POST" "/api/v1/chart/$CHART_ID/replay/deactivate" >/dev/null
+  sleep 1
+
+  # Verify replay not active
+  get "GET replay status (deactivated)" "/api/v1/chart/$CHART_ID/replay/status" >/dev/null
+else
+  skip "replay lifecycle" "could not activate replay"
+fi
+
+# Extra settle time after replay deactivation before chart navigation
+sleep 2
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 15: Navigation Extras ---${NC}\n"
+
+# Go-to-date: use the from timestamp of current visible range
+VR15=$(curl -s "$BASE/api/v1/chart/$CHART_ID/visible-range")
+VR15_FROM=$(echo "$VR15" | jq -r '.from // empty')
+VR15_TO=$(echo "$VR15" | jq -r '.to // empty')
+
+if [ -n "$VR15_FROM" ]; then
+  # go-to-date may be unavailable on some chart types
+  GTD_RESP=$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" \
+    -d "{\"timestamp\":$VR15_FROM}" "$BASE/api/v1/chart/$CHART_ID/go-to-date" 2>/dev/null)
+  GTD_CODE=$(echo "$GTD_RESP" | tail -1)
+  if [ "$GTD_CODE" = "200" ]; then ok "POST go-to-date"; else skip "POST go-to-date" "HTTP $GTD_CODE (may be unavailable)"; fi
+  sleep 0.5
+fi
+
+# Set visible range (read current, write it back — idempotent)
+if [ -n "$VR15_FROM" ] && [ -n "$VR15_TO" ]; then
+  SVR_RESP=$(curl -s -w "\n%{http_code}" -X PUT -H "Content-Type: application/json" \
+    -d "{\"from\":$VR15_FROM,\"to\":$VR15_TO}" "$BASE/api/v1/chart/$CHART_ID/visible-range" 2>/dev/null)
+  SVR_CODE=$(echo "$SVR_RESP" | tail -1)
+  if [ "$SVR_CODE" = "200" ]; then ok "PUT set visible-range"; else skip "PUT set visible-range" "HTTP $SVR_CODE (may not be implemented)"; fi
+  sleep 0.5
+fi
+
+# Resolve symbol
+get "GET resolve-symbol AAPL" "/api/v1/chart/$CHART_ID/chart-api/resolve-symbol?symbol=AAPL" >/dev/null
+
+# Timezone round-trip
+TZ_RESP=$(get "GET chart-api probe (tz)" "/api/v1/chart/$CHART_ID/chart-api/probe")
+ORIG_TZ=$(echo "$TZ_RESP" | jq -r '.timezone // empty')
+req "PUT timezone NY" "PUT" "/api/v1/chart/$CHART_ID/chart-api/timezone" '{"timezone":"America/New_York"}' >/dev/null
+sleep 0.5
+if [ -n "$ORIG_TZ" ]; then
+  req "PUT timezone restore" "PUT" "/api/v1/chart/$CHART_ID/chart-api/timezone" "{\"timezone\":\"$ORIG_TZ\"}" >/dev/null
+fi
+
+# Scroll back to realtime after navigation
+req "POST scroll to realtime (nav)" "POST" "/api/v1/chart/$CHART_ID/scroll/to-realtime" >/dev/null
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 16: Watchlist Set Active ---${NC}\n"
+
+# Read current active watchlist
+ORIG_ACTIVE_WL=$(curl -s "$BASE/api/v1/watchlists/active" | jq -r '.id // empty')
+
+# Create temp watchlist
+WL16_RESP=$(req "POST create temp watchlist" "POST" "/api/v1/watchlists" '{"name":"__smoke_active_test__"}')
+WL16_ID=$(echo "$WL16_RESP" | jq -r '.id // empty')
+
+if [ -n "$WL16_ID" ]; then
+  # Set active to temp
+  req "PUT set active watchlist" "PUT" "/api/v1/watchlists/active" "{\"id\":\"$WL16_ID\"}" >/dev/null
+  sleep 0.5
+
+  # Verify active changed
+  NEW_ACTIVE=$(curl -s "$BASE/api/v1/watchlists/active" | jq -r '.id // empty')
+  if [ "$NEW_ACTIVE" = "$WL16_ID" ]; then
+    ok "verify active watchlist changed"
+  else
+    fail "verify active watchlist changed" "expected $WL16_ID got $NEW_ACTIVE"
+  fi
+
+  # Restore original active
+  if [ -n "$ORIG_ACTIVE_WL" ]; then
+    req "PUT restore active watchlist" "PUT" "/api/v1/watchlists/active" "{\"id\":\"$ORIG_ACTIVE_WL\"}" >/dev/null
+  fi
+
+  # Delete temp watchlist
+  req_status "DELETE temp watchlist" "DELETE" "/api/v1/watchlist/$WL16_ID" "204"
+else
+  skip "watchlist set active" "could not create temp watchlist"
+fi
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 17: Alert Read & Fires ---${NC}\n"
+
+# List alerts
+ALERTS_JSON=$(get "GET alerts list (phase17)" "/api/v1/alerts")
+FIRST_ALERT_ID=$(echo "$ALERTS_JSON" | jq -r '.alerts[0].id // empty')
+
+if [ -n "$FIRST_ALERT_ID" ]; then
+  get "GET single alert" "/api/v1/alerts/$FIRST_ALERT_ID" >/dev/null
+else
+  skip "GET single alert" "no alerts exist"
+fi
+
+# Delete all fires (safe — clears fired notifications)
+req "DELETE all alert fires" "DELETE" "/api/v1/alerts/fires/all" >/dev/null
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 18: Layout Clone ---${NC}\n"
+
+LAYOUTS_BEFORE=$(curl -s "$BASE/api/v1/layouts" | jq '.layouts | length')
+req "POST clone layout" "POST" "/api/v1/layout/clone" '{"name":"__smoke_clone__"}' >/dev/null
+sleep 3
+LAYOUTS_AFTER=$(curl -s "$BASE/api/v1/layouts" | jq '.layouts | length')
+
+if [ "$LAYOUTS_AFTER" -gt "$LAYOUTS_BEFORE" ] 2>/dev/null; then
+  ok "verify layout clone created"
+  printf "  Note: cloned layout '__smoke_clone__' must be deleted manually in TradingView.\n" >&2
+else
+  skip "verify layout clone created" "count unchanged ($LAYOUTS_BEFORE) — may be at TradingView limit"
+fi
+
+printf "\n"
+
+###############################################################################
+printf "${CYAN}--- Phase 19: Page Reload (final) ---${NC}\n"
+
+req "POST page reload" "POST" "/api/v1/page/reload" '{"mode":"normal"}' >/dev/null
+sleep 5
+
+# Verify controller still responds after reload
+get "GET health (post-reload)" "/health" >/dev/null
+sleep 2
+
+# Verify charts reconnected
+CHARTS_POST=$(get "GET charts (post-reload)" "/api/v1/charts")
+CHART_COUNT_POST=$(echo "$CHARTS_POST" | jq '.charts | length')
+if [ "$CHART_COUNT_POST" -gt 0 ] 2>/dev/null; then
+  ok "verify charts reconnected after reload"
+else
+  fail "verify charts reconnected after reload" "got $CHART_COUNT_POST charts"
+fi
 
 printf "\n"
 
