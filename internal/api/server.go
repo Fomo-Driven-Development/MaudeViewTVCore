@@ -135,6 +135,7 @@ type Service interface {
 	SwitchLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error)
 	SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
 	CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error)
+	DeleteLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error)
 	RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error)
 	SetLayoutGrid(ctx context.Context, template string) (cdpcontrol.LayoutStatus, error)
 	NextChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
@@ -2120,6 +2121,17 @@ func NewServer(svc Service) http.Handler {
 			out := &layoutActionOutput{}
 			out.Body = result
 			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "delete-layout", Method: http.MethodDelete, Path: "/api/v1/layout/{layout_id}", Summary: "Delete a layout by ID", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			LayoutID int `path:"layout_id"`
+		}) (*struct{}, error) {
+			_, err := svc.DeleteLayout(ctx, input.LayoutID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "rename-layout", Method: http.MethodPost, Path: "/api/v1/layout/rename", Summary: "Rename current layout", Tags: []string{"Layout"}},

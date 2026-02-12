@@ -769,6 +769,13 @@ func (s *Service) CloneLayout(ctx context.Context, name string) (cdpcontrol.Layo
 	return s.cdp.CloneLayout(ctx, strings.TrimSpace(name))
 }
 
+func (s *Service) DeleteLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error) {
+	if id <= 0 {
+		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "id must be positive"}
+	}
+	return s.cdp.DeleteLayout(ctx, id)
+}
+
 func (s *Service) RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
 	if strings.TrimSpace(name) == "" {
 		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}

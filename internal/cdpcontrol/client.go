@@ -1751,6 +1751,14 @@ func (c *Client) CloneLayout(ctx context.Context, name string) (LayoutActionResu
 	return out, nil
 }
 
+func (c *Client) DeleteLayout(ctx context.Context, id int) (LayoutActionResult, error) {
+	var out LayoutActionResult
+	if err := c.evalOnAnyChart(ctx, jsDeleteLayout(id), &out); err != nil {
+		return LayoutActionResult{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) RenameLayout(ctx context.Context, name string) (LayoutActionResult, error) {
 	var out LayoutActionResult
 	if err := c.evalOnAnyChart(ctx, jsRenameLayout(name), &out); err != nil {

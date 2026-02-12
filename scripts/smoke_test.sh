@@ -269,13 +269,11 @@ if [ "$PINE_VIS" = "true" ]; then
   req "PUT pine source" "PUT" "/api/v1/pine/source" '{"source":"// smoke_test_indicator\nplot(close, title=\"Smoke\")"}' >/dev/null
   sleep 0.5
 
-  # Save
-  req "POST pine save" "POST" "/api/v1/pine/save" >/dev/null
-  sleep 0.5
-
-  # Add to chart
+  # Add to chart (Ctrl+Enter) — skip explicit save because new indicators
+  # trigger a "Save Script As" naming dialog that blocks Ctrl+S.
+  # Ctrl+Enter handles "Save and add to chart" in one step.
   req "POST pine add-to-chart" "POST" "/api/v1/pine/add-to-chart" >/dev/null
-  sleep 1
+  sleep 2
 
   # Verify study count increased
   NEW_STUDY_COUNT=$(curl -s "$BASE/api/v1/chart/$CHART_ID/studies" | jq '.studies | length')
@@ -560,16 +558,29 @@ printf "\n"
 ###############################################################################
 printf "${CYAN}--- Phase 18: Layout Clone ---${NC}\n"
 
-LAYOUTS_BEFORE=$(curl -s "$BASE/api/v1/layouts" | jq '.layouts | length')
+ORIG_LAYOUT_URL=$(curl -s "$BASE/api/v1/layout/status" | jq -r '.layout_id // empty')
+ORIG_LAYOUT_NUM_ID=$(curl -s "$BASE/api/v1/layouts" | jq -r "[.layouts[] | select(.url==\"$ORIG_LAYOUT_URL\")][0].id // empty")
 req "POST clone layout" "POST" "/api/v1/layout/clone" '{"name":"__smoke_clone__"}' >/dev/null
-sleep 3
-LAYOUTS_AFTER=$(curl -s "$BASE/api/v1/layouts" | jq '.layouts | length')
 
-if [ "$LAYOUTS_AFTER" -gt "$LAYOUTS_BEFORE" ] 2>/dev/null; then
+# Poll up to 8 seconds for the clone to appear in the list
+CLONE_NUM_ID=""
+for i in 1 2 3 4; do
+  sleep 2
+  CLONE_NUM_ID=$(curl -s "$BASE/api/v1/layouts" | jq -r '[.layouts[] | select(.name=="__smoke_clone__")][0].id // empty')
+  [ -n "$CLONE_NUM_ID" ] && break
+done
+
+if [ -n "$CLONE_NUM_ID" ]; then
   ok "verify layout clone created"
-  printf "  Note: cloned layout '__smoke_clone__' must be deleted manually in TradingView.\n" >&2
+
+  # Clean up: switch back to original layout, then delete the clone
+  if [ -n "$ORIG_LAYOUT_NUM_ID" ]; then
+    req "POST switch to original layout" "POST" "/api/v1/layout/switch" "{\"id\":$ORIG_LAYOUT_NUM_ID}" >/dev/null
+    sleep 2
+    req_status "DELETE clone layout" "DELETE" "/api/v1/layout/$CLONE_NUM_ID" "204"
+  fi
 else
-  skip "verify layout clone created" "count unchanged ($LAYOUTS_BEFORE) — may be at TradingView limit"
+  skip "verify layout clone created" "clone not found in layout list after 8s"
 fi
 
 printf "\n"

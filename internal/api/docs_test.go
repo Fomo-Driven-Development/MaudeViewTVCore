@@ -315,6 +315,9 @@ func (s *stubService) SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionRe
 func (s *stubService) CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
 	return cdpcontrol.LayoutActionResult{}, nil
 }
+func (s *stubService) DeleteLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
 func (s *stubService) RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
 	return cdpcontrol.LayoutActionResult{}, nil
 }

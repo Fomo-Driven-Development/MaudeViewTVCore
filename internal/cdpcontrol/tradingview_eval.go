@@ -2497,6 +2497,32 @@ return JSON.stringify({ok:true,data:{status:"cloned",layout_name:layoutName,layo
 `, jsString(name)))
 }
 
+func jsDeleteLayout(id int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+if (!api || !api._loadChartService) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_loadChartService unavailable"});
+var targetId = %d;
+var svc = api._loadChartService;
+var st = typeof svc.state === "function" ? svc.state() : null;
+var stVal = st && typeof st.value === "function" ? st.value() : st;
+if (!stVal || !stVal.chartList) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chartList not available"});
+var found = null;
+for (var i = 0; i < stVal.chartList.length; i++) {
+  if (Number(stVal.chartList[i].id) === targetId) { found = stVal.chartList[i]; break; }
+}
+if (!found) return JSON.stringify({ok:false,error_code:"NOT_FOUND",error_message:"layout not found: " + targetId});
+var isActive = typeof found.active === "function" ? found.active() : false;
+if (isActive) return JSON.stringify({ok:false,error_code:"VALIDATION",error_message:"cannot delete the active layout"});
+if (typeof found.deleteAction !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"deleteAction not available on chart entry"});
+try {
+  var result = found.deleteAction();
+  if (result && typeof result.then === "function") await result;
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"deleteAction failed: " + String(e && e.message || e)});
+}
+return JSON.stringify({ok:true,data:{status:"deleted",layout_id:String(targetId)}});
+`, id))
+}
+
 func jsRenameLayout(name string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
 if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingViewApi unavailable"});
