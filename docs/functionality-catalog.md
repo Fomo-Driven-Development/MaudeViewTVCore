@@ -61,6 +61,60 @@ Signal anchors found in static extraction:
 - `feature_flag`: 42
 - `websocket_channel`: 29
 
+## Deferred REST API Endpoints (Captured in Traffic)
+
+Internal TradingView REST API endpoints observed in HTTP captures, grouped under their validated capability category. These are ready for controller implementation using the same `fetch()` pattern as watchlist endpoints.
+
+### `watchlist` — Colored Symbol Lists
+
+Colored lists (Red, Orange, Green, Purple, Blue) appear in the watchlist listing with `type: "colored"`. These endpoints manage them separately from custom watchlists.
+
+| Method | TradingView Path | Description |
+|--------|-----------------|-------------|
+| GET | `/api/v1/symbols_list/colored/` | List all colored lists with symbols |
+| POST | `/api/v1/symbols_list/colored/{color}/replace/` | Replace entire color list |
+| POST | `/api/v1/symbols_list/colored/{color}/append/` | Add symbols to color list |
+| POST | `/api/v1/symbols_list/colored/{color}/remove/` | Remove symbols from color list |
+| POST | `/api/v1/symbols_list/colored/bulk_remove/` | Remove symbols from all colored lists |
+
+Response shape (list):
+```json
+[
+  {
+    "id": 16656903, "type": "colored", "name": "Green list",
+    "symbols": ["TVC:VIX", "CBOE:UVXY"],
+    "active": true, "shared": false, "color": "green",
+    "description": null, "created": null, "modified": "2026-02-06T00:21:32Z"
+  }
+]
+```
+
+Colors observed: `red`, `orange`, `green`, `purple`, `blue`.
+
+### `studies` — Study Templates
+
+Template CRUD for saved study (indicator) configurations.
+
+| Method | TradingView Path | Description |
+|--------|-----------------|-------------|
+| GET | `/api/v1/study-templates` | List all templates (custom/standard/fundamentals) |
+| GET | `/api/v1/study-templates/{id}` | Get individual template detail |
+
+Response shape (list):
+```json
+{
+  "custom": [
+    {"id": 62699809, "name": "0DTE", "meta_info": {"indicators": [{"id": "...", "description": "..."}], "interval": null}, "favorite_date": "2024-08-25T18:33:22Z"}
+  ],
+  "standard": [
+    {"id": 1, "name": "Bill Williams' 3 Lines", "meta_info": {"indicators": [...], "interval": null}, "favorite_date": null}
+  ],
+  "fundamentals": [
+    {"id": 14, "name": "Buyback and dividend yield", "meta_info": {"indicators": [...], "interval": null}, "favorite_date": null}
+  ]
+}
+```
+
 ## Candidate Functionality (Static-Only So Far)
 
 These areas were detected in chunk names/paths but are not yet validated as standalone capabilities in the matrix.
