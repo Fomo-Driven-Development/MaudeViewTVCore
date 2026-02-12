@@ -74,6 +74,13 @@
 - [ ] Select next symbol
 - [ ] Select previous symbol
 
+### Deferred
+- [ ] Get/set watchlist columns
+- [ ] Import watchlist
+- [ ] Export watchlist
+- [ ] Reorder symbols
+- [ ] Sort watchlist by criteria
+
 ## 4. Screener
 
 - [ ] Add new filter
