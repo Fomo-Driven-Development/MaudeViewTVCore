@@ -557,15 +557,15 @@ Debug adapter registration for Monaco. `registerDebugAdapterDescriptorFactory()`
 ## Summary by Automation Potential
 
 ### HIGH — Strong controller endpoint candidates
-| Manager | Primary Use |
-|---------|-------------|
+| Manager                         | Primary Use                                        |
+| ------------------------------- | -------------------------------------------------- |
 | `chartApi()` / `_getChartApi()` | Chart sessions, studies, quotes, symbol resolution |
-| `_replayManager` | Replay playback control |
-| `hotlistsManager()` | Market movers data |
-| `getAlertsRestApi()` | Alert CRUD and fire management |
-| `_accountsManager` | Trading account management |
-| `currentAccountApi()` | Trading capability queries |
-| `_deepBacktestingManager` | Strategy backtesting |
+| `_replayManager`                | Replay playback control                            |
+| `hotlistsManager()`             | Market movers data                                 |
+| `getAlertsRestApi()`            | Alert CRUD and fire management                     |
+| `_accountsManager`              | Trading account management                         |
+| `currentAccountApi()`           | Trading capability queries                         |
+| `_deepBacktestingManager`       | Strategy backtesting                               |
 
 ### MEDIUM — Useful for specific workflows
 | Manager | Primary Use |
