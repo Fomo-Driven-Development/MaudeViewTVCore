@@ -294,6 +294,46 @@ func (s *Service) ChangeAutoplayDelay(ctx context.Context, chartID string, delay
 	return s.cdp.ChangeAutoplayDelay(ctx, strings.TrimSpace(chartID), delay)
 }
 
+// --- Backtesting Strategy API methods ---
+
+func (s *Service) ProbeBacktestingApi(ctx context.Context, chartID string) (cdpcontrol.StrategyApiProbe, error) {
+	return s.cdp.ProbeBacktestingApi(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ListStrategies(ctx context.Context, chartID string) (any, error) {
+	return s.cdp.ListStrategies(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetActiveStrategy(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.GetActiveStrategy(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetActiveStrategy(ctx context.Context, chartID, strategyID string) error {
+	if strings.TrimSpace(strategyID) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "strategy_id is required"}
+	}
+	return s.cdp.SetActiveStrategy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(strategyID))
+}
+
+func (s *Service) SetStrategyInput(ctx context.Context, chartID, name string, value any) error {
+	if strings.TrimSpace(name) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.SetStrategyInput(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name), value)
+}
+
+func (s *Service) GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.GetStrategyReport(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetStrategyDateRange(ctx context.Context, chartID string) (any, error) {
+	return s.cdp.GetStrategyDateRange(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error {
+	return s.cdp.StrategyGotoDate(ctx, strings.TrimSpace(chartID), timestamp, belowBar)
+}
+
 // --- Alerts REST API methods ---
 
 func (s *Service) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {

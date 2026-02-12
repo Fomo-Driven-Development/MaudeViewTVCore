@@ -78,6 +78,103 @@ tail -f logs/controller.log
 - `POST /api/v1/chart/{chart_id}/studies`
 - `DELETE /api/v1/chart/{chart_id}/studies/{study_id}`
 
+### Strategy Endpoints (tag: Strategy)
+
+Access to `_backtestingStrategyApi` — the backtesting/strategy facade on the TradingView API. Requires a Pine strategy to be loaded on the chart for data to be populated.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/chart/{chart_id}/strategy/probe` | Probe backtesting strategy API (methods, state) |
+| GET | `/api/v1/chart/{chart_id}/strategy/list` | List all loaded strategies |
+| GET | `/api/v1/chart/{chart_id}/strategy/active` | Get active strategy with inputs and metadata |
+| PUT | `/api/v1/chart/{chart_id}/strategy/active` | Set active strategy by entity ID |
+| PUT | `/api/v1/chart/{chart_id}/strategy/input` | Set a strategy input parameter |
+| GET | `/api/v1/chart/{chart_id}/strategy/report` | Get backtest report data (P&L, trades, etc.) |
+| GET | `/api/v1/chart/{chart_id}/strategy/date-range` | Get backtest date range |
+| POST | `/api/v1/chart/{chart_id}/strategy/goto` | Navigate chart to a specific trade/bar timestamp |
+
+#### Prerequisites
+
+- A Pine strategy must be added to the chart (e.g., "MACD Strategy", or a custom Pine script with `strategy()` calls)
+- Without a loaded strategy, `list` returns empty, `active` returns nulls, and `report` returns null
+
+#### Quick Curl
+
+```bash
+# Probe the API
+curl -s http://127.0.0.1:8188/api/v1/chart/{id}/strategy/probe | jq
+
+# List strategies on chart
+curl -s http://127.0.0.1:8188/api/v1/chart/{id}/strategy/list | jq
+
+# Get active strategy + inputs
+curl -s http://127.0.0.1:8188/api/v1/chart/{id}/strategy/active | jq
+
+# Set a strategy input
+curl -X PUT http://127.0.0.1:8188/api/v1/chart/{id}/strategy/input \
+  -H 'Content-Type: application/json' -d '{"name":"Fast Length","value":10}'
+
+# Get backtest report
+curl -s http://127.0.0.1:8188/api/v1/chart/{id}/strategy/report | jq
+```
+
+### Alerts Endpoints (tag: Alerts)
+
+Access to `getAlertsRestApi()` — a webpack-internal singleton wrapping `pricealerts.tradingview.com`. Uses `{alert_ids: [...]}` / `{fire_ids: [...]}` payload format.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/chart/{chart_id}/alerts/scan` | Scan for alerts API access paths |
+| GET | `/api/v1/chart/{chart_id}/alerts/probe` | Probe getAlertsRestApi() singleton |
+| GET | `/api/v1/chart/{chart_id}/alerts/probe/deep` | Deep probe with method signatures |
+| GET | `/api/v1/alerts` | List all alerts |
+| GET | `/api/v1/alerts/{alert_id}` | Get specific alert(s) |
+| POST | `/api/v1/alerts` | Create alert |
+| PUT | `/api/v1/alerts/{alert_id}` | Modify alert |
+| DELETE | `/api/v1/alerts` | Delete alerts |
+| POST | `/api/v1/alerts/stop` | Stop alerts |
+| POST | `/api/v1/alerts/restart` | Restart alerts |
+| POST | `/api/v1/alerts/clone` | Clone alerts |
+| GET | `/api/v1/alerts/fires` | List fires (triggers) |
+| DELETE | `/api/v1/alerts/fires` | Delete fires |
+| DELETE | `/api/v1/alerts/fires/all` | Delete all fires |
+
+### Not Implemented
+
+#### Strategy API — Skipped Methods
+
+These `_backtestingStrategyApi` methods were not exposed as endpoints:
+
+| Method | Reason |
+|--------|--------|
+| `addAlert()` | Opens UI dialog (alert editor) — not automatable via REST |
+| `openSettingDialog()` | Opens UI dialog (strategy settings) — not automatable via REST |
+| `openReplaySettingDialog()` | Opens UI dialog (replay properties) — not automatable via REST |
+| `requestDeepBacktestingData(e, t)` | Requires active deep backtesting WebSocket session; use `setReportDataSource()` first |
+| `copyReportToDeepBacktestingReport()` | Internal plumbing between facade and deep backtesting manager |
+| `resetDeepBacktestingReportData()` | Internal plumbing — resets deep backtesting state |
+| `setReportDataSource(isDeep)` | Toggles deep backtesting mode — requires WebSocket session infrastructure |
+| `formatDWMTimestamp(e)` | Passthrough function — no value as endpoint |
+| `destroy()` | Cleanup — would break the API |
+
+#### Conditional APIs — Not Available
+
+These APIs only exist when specific TradingView features are active:
+
+| API | Condition Required | Status |
+|-----|-------------------|--------|
+| `_accountsManager` | Broker connected (Paper Trading or real broker like Alpaca/IBKR) | Not instantiated without broker |
+| `currentAccountApi()` | Same as above — trading account must be active | Not instantiated without broker |
+| `_deepBacktestingManager` | Active deep backtesting session (nested inside `_backtestingStrategyApi._deepBacktestingManager`) | Accessible as internal component, not top-level |
+
+#### Alerts API — Skipped Methods
+
+| Method | Reason |
+|--------|--------|
+| `deleteFiresByFilter(filter)` | Complex filter input — `deleteFires` + `deleteAllFires` suffice |
+| `getOfflineFires()` / `clearOfflineFires()` | Notification plumbing, not core alerts |
+| `getOfflineFireControls()` / `clearOfflineFireControls()` | Notification settings, not alerts |
+
 ## Quick Curl
 
 ```bash

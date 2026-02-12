@@ -135,6 +135,14 @@ type AlertsApiProbe struct {
 	State       map[string]any `json:"state"`
 }
 
+// StrategyApiProbe describes the result of probing for the _backtestingStrategyApi singleton.
+type StrategyApiProbe struct {
+	Found       bool           `json:"found"`
+	AccessPaths []string       `json:"access_paths"`
+	Methods     []string       `json:"methods"`
+	State       map[string]any `json:"state"`
+}
+
 // ResolvedSymbolInfo describes extended metadata for any symbol resolved via chartApi().
 type ResolvedSymbolInfo struct {
 	Symbol          string `json:"symbol"`

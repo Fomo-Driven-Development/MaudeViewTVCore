@@ -1173,6 +1173,162 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"remo
 `, jsString(studyID)))
 }
 
+// --- Backtesting Strategy API JS functions ---
+// These use TradingView's _backtestingStrategyApi singleton which provides
+// strategy management, input control, and report data access.
+
+// jsBacktestingApiPreamble extends jsPreamble with _backtestingStrategyApi resolution.
+const jsBacktestingApiPreamble = jsPreamble + `
+var bsa = api ? api._backtestingStrategyApi : null;
+`
+
+// jsBacktestingWVHelper is a shared JS helper that unwraps WatchedValues.
+const jsBacktestingWVHelper = `
+function _wv(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return v;
+  if (typeof v === "object" && typeof v.value === "function") { try { return v.value(); } catch(_) { return null; } }
+  if (typeof v === "object" && "_value" in v) return v._value;
+  return v;
+}
+`
+
+func jsProbeBacktestingApi() string {
+	return wrapJSEval(jsBacktestingApiPreamble + `
+if (!bsa) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[],state:{}}});
+var paths = ["api._backtestingStrategyApi"];
+var methods = [];
+var seen = {};
+var obj = bsa;
+while (obj && obj !== Object.prototype) {
+  var mk = Object.getOwnPropertyNames(obj);
+  for (var mi = 0; mi < mk.length; mi++) {
+    var mn = mk[mi];
+    if (mn === "constructor" || seen[mn]) continue;
+    seen[mn] = true;
+    try { if (typeof bsa[mn] === "function") methods.push(mn); } catch(_) {}
+  }
+  obj = Object.getPrototypeOf(obj);
+}
+methods.sort();
+var ownKeys = Object.keys(bsa);
+var state = {};
+for (var oi = 0; oi < ownKeys.length; oi++) {
+  var ok2 = ownKeys[oi];
+  var ov = bsa[ok2];
+  if (typeof ov === "function") continue;
+  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
+    state[ok2] = ov;
+  } else if (ov === null || ov === undefined) {
+    state[ok2] = null;
+  } else if (typeof ov === "object") {
+    state[ok2] = "{" + Object.keys(ov).length + " keys}";
+  }
+}
+return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods,state:state}});
+`)
+}
+
+func jsListStrategies() string {
+	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+var raw = _wv(bsa.allStrategies);
+if (!raw) raw = _wv(bsa._allStrategies);
+if (!raw) return JSON.stringify({ok:true,data:{strategies:[]}});
+var strategies = [];
+if (Array.isArray(raw)) {
+  for (var i = 0; i < raw.length; i++) {
+    var s = raw[i];
+    if (!s) continue;
+    var info = {};
+    info.id = typeof s.id === "function" ? String(s.id()) : String(s.id || s.entityId || "");
+    info.name = typeof s.name === "function" ? String(s.name()) : String(s.name || s.title || "");
+    if (typeof s.isVisible === "function") info.visible = !!s.isVisible();
+    strategies.push(info);
+  }
+} else {
+  strategies.push({raw_type: typeof raw, value: String(raw).substring(0, 200)});
+}
+return JSON.stringify({ok:true,data:{strategies:strategies}});
+`)
+}
+
+func jsGetActiveStrategy() string {
+	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+var active = _wv(bsa.activeStrategy);
+if (!active) active = _wv(bsa._activeStrategy);
+if (!active) return JSON.stringify({ok:true,data:{strategy:null,inputs:null,meta:null,status:null}});
+var strategy = {};
+strategy.id = typeof active.id === "function" ? String(active.id()) : String(active.id || active.entityId || "");
+strategy.name = typeof active.name === "function" ? String(active.name()) : String(active.name || active.title || "");
+var inputs = _wv(bsa.activeStrategyInputsValues);
+if (!inputs) inputs = _wv(bsa._activeStrategyInputsValues);
+var named = _wv(bsa.activeStrategyNamedInputs);
+if (!named) named = _wv(bsa._activeStrategyNamedInputs);
+var meta = _wv(bsa.activeStrategyMetaInfo);
+if (!meta) meta = _wv(bsa._activeStrategyMetaInfo);
+var status = _wv(bsa.activeStrategyStatus);
+if (!status) status = _wv(bsa._activeStrategyStatus);
+return JSON.stringify({ok:true,data:{strategy:strategy,inputs:inputs,named_inputs:named,meta:meta,status:status}});
+`)
+}
+
+func jsSetActiveStrategy(strategyID string) string {
+	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+var id = %s;
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+if (typeof bsa.setActiveStrategy !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setActiveStrategy unavailable"});
+bsa.setActiveStrategy(id);
+return JSON.stringify({ok:true,data:{status:"set",strategy_id:id}});
+`, jsString(strategyID)))
+}
+
+func jsSetStrategyInput(name string, value any) string {
+	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+var name = %s;
+var value = %s;
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+if (typeof bsa.setStrategyInput !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setStrategyInput unavailable"});
+bsa.setStrategyInput(name, value);
+return JSON.stringify({ok:true,data:{status:"set",name:name,value:value}});
+`, jsString(name), jsJSON(value)))
+}
+
+func jsGetStrategyReport() string {
+	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+var report = _wv(bsa.activeStrategyReportData);
+if (!report) report = _wv(bsa._activeStrategyReportData);
+if (!report) report = _wv(bsa._reportData);
+var status = _wv(bsa.activeStrategyStatus);
+if (!status) status = _wv(bsa._activeStrategyStatus);
+if (!status) status = _wv(bsa._status);
+var isDeep = bsa._isDeepBacktesting || false;
+return JSON.stringify({ok:true,data:{report:report,status:status,is_deep_backtesting:isDeep}});
+`)
+}
+
+func jsGetStrategyDateRange() string {
+	return wrapJSEval(jsBacktestingApiPreamble + `
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+if (typeof bsa.getChartDateRange !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getChartDateRange unavailable"});
+var range = bsa.getChartDateRange();
+return JSON.stringify({ok:true,data:{date_range:range}});
+`)
+}
+
+func jsStrategyGotoDate(timestamp float64, belowBar bool) string {
+	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+var ts = %v;
+var below = %t;
+if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
+if (typeof bsa.gotoDate !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"gotoDate unavailable"});
+bsa.gotoDate(ts, below);
+return JSON.stringify({ok:true,data:{status:"navigated",timestamp:ts,below_bar:below}});
+`, timestamp, belowBar))
+}
+
 // --- Alerts REST API JS functions ---
 // These use TradingView's internal getAlertsRestApi() singleton which wraps
 // the pricealerts.tradingview.com REST service for alert CRUD and fire management.

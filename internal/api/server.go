@@ -63,6 +63,14 @@ type Service interface {
 	StopAutoplay(ctx context.Context, chartID string) error
 	ResetReplay(ctx context.Context, chartID string) error
 	ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error)
+	ProbeBacktestingApi(ctx context.Context, chartID string) (cdpcontrol.StrategyApiProbe, error)
+	ListStrategies(ctx context.Context, chartID string) (any, error)
+	GetActiveStrategy(ctx context.Context, chartID string) (map[string]any, error)
+	SetActiveStrategy(ctx context.Context, chartID, strategyID string) error
+	SetStrategyInput(ctx context.Context, chartID, name string, value any) error
+	GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error)
+	GetStrategyDateRange(ctx context.Context, chartID string) (any, error)
+	StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error
 	ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error)
 	ProbeAlertsRestApi(ctx context.Context, chartID string) (cdpcontrol.AlertsApiProbe, error)
 	ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error)
@@ -935,6 +943,136 @@ func NewServer(svc Service) http.Handler {
 			out.Body.ChartID = input.ChartID
 			out.Body.Status = "changed"
 			out.Body.Delay = current
+			return out, nil
+		})
+
+	// --- Strategy endpoints ---
+
+	type strategyProbeOutput struct {
+		Body cdpcontrol.StrategyApiProbe
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-strategy-api", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/probe", Summary: "Probe backtesting strategy API", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*strategyProbeOutput, error) {
+			probe, err := svc.ProbeBacktestingApi(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &strategyProbeOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "list-strategies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/list", Summary: "List all loaded strategies", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body struct{ Strategies any `json:"strategies"` } }, error) {
+			strategies, err := svc.ListStrategies(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Strategies any `json:"strategies"`
+				}
+			}{}
+			out.Body.Strategies = strategies
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-active-strategy", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/active", Summary: "Get active strategy with inputs and metadata", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body map[string]any }, error) {
+			result, err := svc.GetActiveStrategy(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct{ Body map[string]any }{}
+			out.Body = result
+			return out, nil
+		})
+
+	type setStrategyInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			StrategyID string `json:"strategy_id" doc:"Entity ID of the strategy to activate"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "set-active-strategy", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/strategy/active", Summary: "Set active strategy by entity ID", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *setStrategyInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+			if err := svc.SetActiveStrategy(ctx, input.ChartID, input.Body.StrategyID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Status string `json:"status"`
+				}
+			}{}
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	type setStrategyInputInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Name  string `json:"name" doc:"Input parameter name"`
+			Value any    `json:"value" doc:"Input parameter value"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "set-strategy-input", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/strategy/input", Summary: "Set a strategy input parameter", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *setStrategyInputInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+			if err := svc.SetStrategyInput(ctx, input.ChartID, input.Body.Name, input.Body.Value); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Status string `json:"status"`
+				}
+			}{}
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-strategy-report", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/report", Summary: "Get backtest report data", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body map[string]any }, error) {
+			result, err := svc.GetStrategyReport(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct{ Body map[string]any }{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-strategy-date-range", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/date-range", Summary: "Get backtest date range", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body struct{ DateRange any `json:"date_range"` } }, error) {
+			dateRange, err := svc.GetStrategyDateRange(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					DateRange any `json:"date_range"`
+				}
+			}{}
+			out.Body.DateRange = dateRange
+			return out, nil
+		})
+
+	type strategyGotoInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Timestamp float64 `json:"timestamp" doc:"Bar timestamp to navigate to"`
+			BelowBar  bool    `json:"below_bar,omitempty" doc:"Whether to position below the bar"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "strategy-goto-date", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/strategy/goto", Summary: "Navigate chart to a specific trade/bar timestamp", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *strategyGotoInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+			if err := svc.StrategyGotoDate(ctx, input.ChartID, input.Body.Timestamp, input.Body.BelowBar); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Status string `json:"status"`
+				}
+			}{}
+			out.Body.Status = "navigated"
 			return out, nil
 		})
 

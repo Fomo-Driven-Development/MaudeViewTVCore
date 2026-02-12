@@ -124,6 +124,30 @@ func (s *stubService) ResetReplay(ctx context.Context, chartID string) error   {
 func (s *stubService) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
 	return delay, nil
 }
+func (s *stubService) ProbeBacktestingApi(ctx context.Context, chartID string) (cdpcontrol.StrategyApiProbe, error) {
+	return cdpcontrol.StrategyApiProbe{}, nil
+}
+func (s *stubService) ListStrategies(ctx context.Context, chartID string) (any, error) {
+	return []any{}, nil
+}
+func (s *stubService) GetActiveStrategy(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) SetActiveStrategy(ctx context.Context, chartID, strategyID string) error {
+	return nil
+}
+func (s *stubService) SetStrategyInput(ctx context.Context, chartID, name string, value any) error {
+	return nil
+}
+func (s *stubService) GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) GetStrategyDateRange(ctx context.Context, chartID string) (any, error) {
+	return nil, nil
+}
+func (s *stubService) StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error {
+	return nil
+}
 func (s *stubService) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
 	return map[string]any{}, nil
 }

@@ -657,6 +657,91 @@ func (c *Client) ChangeAutoplayDelay(ctx context.Context, chartID string, delay 
 	return out.Delay, nil
 }
 
+// --- Backtesting Strategy API methods ---
+
+func (c *Client) ProbeBacktestingApi(ctx context.Context, chartID string) (StrategyApiProbe, error) {
+	var out StrategyApiProbe
+	if err := c.evalOnChart(ctx, chartID, jsProbeBacktestingApi(), &out); err != nil {
+		return StrategyApiProbe{}, err
+	}
+	if out.AccessPaths == nil {
+		out.AccessPaths = []string{}
+	}
+	if out.Methods == nil {
+		out.Methods = []string{}
+	}
+	if out.State == nil {
+		out.State = map[string]any{}
+	}
+	return out, nil
+}
+
+func (c *Client) ListStrategies(ctx context.Context, chartID string) (any, error) {
+	var out struct {
+		Strategies any `json:"strategies"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsListStrategies(), &out); err != nil {
+		return nil, err
+	}
+	return out.Strategies, nil
+}
+
+func (c *Client) GetActiveStrategy(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsGetActiveStrategy(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetActiveStrategy(ctx context.Context, chartID, strategyID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetActiveStrategy(strategyID), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SetStrategyInput(ctx context.Context, chartID, name string, value any) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetStrategyInput(name, value), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsGetStrategyReport(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetStrategyDateRange(ctx context.Context, chartID string) (any, error) {
+	var out struct {
+		DateRange any `json:"date_range"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGetStrategyDateRange(), &out); err != nil {
+		return nil, err
+	}
+	return out.DateRange, nil
+}
+
+func (c *Client) StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsStrategyGotoDate(timestamp, belowBar), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 // --- Alerts REST API methods ---
 
 func (c *Client) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
