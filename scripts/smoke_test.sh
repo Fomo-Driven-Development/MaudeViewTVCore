@@ -239,7 +239,7 @@ SNAP_RESP=$(req "POST take snapshot" "POST" "/api/v1/chart/$CHART_ID/snapshot" '
 SNAP_ID=$(echo "$SNAP_RESP" | jq -r '.snapshot.id // empty')
 if [ -n "$SNAP_ID" ]; then
   get "GET snapshot list" "/api/v1/snapshots" >/dev/null
-  get "GET snapshot meta" "/api/v1/snapshots/$SNAP_ID" >/dev/null
+  get "GET snapshot meta" "/api/v1/snapshots/$SNAP_ID/metadata" >/dev/null
   req "DELETE snapshot" "DELETE" "/api/v1/snapshots/$SNAP_ID" >/dev/null
 else
   skip "snapshot CRUD" "could not take snapshot"

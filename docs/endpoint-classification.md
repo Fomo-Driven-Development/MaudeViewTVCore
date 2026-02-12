@@ -180,7 +180,7 @@
 |---|--------|------|------|-----------|
 | 90 | POST | `/api/v1/chart/{id}/snapshot` | JS API + File I/O | JS: `await api.takeClientScreenshot()` + `canvas.toDataURL()`. Go: decode base64, write to `snapshot.Store` |
 | 91 | GET | `/api/v1/snapshots` | File I/O | Read metadata from `snapshot.Store` |
-| 92 | GET | `/api/v1/snapshots/{sid}` | File I/O | Read single metadata from `snapshot.Store` |
+| 92 | GET | `/api/v1/snapshots/{sid}/metadata` | File I/O | Read single metadata from `snapshot.Store` |
 | 93 | GET | `/api/v1/snapshots/{sid}/image` | File I/O | Serve raw image bytes from `snapshot.Store` |
 | 94 | DELETE | `/api/v1/snapshots/{sid}` | File I/O | Delete file from `snapshot.Store` |
 

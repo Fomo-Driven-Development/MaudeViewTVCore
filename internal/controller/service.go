@@ -534,7 +534,7 @@ func (s *Service) ImportDrawingsState(ctx context.Context, chartID string, state
 
 // --- Snapshot methods ---
 
-func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) (snapshot.SnapshotMeta, error) {
+func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool, notes string) (snapshot.SnapshotMeta, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "png"
@@ -554,6 +554,7 @@ func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality 
 		Format:    format,
 		SizeBytes: len(imageData),
 		CreatedAt: time.Now().UTC(),
+		Notes:     strings.TrimSpace(notes),
 	}
 
 	if err := s.snaps.Save(meta, imageData); err != nil {
@@ -563,7 +564,7 @@ func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality 
 	return meta, nil
 }
 
-func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error) {
+func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "png"
@@ -590,6 +591,7 @@ func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality str
 		Height:    result.Height,
 		SizeBytes: len(imageData),
 		CreatedAt: time.Now().UTC(),
+		Notes:     strings.TrimSpace(notes),
 	}
 
 	if len(result.Metadata.Charts) > 0 {
@@ -968,7 +970,7 @@ func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) 
 	}
 
 	if takeSnapshot && chartID != "" {
-		snap, err := s.TakeSnapshot(ctx, chartID, "png", "")
+		snap, err := s.TakeSnapshot(ctx, chartID, "png", "", "")
 		if err == nil {
 			detail.SnapshotURL = fmt.Sprintf("/api/v1/snapshots/%s/image", snap.ID)
 		}

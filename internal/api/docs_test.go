@@ -220,10 +220,10 @@ func (s *stubService) ExportDrawingsState(ctx context.Context, chartID string) (
 func (s *stubService) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
 	return nil
 }
-func (s *stubService) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) (snapshot.SnapshotMeta, error) {
+func (s *stubService) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool, notes string) (snapshot.SnapshotMeta, error) {
 	return snapshot.SnapshotMeta{}, nil
 }
-func (s *stubService) TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error) {
+func (s *stubService) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error) {
 	return snapshot.SnapshotMeta{}, nil
 }
 func (s *stubService) ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error) {

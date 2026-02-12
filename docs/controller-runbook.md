@@ -318,8 +318,8 @@ Takes chart screenshots via `api.takeClientScreenshot()`, stores them with UUID 
 |--------|------|-------|-------------|
 | POST | `/api/v1/chart/{chart_id}/snapshot` | `take-snapshot` | Take snapshot, store, return metadata + URL |
 | GET | `/api/v1/snapshots` | `list-snapshots` | List all snapshots (newest first) |
-| GET | `/api/v1/snapshots/{snapshot_id}` | `get-snapshot` | Get snapshot metadata |
-| GET | `/api/v1/snapshots/{snapshot_id}/image` | *(raw chi)* | Serve raw image bytes |
+| GET | `/api/v1/snapshots/{snapshot_id}/metadata` | `get-snapshot-metadata` | Get snapshot metadata |
+| GET | `/api/v1/snapshots/{snapshot_id}/image` | `get-snapshot-image` | Serve raw image bytes |
 | DELETE | `/api/v1/snapshots/{snapshot_id}` | `delete-snapshot` | Delete snapshot + file |
 
 #### Storage
@@ -347,7 +347,7 @@ curl -s -X POST http://127.0.0.1:8188/api/v1/chart/{id}/snapshot \
 curl -s http://127.0.0.1:8188/api/v1/snapshots | jq
 
 # Get metadata
-curl -s http://127.0.0.1:8188/api/v1/snapshots/{uuid} | jq
+curl -s http://127.0.0.1:8188/api/v1/snapshots/{uuid}/metadata | jq
 
 # Fetch raw image
 curl -s http://127.0.0.1:8188/api/v1/snapshots/{uuid}/image -o test.png

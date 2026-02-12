@@ -28,6 +28,7 @@ type SnapshotMeta struct {
 	Description string    `json:"description,omitempty"`
 	Theme       string    `json:"theme,omitempty"`
 	Layout      string    `json:"layout,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
 }
 
 // Store manages snapshot files on disk.

@@ -103,8 +103,8 @@ type Service interface {
 	SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error
 	ExportDrawingsState(ctx context.Context, chartID string) (any, error)
 	ImportDrawingsState(ctx context.Context, chartID string, state any) error
-	BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) (snapshot.SnapshotMeta, error)
-	TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error)
+	BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool, notes string) (snapshot.SnapshotMeta, error)
+	TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error)
 	ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error)
 	GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error)
 	ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error)
@@ -1673,9 +1673,10 @@ func NewServer(svc Service) http.Handler {
 				Format   string `json:"format,omitempty" doc:"Image format: png (default) or jpeg"`
 				Quality  int    `json:"quality,omitempty" doc:"JPEG quality 1-100 (ignored for PNG)"`
 				FullPage bool   `json:"full_page,omitempty" doc:"Capture full scrollable page"`
+				Notes    string `json:"notes,omitempty" doc:"Free-form annotation for the snapshot"`
 			}
 		}) (*takeSnapshotOutput, error) {
-			meta, err := svc.BrowserScreenshot(ctx, input.Body.Format, input.Body.Quality, input.Body.FullPage)
+			meta, err := svc.BrowserScreenshot(ctx, input.Body.Format, input.Body.Quality, input.Body.FullPage, input.Body.Notes)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1691,9 +1692,10 @@ func NewServer(svc Service) http.Handler {
 			Body    struct {
 				Format  string `json:"format,omitempty"`
 				Quality string `json:"quality,omitempty"`
+				Notes   string `json:"notes,omitempty" doc:"Free-form annotation for the snapshot"`
 			}
 		}) (*takeSnapshotOutput, error) {
-			meta, err := svc.TakeSnapshot(ctx, input.ChartID, input.Body.Format, input.Body.Quality)
+			meta, err := svc.TakeSnapshot(ctx, input.ChartID, input.Body.Format, input.Body.Quality, input.Body.Notes)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1728,7 +1730,7 @@ func NewServer(svc Service) http.Handler {
 	type getSnapshotOutput struct {
 		Body snapshot.SnapshotMeta
 	}
-	huma.Register(api, huma.Operation{OperationID: "get-snapshot", Method: http.MethodGet, Path: "/api/v1/snapshots/{snapshot_id}", Summary: "Get snapshot metadata", Tags: []string{"Snapshots"}},
+	huma.Register(api, huma.Operation{OperationID: "get-snapshot-metadata", Method: http.MethodGet, Path: "/api/v1/snapshots/{snapshot_id}/metadata", Summary: "Get snapshot metadata", Tags: []string{"Snapshots"}},
 		func(ctx context.Context, input *snapshotIDInput) (*getSnapshotOutput, error) {
 			meta, err := svc.GetSnapshot(ctx, input.SnapshotID)
 			if err != nil {
