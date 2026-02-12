@@ -2051,21 +2051,40 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	// Raw chi handler for serving snapshot image bytes (Huma doesn't support binary responses).
-	router.Get("/api/v1/snapshots/{snapshot_id}/image", func(w http.ResponseWriter, r *http.Request) {
-		snapshotID := chi.URLParam(r, "snapshot_id")
-		data, format, err := svc.ReadSnapshotImage(r.Context(), snapshotID)
+	type snapshotImageOutput struct {
+		ContentType   string `header:"Content-Type"`
+		ContentLength string `header:"Content-Length"`
+		Body          []byte
+	}
+	huma.Register(api, huma.Operation{
+		OperationID: "get-snapshot-image",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/snapshots/{snapshot_id}/image",
+		Summary:     "Get snapshot image",
+		Tags:        []string{"Snapshots"},
+		Responses: map[string]*huma.Response{
+			"200": {
+				Description: "Snapshot image (PNG or JPEG)",
+				Content: map[string]*huma.MediaType{
+					"image/png":  {},
+					"image/jpeg": {},
+				},
+			},
+		},
+	}, func(ctx context.Context, input *snapshotIDInput) (*snapshotImageOutput, error) {
+		data, format, err := svc.ReadSnapshotImage(ctx, input.SnapshotID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
+			return nil, mapErr(err)
 		}
 		ct := "image/png"
 		if format == "jpeg" {
 			ct = "image/jpeg"
 		}
-		w.Header().Set("Content-Type", ct)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
-		_, _ = w.Write(data)
+		return &snapshotImageOutput{
+			ContentType:   ct,
+			ContentLength: fmt.Sprintf("%d", len(data)),
+			Body:          data,
+		}, nil
 	})
 
 	// --- Layout management endpoints ---
