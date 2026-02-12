@@ -360,9 +360,14 @@ return JSON.stringify({ok:true,data:{
 }
 
 func jsDeleteWatchlist(id string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
+	return wrapJSEvalAsync(fmt.Sprintf(`
 var listId = %s;
-await _wlFetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/", {method: "DELETE"});
+var resp = await fetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/", {method: "DELETE", credentials: "include"});
+if (!resp.ok && resp.status !== 404) {
+  var body = "";
+  try { var j = await resp.json(); body = j.detail || j.message || JSON.stringify(j); } catch(_) { body = await resp.text(); }
+  throw new Error("HTTP " + resp.status + ": " + body);
+}
 return JSON.stringify({ok:true,data:{status:"deleted"}});
 `, jsString(id)))
 }
