@@ -229,6 +229,36 @@ type SnapshotSymbolMeta struct {
 	Description string `json:"description,omitempty"`
 }
 
+// LayoutInfo describes a saved layout entry.
+type LayoutInfo struct {
+	ID       int    `json:"id"`
+	URL      string `json:"url"`
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol,omitempty"`
+	Interval string `json:"interval,omitempty"`
+	Modified int64  `json:"modified,omitempty"`
+	Favorite bool   `json:"favorite,omitempty"`
+}
+
+// LayoutStatus describes the current layout state.
+type LayoutStatus struct {
+	LayoutName   string `json:"layout_name"`
+	LayoutID     string `json:"layout_id"`
+	GridTemplate string `json:"grid_template"`
+	ChartCount   int    `json:"chart_count"`
+	ActiveIndex  int    `json:"active_index"`
+	IsMaximized  bool   `json:"is_maximized"`
+	IsFullscreen bool   `json:"is_fullscreen"`
+	HasChanges   bool   `json:"has_changes"`
+}
+
+// LayoutActionResult describes the result of a layout action.
+type LayoutActionResult struct {
+	Status     string `json:"status"`
+	LayoutName string `json:"layout_name,omitempty"`
+	LayoutID   string `json:"layout_id,omitempty"`
+}
+
 // ReloadResult describes the result of a page reload.
 type ReloadResult struct {
 	Status string `json:"status"`

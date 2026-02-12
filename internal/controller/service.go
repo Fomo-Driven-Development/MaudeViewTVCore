@@ -735,6 +735,75 @@ func (s *Service) PineCommandPalette(ctx context.Context) (cdpcontrol.PineState,
 	return s.cdp.PineCommandPalette(ctx)
 }
 
+// --- Layout management methods ---
+
+func (s *Service) ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error) {
+	return s.cdp.ListLayouts(ctx)
+}
+
+func (s *Service) GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return s.cdp.GetLayoutStatus(ctx)
+}
+
+func (s *Service) SwitchLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error) {
+	if id <= 0 {
+		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "id must be > 0"}
+	}
+	return s.cdp.SwitchLayout(ctx, id)
+}
+
+func (s *Service) SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
+	return s.cdp.SaveLayout(ctx)
+}
+
+func (s *Service) CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
+	if strings.TrimSpace(name) == "" {
+		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.CloneLayout(ctx, strings.TrimSpace(name))
+}
+
+func (s *Service) RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
+	if strings.TrimSpace(name) == "" {
+		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.RenameLayout(ctx, strings.TrimSpace(name))
+}
+
+func (s *Service) SetLayoutGrid(ctx context.Context, template string) (cdpcontrol.LayoutStatus, error) {
+	if strings.TrimSpace(template) == "" {
+		return cdpcontrol.LayoutStatus{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "template is required"}
+	}
+	return s.cdp.SetLayoutGrid(ctx, strings.TrimSpace(template))
+}
+
+func (s *Service) NextChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return s.cdp.NextChart(ctx)
+}
+
+func (s *Service) PrevChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return s.cdp.PrevChart(ctx)
+}
+
+func (s *Service) MaximizeChart(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return s.cdp.MaximizeChart(ctx)
+}
+
+func (s *Service) ActivateChart(ctx context.Context, index int) (cdpcontrol.LayoutStatus, error) {
+	if index < 0 {
+		return cdpcontrol.LayoutStatus{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "index must be >= 0"}
+	}
+	return s.cdp.ActivateChart(ctx, index)
+}
+
+func (s *Service) ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return s.cdp.ToggleFullscreen(ctx)
+}
+
+func (s *Service) DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
+	return s.cdp.DismissDialog(ctx)
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

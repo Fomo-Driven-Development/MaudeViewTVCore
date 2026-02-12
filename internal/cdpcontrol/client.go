@@ -1830,6 +1830,165 @@ func chartIDFromURL(url string) string {
 	return m[1]
 }
 
+// --- Layout management methods ---
+
+func (c *Client) ListLayouts(ctx context.Context) ([]LayoutInfo, error) {
+	var out struct {
+		Layouts []LayoutInfo `json:"layouts"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListLayouts(), &out); err != nil {
+		return nil, err
+	}
+	if out.Layouts == nil {
+		return []LayoutInfo{}, nil
+	}
+	return out.Layouts, nil
+}
+
+func (c *Client) GetLayoutStatus(ctx context.Context) (LayoutStatus, error) {
+	var out LayoutStatus
+	if err := c.evalOnAnyChart(ctx, jsLayoutStatus(), &out); err != nil {
+		return LayoutStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SwitchLayout(ctx context.Context, id int) (LayoutActionResult, error) {
+	// Step 1: Resolve the short URL for the target layout ID.
+	var resolved struct {
+		ShortURL string `json:"short_url"`
+		Name     string `json:"name"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsSwitchLayoutResolveURL(id), &resolved); err != nil {
+		return LayoutActionResult{}, err
+	}
+	if resolved.ShortURL == "" {
+		return LayoutActionResult{}, newError(CodeValidation, fmt.Sprintf("layout %d not found or has no URL", id), nil)
+	}
+
+	// Step 2: Navigate via window.location (triggers full page reload).
+	navJS := wrapJSEval(fmt.Sprintf(`window.location.href = "/chart/%s/"; return JSON.stringify({ok:true,data:{}});`, resolved.ShortURL))
+	_ = c.evalOnAnyChart(ctx, navJS, &struct{}{}) // will likely error due to navigation
+
+	// Step 3: Invalidate sessions and poll until the new page is ready.
+	c.mu.Lock()
+	for _, ts := range c.tabs {
+		ts.mu.Lock()
+		ts.sessionID = ""
+		ts.mu.Unlock()
+	}
+	c.mu.Unlock()
+
+	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	time.Sleep(2 * time.Second)
+
+	for {
+		select {
+		case <-pollCtx.Done():
+			return LayoutActionResult{}, newError(CodeEvalTimeout, "timed out waiting for layout switch", pollCtx.Err())
+		default:
+		}
+		_ = c.refreshTabs(ctx)
+		var readyOut struct{ Ready string }
+		readyErr := c.evalOnAnyChart(pollCtx, wrapJSEval(`return JSON.stringify({ok:true,data:{ready:document.readyState}});`), &readyOut)
+		if readyErr == nil && readyOut.Ready == "complete" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// Step 4: Read the new layout status.
+	status, statusErr := c.GetLayoutStatus(ctx)
+	if statusErr != nil {
+		return LayoutActionResult{Status: "switched", LayoutName: resolved.Name, LayoutID: resolved.ShortURL}, nil
+	}
+	return LayoutActionResult{Status: "switched", LayoutName: status.LayoutName, LayoutID: status.LayoutID}, nil
+}
+
+func (c *Client) SaveLayout(ctx context.Context) (LayoutActionResult, error) {
+	var out LayoutActionResult
+	if err := c.evalOnAnyChart(ctx, jsSaveLayout(), &out); err != nil {
+		return LayoutActionResult{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) CloneLayout(ctx context.Context, name string) (LayoutActionResult, error) {
+	var out LayoutActionResult
+	if err := c.evalOnAnyChart(ctx, jsCloneLayout(name), &out); err != nil {
+		return LayoutActionResult{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) RenameLayout(ctx context.Context, name string) (LayoutActionResult, error) {
+	var out LayoutActionResult
+	if err := c.evalOnAnyChart(ctx, jsRenameLayout(name), &out); err != nil {
+		return LayoutActionResult{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetLayoutGrid(ctx context.Context, template string) (LayoutStatus, error) {
+	var out LayoutStatus
+	if err := c.evalOnAnyChart(ctx, jsSetGrid(template), &out); err != nil {
+		return LayoutStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) NextChart(ctx context.Context) (ActiveChartInfo, error) {
+	// Tab key (keyCode 9, no modifiers)
+	if err := c.sendKeysOnAnyChart(ctx, "Tab", "Tab", 9, 0); err != nil {
+		return ActiveChartInfo{}, newError(CodeEvalFailure, "failed to dispatch Tab key", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	return c.GetActiveChart(ctx)
+}
+
+func (c *Client) PrevChart(ctx context.Context) (ActiveChartInfo, error) {
+	// Shift+Tab key (keyCode 9, modifiers 8=Shift)
+	if err := c.sendKeysOnAnyChart(ctx, "Tab", "Tab", 9, 8); err != nil {
+		return ActiveChartInfo{}, newError(CodeEvalFailure, "failed to dispatch Shift+Tab key", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	return c.GetActiveChart(ctx)
+}
+
+func (c *Client) MaximizeChart(ctx context.Context) (LayoutStatus, error) {
+	// Alt+Enter (keyCode 13, modifiers 1=Alt)
+	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 1); err != nil {
+		return LayoutStatus{}, newError(CodeEvalFailure, "failed to dispatch Alt+Enter key", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	return c.GetLayoutStatus(ctx)
+}
+
+func (c *Client) ActivateChart(ctx context.Context, index int) (LayoutStatus, error) {
+	var out LayoutStatus
+	if err := c.evalOnAnyChart(ctx, jsActivateChart(index), &out); err != nil {
+		return LayoutStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ToggleFullscreen(ctx context.Context) (LayoutStatus, error) {
+	var out LayoutStatus
+	if err := c.evalOnAnyChart(ctx, jsToggleFullscreen(), &out); err != nil {
+		return LayoutStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) DismissDialog(ctx context.Context) (LayoutActionResult, error) {
+	// Escape key (keyCode 27, no modifiers) — closes any open modal/dialog
+	if err := c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0); err != nil {
+		return LayoutActionResult{}, newError(CodeEvalFailure, "failed to dispatch Escape key", err)
+	}
+	return LayoutActionResult{Status: "dismissed"}, nil
+}
+
 func jsString(v string) string {
 	b, _ := json.Marshal(v)
 	return string(b)

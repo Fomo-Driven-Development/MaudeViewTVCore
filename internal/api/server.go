@@ -130,6 +130,19 @@ type Service interface {
 	PineInsertLineAbove(ctx context.Context) (cdpcontrol.PineState, error)
 	PineNewTab(ctx context.Context) (cdpcontrol.PineState, error)
 	PineCommandPalette(ctx context.Context) (cdpcontrol.PineState, error)
+	ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error)
+	GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error)
+	SwitchLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error)
+	SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
+	CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error)
+	RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error)
+	SetLayoutGrid(ctx context.Context, template string) (cdpcontrol.LayoutStatus, error)
+	NextChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
+	PrevChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
+	MaximizeChart(ctx context.Context) (cdpcontrol.LayoutStatus, error)
+	ActivateChart(ctx context.Context, index int) (cdpcontrol.LayoutStatus, error)
+	ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutStatus, error)
+	DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -2017,6 +2030,184 @@ func NewServer(svc Service) http.Handler {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 		_, _ = w.Write(data)
 	})
+
+	// --- Layout management endpoints ---
+
+	type listLayoutsOutput struct {
+		Body struct {
+			Layouts []cdpcontrol.LayoutInfo `json:"layouts"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-layouts", Method: http.MethodGet, Path: "/api/v1/layouts", Summary: "List all saved layouts", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*listLayoutsOutput, error) {
+			layouts, err := svc.ListLayouts(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &listLayoutsOutput{}
+			out.Body.Layouts = layouts
+			return out, nil
+		})
+
+	type layoutStatusOutput struct {
+		Body cdpcontrol.LayoutStatus
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-layout-status", Method: http.MethodGet, Path: "/api/v1/layout/status", Summary: "Get current layout state", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutStatusOutput, error) {
+			status, err := svc.GetLayoutStatus(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutStatusOutput{}
+			out.Body = status
+			return out, nil
+		})
+
+	type layoutActionOutput struct {
+		Body cdpcontrol.LayoutActionResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "switch-layout", Method: http.MethodPost, Path: "/api/v1/layout/switch", Summary: "Switch to a layout by numeric ID", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				ID int `json:"id" required:"true"`
+			}
+		}) (*layoutActionOutput, error) {
+			result, err := svc.SwitchLayout(ctx, input.Body.ID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "save-layout", Method: http.MethodPost, Path: "/api/v1/layout/save", Summary: "Save current layout", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutActionOutput, error) {
+			result, err := svc.SaveLayout(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "clone-layout", Method: http.MethodPost, Path: "/api/v1/layout/clone", Summary: "Clone current layout with a new name", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Name string `json:"name" required:"true"`
+			}
+		}) (*layoutActionOutput, error) {
+			result, err := svc.CloneLayout(ctx, input.Body.Name)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "rename-layout", Method: http.MethodPost, Path: "/api/v1/layout/rename", Summary: "Rename current layout", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Name string `json:"name" required:"true"`
+			}
+		}) (*layoutActionOutput, error) {
+			result, err := svc.RenameLayout(ctx, input.Body.Name)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-layout-grid", Method: http.MethodPost, Path: "/api/v1/layout/grid", Summary: "Set grid template (e.g. s, 2h, 2v, 3h, 4)", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Template string `json:"template" required:"true"`
+			}
+		}) (*layoutStatusOutput, error) {
+			status, err := svc.SetLayoutGrid(ctx, input.Body.Template)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutStatusOutput{}
+			out.Body = status
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "toggle-fullscreen", Method: http.MethodPost, Path: "/api/v1/layout/fullscreen", Summary: "Toggle fullscreen mode", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutStatusOutput, error) {
+			status, err := svc.ToggleFullscreen(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutStatusOutput{}
+			out.Body = status
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "dismiss-dialog", Method: http.MethodPost, Path: "/api/v1/layout/dismiss-dialog", Summary: "Dismiss any open modal/dialog (Escape key)", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutActionOutput, error) {
+			result, err := svc.DismissDialog(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	// --- Chart navigation endpoints ---
+
+	huma.Register(api, huma.Operation{OperationID: "next-chart", Method: http.MethodPost, Path: "/api/v1/chart/next", Summary: "Focus next chart pane (Tab)", Tags: []string{"Chart Navigation"}},
+		func(ctx context.Context, input *struct{}) (*activeChartOutput, error) {
+			info, err := svc.NextChart(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &activeChartOutput{}
+			out.Body = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "prev-chart", Method: http.MethodPost, Path: "/api/v1/chart/prev", Summary: "Focus previous chart pane (Shift+Tab)", Tags: []string{"Chart Navigation"}},
+		func(ctx context.Context, input *struct{}) (*activeChartOutput, error) {
+			info, err := svc.PrevChart(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &activeChartOutput{}
+			out.Body = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "maximize-chart", Method: http.MethodPost, Path: "/api/v1/chart/maximize", Summary: "Toggle maximize active pane (Alt+Enter)", Tags: []string{"Chart Navigation"}},
+		func(ctx context.Context, input *struct{}) (*layoutStatusOutput, error) {
+			status, err := svc.MaximizeChart(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutStatusOutput{}
+			out.Body = status
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "activate-chart", Method: http.MethodPost, Path: "/api/v1/chart/activate", Summary: "Set active chart by index (0-based)", Tags: []string{"Chart Navigation"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Index int `json:"index"`
+			}
+		}) (*layoutStatusOutput, error) {
+			status, err := svc.ActivateChart(ctx, input.Body.Index)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutStatusOutput{}
+			out.Body = status
+			return out, nil
+		})
 
 	return router
 }

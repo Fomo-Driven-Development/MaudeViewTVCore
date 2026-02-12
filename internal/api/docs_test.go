@@ -300,6 +300,45 @@ func (s *stubService) PineNewTab(ctx context.Context) (cdpcontrol.PineState, err
 func (s *stubService) PineCommandPalette(ctx context.Context) (cdpcontrol.PineState, error) {
 	return cdpcontrol.PineState{}, nil
 }
+func (s *stubService) ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error) {
+	return []cdpcontrol.LayoutInfo{}, nil
+}
+func (s *stubService) GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return cdpcontrol.LayoutStatus{}, nil
+}
+func (s *stubService) SwitchLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
+func (s *stubService) SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
+func (s *stubService) CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
+func (s *stubService) RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
+func (s *stubService) SetLayoutGrid(ctx context.Context, template string) (cdpcontrol.LayoutStatus, error) {
+	return cdpcontrol.LayoutStatus{}, nil
+}
+func (s *stubService) NextChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return cdpcontrol.ActiveChartInfo{}, nil
+}
+func (s *stubService) PrevChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
+	return cdpcontrol.ActiveChartInfo{}, nil
+}
+func (s *stubService) MaximizeChart(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return cdpcontrol.LayoutStatus{}, nil
+}
+func (s *stubService) ActivateChart(ctx context.Context, index int) (cdpcontrol.LayoutStatus, error) {
+	return cdpcontrol.LayoutStatus{}, nil
+}
+func (s *stubService) ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
+	return cdpcontrol.LayoutStatus{}, nil
+}
+func (s *stubService) DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
+	return cdpcontrol.LayoutActionResult{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})
