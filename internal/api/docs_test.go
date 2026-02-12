@@ -171,7 +171,54 @@ func (s *stubService) RestartAlerts(ctx context.Context, ids []string) error { r
 func (s *stubService) CloneAlerts(ctx context.Context, ids []string) error   { return nil }
 func (s *stubService) ListFires(ctx context.Context) (any, error)            { return nil, nil }
 func (s *stubService) DeleteFires(ctx context.Context, ids []string) error   { return nil }
-func (s *stubService) DeleteAllFires(ctx context.Context) error              { return nil }
+func (s *stubService) DeleteAllFires(ctx context.Context) error { return nil }
+func (s *stubService) ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error) {
+	return []cdpcontrol.Shape{}, nil
+}
+func (s *stubService) GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+	return "", nil
+}
+func (s *stubService) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+	return "", nil
+}
+func (s *stubService) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
+	return "", nil
+}
+func (s *stubService) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
+	return nil
+}
+func (s *stubService) RemoveAllDrawings(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) GetDrawingToggles(ctx context.Context, chartID string) (cdpcontrol.DrawingToggles, error) {
+	return cdpcontrol.DrawingToggles{}, nil
+}
+func (s *stubService) SetHideDrawings(ctx context.Context, chartID string, val bool) error {
+	return nil
+}
+func (s *stubService) SetLockDrawings(ctx context.Context, chartID string, val bool) error {
+	return nil
+}
+func (s *stubService) SetMagnet(ctx context.Context, chartID string, enabled bool, mode int) error {
+	return nil
+}
+func (s *stubService) SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error {
+	return nil
+}
+func (s *stubService) GetDrawingTool(ctx context.Context, chartID string) (string, error) {
+	return "", nil
+}
+func (s *stubService) SetDrawingTool(ctx context.Context, chartID, tool string) error { return nil }
+func (s *stubService) SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error {
+	return nil
+}
+func (s *stubService) ExportDrawingsState(ctx context.Context, chartID string) (any, error) {
+	return nil, nil
+}
+func (s *stubService) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
+	return nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

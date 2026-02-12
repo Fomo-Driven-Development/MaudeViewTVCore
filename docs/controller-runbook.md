@@ -175,6 +175,62 @@ These APIs only exist when specific TradingView features are active:
 | `getOfflineFires()` / `clearOfflineFires()` | Notification plumbing, not core alerts |
 | `getOfflineFireControls()` / `clearOfflineFireControls()` | Notification settings, not alerts |
 
+### Drawings (tag: `Drawings`)
+
+All under `/api/v1/chart/{chart_id}/drawings/...`. Uses `evalOnChart` (chart context required).
+
+#### Shape CRUD
+
+| Method | Path | Op ID | Notes |
+|--------|------|-------|-------|
+| GET | `/drawings` | `list-drawings` | `chart.getAllShapes()` |
+| GET | `/drawings/{shape_id}` | `get-drawing` | `chart.getShapeById(id)` + properties |
+| POST | `/drawings` | `create-drawing` | Body: `{point:{time,price}, options:{shape,...}}` |
+| POST | `/drawings/multipoint` | `create-multipoint-drawing` | Body: `{points:[...], options:{shape,...}}`, `points >= 2` |
+| POST | `/drawings/{shape_id}/clone` | `clone-drawing` | `chart.cloneLineTool(id)` |
+| DELETE | `/drawings/{shape_id}` | `remove-drawing` | Query: `disable_undo`, `chart.removeEntity(id, opts)` |
+| DELETE | `/drawings` | `remove-all-drawings` | `chart.removeAllShapes()` |
+
+#### Drawing Toggles
+
+| Method | Path | Op ID | Notes |
+|--------|------|-------|-------|
+| GET | `/drawings/toggles` | `get-drawing-toggles` | Reads WVs: hide, lock, magnet |
+| PUT | `/drawings/toggles/hide` | `set-hide-drawings` | Body: `{value: bool}` |
+| PUT | `/drawings/toggles/lock` | `set-lock-drawings` | Body: `{value: bool}` |
+| PUT | `/drawings/toggles/magnet` | `set-magnet` | Body: `{enabled: bool, mode?: 0|1}` |
+| PUT | `/drawings/{shape_id}/visibility` | `set-drawing-visibility` | Body: `{visible: bool}` |
+
+#### Tool Selection
+
+| Method | Path | Op ID | Notes |
+|--------|------|-------|-------|
+| GET | `/drawings/tool` | `get-drawing-tool` | `api.selectedLineTool()` |
+| PUT | `/drawings/tool` | `set-drawing-tool` | Body: `{tool: string}`, `api.selectLineTool(tool)` |
+
+#### Z-Order
+
+| Method | Path | Op ID | Notes |
+|--------|------|-------|-------|
+| POST | `/drawings/{shape_id}/z-order` | `set-drawing-z-order` | Body: `{action: "bring_forward"|"bring_to_front"|"send_backward"|"send_to_back"}` |
+
+#### State Export/Import
+
+| Method | Path | Op ID | Notes |
+|--------|------|-------|-------|
+| GET | `/drawings/state` | `export-drawings-state` | `chart.getLineToolsState()` |
+| PUT | `/drawings/state` | `import-drawings-state` | Body: `{state: any}`, `chart.applyLineToolsState(dto)` |
+
+#### Drawings API — Skipped Methods
+
+| Method | Reason |
+|--------|--------|
+| `createAnchoredShape` / `createExecutionShape` | Specialized shapes, add later |
+| `copyEntityToClipboard` | UI-coupled clipboard |
+| `drawOnAllCharts` | Multi-layout feature, edge case |
+| Drawing groups (createGroupFromSelection, etc.) | Lower priority |
+| Individual shape property editing | Needs probing with shapes on chart |
+
 ## Quick Curl
 
 ```bash

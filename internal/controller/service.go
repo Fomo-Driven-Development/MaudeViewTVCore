@@ -418,3 +418,111 @@ func (s *Service) DeleteAllFires(ctx context.Context) error {
 	return s.cdp.DeleteAllFires(ctx)
 }
 
+// --- Drawing/Shape methods ---
+
+func (s *Service) ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error) {
+	return s.cdp.ListDrawings(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error) {
+	if strings.TrimSpace(shapeID) == "" {
+		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	return s.cdp.GetDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID))
+}
+
+func (s *Service) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+	if _, ok := options["shape"]; !ok {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
+	}
+	return s.cdp.CreateDrawing(ctx, strings.TrimSpace(chartID), point, options)
+}
+
+func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+	if len(points) < 2 {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "points must have at least 2 entries"}
+	}
+	if _, ok := options["shape"]; !ok {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
+	}
+	return s.cdp.CreateMultipointDrawing(ctx, strings.TrimSpace(chartID), points, options)
+}
+
+func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
+	if strings.TrimSpace(shapeID) == "" {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	return s.cdp.CloneDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID))
+}
+
+func (s *Service) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
+	if strings.TrimSpace(shapeID) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	return s.cdp.RemoveDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID), disableUndo)
+}
+
+func (s *Service) RemoveAllDrawings(ctx context.Context, chartID string) error {
+	return s.cdp.RemoveAllDrawings(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetDrawingToggles(ctx context.Context, chartID string) (cdpcontrol.DrawingToggles, error) {
+	return s.cdp.GetDrawingToggles(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetHideDrawings(ctx context.Context, chartID string, val bool) error {
+	return s.cdp.SetHideDrawings(ctx, strings.TrimSpace(chartID), val)
+}
+
+func (s *Service) SetLockDrawings(ctx context.Context, chartID string, val bool) error {
+	return s.cdp.SetLockDrawings(ctx, strings.TrimSpace(chartID), val)
+}
+
+func (s *Service) SetMagnet(ctx context.Context, chartID string, enabled bool, mode int) error {
+	if mode < -1 || mode > 1 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "mode must be 0, 1, or -1 (skip)"}
+	}
+	return s.cdp.SetMagnet(ctx, strings.TrimSpace(chartID), enabled, mode)
+}
+
+func (s *Service) SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error {
+	if strings.TrimSpace(shapeID) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	return s.cdp.SetDrawingVisibility(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID), visible)
+}
+
+func (s *Service) GetDrawingTool(ctx context.Context, chartID string) (string, error) {
+	return s.cdp.GetDrawingTool(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetDrawingTool(ctx context.Context, chartID, tool string) error {
+	if strings.TrimSpace(tool) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "tool is required"}
+	}
+	return s.cdp.SetDrawingTool(ctx, strings.TrimSpace(chartID), strings.TrimSpace(tool))
+}
+
+func (s *Service) SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error {
+	if strings.TrimSpace(shapeID) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	valid := map[string]bool{"bring_forward": true, "bring_to_front": true, "send_backward": true, "send_to_back": true}
+	a := strings.TrimSpace(action)
+	if !valid[a] {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "action must be one of: bring_forward, bring_to_front, send_backward, send_to_back"}
+	}
+	return s.cdp.SetDrawingZOrder(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID), a)
+}
+
+func (s *Service) ExportDrawingsState(ctx context.Context, chartID string) (any, error) {
+	return s.cdp.ExportDrawingsState(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
+	if state == nil {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "state is required"}
+	}
+	return s.cdp.ImportDrawingsState(ctx, strings.TrimSpace(chartID), state)
+}
+

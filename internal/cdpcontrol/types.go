@@ -143,6 +143,26 @@ type StrategyApiProbe struct {
 	State       map[string]any `json:"state"`
 }
 
+// Shape describes a drawing entity from TradingView.
+type Shape struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ShapePoint describes a point for drawing creation.
+type ShapePoint struct {
+	Time  float64 `json:"time"`
+	Price float64 `json:"price"`
+}
+
+// DrawingToggles describes the toggle states for drawing tools.
+type DrawingToggles struct {
+	HideAll       *bool `json:"hide_all,omitempty"`
+	LockAll       *bool `json:"lock_all,omitempty"`
+	MagnetEnabled *bool `json:"magnet_enabled,omitempty"`
+	MagnetMode    *int  `json:"magnet_mode,omitempty"`
+}
+
 // ResolvedSymbolInfo describes extended metadata for any symbol resolved via chartApi().
 type ResolvedSymbolInfo struct {
 	Symbol          string `json:"symbol"`

@@ -887,6 +887,178 @@ func (c *Client) DeleteAllFires(ctx context.Context) error {
 	return nil
 }
 
+// --- Drawing/Shape methods ---
+
+func (c *Client) ListDrawings(ctx context.Context, chartID string) ([]Shape, error) {
+	var out struct {
+		Shapes []Shape `json:"shapes"`
+	}
+	err := c.evalOnChart(ctx, chartID, jsListDrawings(), &out)
+	if err != nil {
+		return nil, err
+	}
+	if out.Shapes == nil {
+		return []Shape{}, nil
+	}
+	return out.Shapes, nil
+}
+
+func (c *Client) GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsGetDrawing(shapeID), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateDrawing(ctx context.Context, chartID string, point ShapePoint, options map[string]any) (string, error) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsCreateDrawing(jsJSON(point), jsJSON(options)), &out); err != nil {
+		return "", err
+	}
+	return out.ID, nil
+}
+
+func (c *Client) CreateMultipointDrawing(ctx context.Context, chartID string, points []ShapePoint, options map[string]any) (string, error) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsCreateMultipointDrawing(jsJSON(points), jsJSON(options)), &out); err != nil {
+		return "", err
+	}
+	return out.ID, nil
+}
+
+func (c *Client) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsCloneDrawing(shapeID), &out); err != nil {
+		return "", err
+	}
+	return out.ID, nil
+}
+
+func (c *Client) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsRemoveDrawing(shapeID, disableUndo), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) RemoveAllDrawings(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsRemoveAllDrawings(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetDrawingToggles(ctx context.Context, chartID string) (DrawingToggles, error) {
+	var out DrawingToggles
+	if err := c.evalOnChart(ctx, chartID, jsGetDrawingToggles(), &out); err != nil {
+		return DrawingToggles{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetHideDrawings(ctx context.Context, chartID string, val bool) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetHideDrawings(val), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SetLockDrawings(ctx context.Context, chartID string, val bool) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetLockDrawings(val), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SetMagnet(ctx context.Context, chartID string, enabled bool, mode int) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetMagnet(enabled, mode), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetDrawingVisibility(shapeID, visible), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetDrawingTool(ctx context.Context, chartID string) (string, error) {
+	var out struct {
+		Tool string `json:"tool"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGetDrawingTool(), &out); err != nil {
+		return "", err
+	}
+	return out.Tool, nil
+}
+
+func (c *Client) SetDrawingTool(ctx context.Context, chartID, tool string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetDrawingTool(tool), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSetDrawingZOrder(shapeID, action), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ExportDrawingsState(ctx context.Context, chartID string) (any, error) {
+	var out struct {
+		State any `json:"state"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsExportDrawingsState(), &out); err != nil {
+		return nil, err
+	}
+	return out.State, nil
+}
+
+func (c *Client) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsImportDrawingsState(jsJSON(state)), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

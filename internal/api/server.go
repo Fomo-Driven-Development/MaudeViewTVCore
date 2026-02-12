@@ -85,6 +85,23 @@ type Service interface {
 	ListFires(ctx context.Context) (any, error)
 	DeleteFires(ctx context.Context, ids []string) error
 	DeleteAllFires(ctx context.Context) error
+	ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error)
+	GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error)
+	CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error)
+	CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error)
+	CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error)
+	RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error
+	RemoveAllDrawings(ctx context.Context, chartID string) error
+	GetDrawingToggles(ctx context.Context, chartID string) (cdpcontrol.DrawingToggles, error)
+	SetHideDrawings(ctx context.Context, chartID string, val bool) error
+	SetLockDrawings(ctx context.Context, chartID string, val bool) error
+	SetMagnet(ctx context.Context, chartID string, enabled bool, mode int) error
+	SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error
+	GetDrawingTool(ctx context.Context, chartID string) (string, error)
+	SetDrawingTool(ctx context.Context, chartID, tool string) error
+	SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error
+	ExportDrawingsState(ctx context.Context, chartID string) (any, error)
+	ImportDrawingsState(ctx context.Context, chartID string, state any) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -1280,6 +1297,305 @@ func NewServer(svc Service) http.Handler {
 			}
 			out := &alertStatusOutput{}
 			out.Body.Status = "deleted"
+			return out, nil
+		})
+
+	// --- Drawing/Shape endpoints ---
+
+	type drawingListOutput struct {
+		Body struct {
+			ChartID string             `json:"chart_id"`
+			Shapes  []cdpcontrol.Shape `json:"shapes"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-drawings", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "List all drawings on chart", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *chartIDInput) (*drawingListOutput, error) {
+			shapes, err := svc.ListDrawings(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingListOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Shapes = shapes
+			return out, nil
+		})
+
+	type shapeIDInput struct {
+		ChartID string `path:"chart_id"`
+		ShapeID string `path:"shape_id"`
+	}
+	type drawingDetailOutput struct {
+		Body map[string]any
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-drawing", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}", Summary: "Get drawing by ID", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *shapeIDInput) (*drawingDetailOutput, error) {
+			detail, err := svc.GetDrawing(ctx, input.ChartID, input.ShapeID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingDetailOutput{}
+			out.Body = detail
+			return out, nil
+		})
+
+	type createDrawingInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Point   cdpcontrol.ShapePoint `json:"point" required:"true"`
+			Options map[string]any        `json:"options" required:"true"`
+		}
+	}
+	type createDrawingOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			ID      string `json:"id"`
+			Status  string `json:"status"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "create-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "Create a single-point drawing", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *createDrawingInput) (*createDrawingOutput, error) {
+			id, err := svc.CreateDrawing(ctx, input.ChartID, input.Body.Point, input.Body.Options)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &createDrawingOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.ID = id
+			out.Body.Status = "created"
+			return out, nil
+		})
+
+	type createMultipointInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Points  []cdpcontrol.ShapePoint `json:"points" required:"true"`
+			Options map[string]any          `json:"options" required:"true"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "create-multipoint-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/multipoint", Summary: "Create a multi-point drawing", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *createMultipointInput) (*createDrawingOutput, error) {
+			id, err := svc.CreateMultipointDrawing(ctx, input.ChartID, input.Body.Points, input.Body.Options)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &createDrawingOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.ID = id
+			out.Body.Status = "created"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "clone-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/clone", Summary: "Clone a drawing", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *shapeIDInput) (*createDrawingOutput, error) {
+			id, err := svc.CloneDrawing(ctx, input.ChartID, input.ShapeID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &createDrawingOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.ID = id
+			out.Body.Status = "cloned"
+			return out, nil
+		})
+
+	type removeDrawingInput struct {
+		ChartID    string `path:"chart_id"`
+		ShapeID    string `path:"shape_id"`
+		DisableUndo bool  `query:"disable_undo"`
+	}
+	huma.Register(api, huma.Operation{OperationID: "remove-drawing", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}", Summary: "Remove a drawing", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *removeDrawingInput) (*struct{}, error) {
+			if err := svc.RemoveDrawing(ctx, input.ChartID, input.ShapeID, input.DisableUndo); err != nil {
+				return nil, mapErr(err)
+			}
+			return &struct{}{}, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "remove-all-drawings", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "Remove all drawings", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{}, error) {
+			if err := svc.RemoveAllDrawings(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			return &struct{}{}, nil
+		})
+
+	type drawingTogglesOutput struct {
+		Body struct {
+			ChartID string                  `json:"chart_id"`
+			Toggles cdpcontrol.DrawingToggles `json:"toggles"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-drawing-toggles", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings/toggles", Summary: "Get drawing toggle states", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *chartIDInput) (*drawingTogglesOutput, error) {
+			toggles, err := svc.GetDrawingToggles(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingTogglesOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Toggles = toggles
+			return out, nil
+		})
+
+	type drawingStatusOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			Status  string `json:"status"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "set-hide-drawings", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/toggles/hide", Summary: "Hide or show all drawings", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Value bool `json:"value"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.SetHideDrawings(ctx, input.ChartID, input.Body.Value); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-lock-drawings", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/toggles/lock", Summary: "Lock or unlock all drawings", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Value bool `json:"value"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.SetLockDrawings(ctx, input.ChartID, input.Body.Value); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-magnet", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/toggles/magnet", Summary: "Set magnet mode", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Enabled bool `json:"enabled"`
+				Mode    int  `json:"mode,omitempty"`
+			}
+		}) (*drawingStatusOutput, error) {
+			mode := input.Body.Mode
+			if mode == 0 && !input.Body.Enabled {
+				mode = -1
+			}
+			if err := svc.SetMagnet(ctx, input.ChartID, input.Body.Enabled, mode); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-drawing-visibility", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/visibility", Summary: "Set drawing visibility", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			ShapeID string `path:"shape_id"`
+			Body    struct {
+				Visible bool `json:"visible"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.SetDrawingVisibility(ctx, input.ChartID, input.ShapeID, input.Body.Visible); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	type drawingToolOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			Tool    string `json:"tool"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-drawing-tool", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings/tool", Summary: "Get selected drawing tool", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *chartIDInput) (*drawingToolOutput, error) {
+			tool, err := svc.GetDrawingTool(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingToolOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Tool = tool
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-drawing-tool", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/tool", Summary: "Set drawing tool", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Tool string `json:"tool" required:"true"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.SetDrawingTool(ctx, input.ChartID, input.Body.Tool); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "set"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-drawing-z-order", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/z-order", Summary: "Change drawing z-order", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			ShapeID string `path:"shape_id"`
+			Body    struct {
+				Action string `json:"action" required:"true" doc:"bring_forward, bring_to_front, send_backward, send_to_back"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.SetDrawingZOrder(ctx, input.ChartID, input.ShapeID, input.Body.Action); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			return out, nil
+		})
+
+	type drawingsStateOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			State   any    `json:"state"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "export-drawings-state", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings/state", Summary: "Export all drawings state", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *chartIDInput) (*drawingsStateOutput, error) {
+			state, err := svc.ExportDrawingsState(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingsStateOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.State = state
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "import-drawings-state", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/drawings/state", Summary: "Import drawings state", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				State any `json:"state" required:"true"`
+			}
+		}) (*drawingStatusOutput, error) {
+			if err := svc.ImportDrawingsState(ctx, input.ChartID, input.Body.State); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "imported"
 			return out, nil
 		})
 
