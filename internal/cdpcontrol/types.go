@@ -190,6 +190,7 @@ type PineState struct {
 	ScriptSource string `json:"script_source,omitempty"`
 	SourceLength int    `json:"source_length,omitempty"`
 	LineCount    int    `json:"line_count,omitempty"`
+	MatchCount   int    `json:"match_count,omitempty"`
 }
 
 // PineConsoleMessage describes a single Pine console output message.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"sort"
@@ -1279,6 +1280,161 @@ func (c *Client) GetPineConsole(ctx context.Context) ([]PineConsoleMessage, erro
 	return out.Messages, nil
 }
 
+// --- Pine Editor keyboard shortcut methods ---
+
+func (c *Client) PineUndo(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "z", "KeyZ", 90, 2, 1, jsPineBriefWait(300))
+}
+
+func (c *Client) PineRedo(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "Z", "KeyZ", 90, 10, 1, jsPineBriefWait(300)) // Ctrl+Shift
+}
+
+func (c *Client) PineDeleteLine(ctx context.Context, count int) (PineState, error) {
+	if count < 1 {
+		count = 1
+	}
+	return c.pineKeyAction(ctx, "K", "KeyK", 75, 10, count, jsPineBriefWait(300)) // Ctrl+Shift+K
+}
+
+func (c *Client) PineMoveLine(ctx context.Context, direction string, count int) (PineState, error) {
+	if count < 1 {
+		count = 1
+	}
+	var key, code string
+	var keyCode int
+	if direction == "up" {
+		key, code, keyCode = "ArrowUp", "ArrowUp", 38
+	} else {
+		key, code, keyCode = "ArrowDown", "ArrowDown", 40
+	}
+	return c.pineKeyAction(ctx, key, code, keyCode, 1, count, jsPineBriefWait(300)) // Alt+Arrow
+}
+
+func (c *Client) PineToggleComment(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "/", "Slash", 191, 2, 1, jsPineBriefWait(300)) // Ctrl+/
+}
+
+func (c *Client) PineToggleConsole(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "`", "Backquote", 192, 2, 1, jsPineBriefWait(500)) // Ctrl+`
+}
+
+func (c *Client) PineInsertLineAbove(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "Enter", "Enter", 13, 10, 1, jsPineBriefWait(300)) // Ctrl+Shift+Enter
+}
+
+func (c *Client) PineNewTab(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "T", "KeyT", 84, 9, 1, jsPineBriefWait(500)) // Shift+Alt+T
+}
+
+func (c *Client) PineCommandPalette(ctx context.Context) (PineState, error) {
+	return c.pineKeyAction(ctx, "F1", "F1", 112, 0, 1, jsPineBriefWait(500))
+}
+
+func (c *Client) PineNewIndicator(ctx context.Context) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+	// Chord: Ctrl+K then Ctrl+I
+	if err := c.sendKeysOnAnyChart(ctx, "k", "KeyK", 75, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+K", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := c.sendKeysOnAnyChart(ctx, "i", "KeyI", 73, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+I", err)
+	}
+	if err := c.evalOnAnyChart(ctx, jsPineWaitForNewScript(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) PineNewStrategy(ctx context.Context) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+	// Chord: Ctrl+K then Ctrl+S
+	if err := c.sendKeysOnAnyChart(ctx, "k", "KeyK", 75, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+K", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := c.sendKeysOnAnyChart(ctx, "s", "KeyS", 83, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+S", err)
+	}
+	if err := c.evalOnAnyChart(ctx, jsPineWaitForNewScript(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) PineGoToLine(ctx context.Context, line int) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+	// Ctrl+G opens Go to Line dialog
+	if err := c.sendKeysOnAnyChart(ctx, "g", "KeyG", 71, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+G", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	// Type the line number
+	if err := c.insertTextOnAnyChart(ctx, fmt.Sprintf("%d", line)); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to type line number", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	// Enter to confirm
+	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 0); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to confirm go-to-line", err)
+	}
+	if err := c.evalOnAnyChart(ctx, jsPineBriefWait(300), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) PineOpenScript(ctx context.Context, name string) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+	// Ctrl+O opens the script picker dialog
+	if err := c.sendKeysOnAnyChart(ctx, "o", "KeyO", 79, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+O", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	// Type the script name to filter
+	if err := c.insertTextOnAnyChart(ctx, name); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to type script name", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	// Click the first matching result and wait for load; response includes close button coords.
+	var clickResult struct {
+		PineState
+		CloseX float64 `json:"close_x"`
+		CloseY float64 `json:"close_y"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsPineClickFirstScriptResult(), &clickResult); err != nil {
+		return PineState{}, err
+	}
+	out = clickResult.PineState
+	// Dismiss the dialog with a trusted CDP click on the close button
+	if clickResult.CloseX > 0 && clickResult.CloseY > 0 {
+		_ = c.clickOnAnyChart(ctx, clickResult.CloseX, clickResult.CloseY)
+		time.Sleep(200 * time.Millisecond)
+	}
+	return out, nil
+}
+
+func (c *Client) PineFindReplace(ctx context.Context, find, replace string) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFindReplace(find, replace), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {
@@ -1297,64 +1453,75 @@ func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 
 // clickOnAnyChart dispatches a trusted CDP mouse click at the given coordinates
 // on the first available chart tab session.
-func (c *Client) clickOnAnyChart(ctx context.Context, x, y float64) error {
+// resolveAnySession resolves a CDP session on the first available chart tab.
+func (c *Client) resolveAnySession(ctx context.Context) (*rawCDP, string, error) {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	if len(charts) == 0 {
-		return newError(CodeChartNotFound, "no chart tabs found", nil)
+		return nil, "", newError(CodeChartNotFound, "no chart tabs found", nil)
 	}
-
 	session, info, err := c.resolveChartSession(ctx, charts[0].ChartID)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
-
 	c.mu.Lock()
 	cdp := c.cdp
 	c.mu.Unlock()
 	if cdp == nil {
-		return newError(CodeCDPUnavailable, "CDP client not connected", nil)
+		return nil, "", newError(CodeCDPUnavailable, "CDP client not connected", nil)
 	}
-
 	sessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
+	if err != nil {
+		return nil, "", err
+	}
+	return cdp, sessionID, nil
+}
+
+func (c *Client) clickOnAnyChart(ctx context.Context, x, y float64) error {
+	cdp, sessionID, err := c.resolveAnySession(ctx)
 	if err != nil {
 		return err
 	}
-
 	return cdp.dispatchMouseClick(ctx, sessionID, x, y)
 }
 
 // sendKeysOnAnyChart dispatches a trusted CDP key event on the first chart's session.
 // modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.
 func (c *Client) sendKeysOnAnyChart(ctx context.Context, key, code string, keyCode, modifiers int) error {
-	charts, err := c.ListCharts(ctx)
+	cdp, sessionID, err := c.resolveAnySession(ctx)
 	if err != nil {
 		return err
 	}
-	if len(charts) == 0 {
-		return newError(CodeChartNotFound, "no chart tabs found", nil)
-	}
-
-	session, info, err := c.resolveChartSession(ctx, charts[0].ChartID)
-	if err != nil {
-		return err
-	}
-
-	c.mu.Lock()
-	cdp := c.cdp
-	c.mu.Unlock()
-	if cdp == nil {
-		return newError(CodeCDPUnavailable, "CDP client not connected", nil)
-	}
-
-	sessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
-	if err != nil {
-		return err
-	}
-
 	return cdp.dispatchKeyEvent(ctx, sessionID, key, code, keyCode, modifiers)
+}
+
+// insertTextOnAnyChart types text into the currently focused element via CDP.
+func (c *Client) insertTextOnAnyChart(ctx context.Context, text string) error {
+	cdp, sessionID, err := c.resolveAnySession(ctx)
+	if err != nil {
+		return err
+	}
+	return cdp.insertText(ctx, sessionID, text)
+}
+
+// pineKeyAction is a helper that focuses the Monaco editor, dispatches a key combo
+// (optionally repeated), then evaluates a wait/poll JS function.
+func (c *Client) pineKeyAction(ctx context.Context, key, code string, keyCode, modifiers, repeat int, waitJS string) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+	for i := 0; i < repeat; i++ {
+		if err := c.sendKeysOnAnyChart(ctx, key, code, keyCode, modifiers); err != nil {
+			return PineState{}, newError(CodeEvalFailure, "failed to dispatch key", err)
+		}
+	}
+	if err := c.evalOnAnyChart(ctx, waitJS, &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
 }
 
 func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) error {

@@ -258,6 +258,49 @@ func (s *stubService) GetPineConsole(ctx context.Context) ([]cdpcontrol.PineCons
 	return []cdpcontrol.PineConsoleMessage{}, nil
 }
 
+func (s *stubService) PineUndo(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineRedo(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineNewIndicator(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineNewStrategy(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineOpenScript(ctx context.Context, name string) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineFindReplace(ctx context.Context, find, replace string) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineGoToLine(ctx context.Context, line int) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineDeleteLine(ctx context.Context, count int) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineMoveLine(ctx context.Context, direction string, count int) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineToggleComment(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineToggleConsole(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineInsertLineAbove(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineNewTab(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) PineCommandPalette(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})
 	req := httptest.NewRequest(http.MethodGet, "/docs", nil)

@@ -666,6 +666,75 @@ func (s *Service) GetPineConsole(ctx context.Context) ([]cdpcontrol.PineConsoleM
 	return s.cdp.GetPineConsole(ctx)
 }
 
+func (s *Service) PineUndo(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineUndo(ctx)
+}
+
+func (s *Service) PineRedo(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineRedo(ctx)
+}
+
+func (s *Service) PineNewIndicator(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineNewIndicator(ctx)
+}
+
+func (s *Service) PineNewStrategy(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineNewStrategy(ctx)
+}
+
+func (s *Service) PineOpenScript(ctx context.Context, name string) (cdpcontrol.PineState, error) {
+	if strings.TrimSpace(name) == "" {
+		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	}
+	return s.cdp.PineOpenScript(ctx, name)
+}
+
+func (s *Service) PineFindReplace(ctx context.Context, find, replace string) (cdpcontrol.PineState, error) {
+	if find == "" {
+		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "find is required"}
+	}
+	return s.cdp.PineFindReplace(ctx, find, replace)
+}
+
+func (s *Service) PineGoToLine(ctx context.Context, line int) (cdpcontrol.PineState, error) {
+	if line < 1 {
+		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "line must be >= 1"}
+	}
+	return s.cdp.PineGoToLine(ctx, line)
+}
+
+func (s *Service) PineDeleteLine(ctx context.Context, count int) (cdpcontrol.PineState, error) {
+	return s.cdp.PineDeleteLine(ctx, count)
+}
+
+func (s *Service) PineMoveLine(ctx context.Context, direction string, count int) (cdpcontrol.PineState, error) {
+	direction = strings.ToLower(strings.TrimSpace(direction))
+	if direction != "up" && direction != "down" {
+		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "direction must be \"up\" or \"down\""}
+	}
+	return s.cdp.PineMoveLine(ctx, direction, count)
+}
+
+func (s *Service) PineToggleComment(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineToggleComment(ctx)
+}
+
+func (s *Service) PineToggleConsole(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineToggleConsole(ctx)
+}
+
+func (s *Service) PineInsertLineAbove(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineInsertLineAbove(ctx)
+}
+
+func (s *Service) PineNewTab(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineNewTab(ctx)
+}
+
+func (s *Service) PineCommandPalette(ctx context.Context) (cdpcontrol.PineState, error) {
+	return s.cdp.PineCommandPalette(ctx)
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

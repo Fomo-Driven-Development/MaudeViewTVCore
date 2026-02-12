@@ -2348,3 +2348,111 @@ for (var si = 0; si < consoleSelectors.length; si++) {
 return JSON.stringify({ok:true,data:{messages:messages}});
 `)
 }
+
+// jsPineBriefWait waits the given milliseconds then returns the current Pine editor status.
+func jsPineBriefWait(ms int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+await new Promise(function(r) { setTimeout(r, %d); });
+var monacoEl = document.querySelector('.monaco-editor');
+var isVisible = !!(monacoEl && monacoEl.offsetParent !== null);
+var monacoReady = false;
+if (isVisible && monacoEl) {
+  var viewLines = monacoEl.querySelector('.view-lines');
+  monacoReady = !!(viewLines && viewLines.children.length > 0);
+}
+return JSON.stringify({ok:true,data:{status:isVisible?"open":"closed",is_visible:isVisible,monaco_ready:monacoReady}});
+`, ms))
+}
+
+// jsPineWaitForNewScript waits for a new script template to load in the editor after a chord shortcut.
+func jsPineWaitForNewScript() string {
+	return jsPineBriefWait(2000)
+}
+
+// jsPineClickFirstScriptResult clicks the first result row in the "Open my script" dialog,
+// waits for the script to load, then returns close button coords so the caller can CDP-click it.
+func jsPineClickFirstScriptResult() string {
+	return wrapJSEvalAsync(`
+// The "Open my script" dialog has result rows with class containing "itemInfo-".
+// The itemInfo div has an onclick handler that loads the script.
+var deadline = Date.now() + 3000;
+var clicked = false;
+var itemEl = null;
+while (Date.now() < deadline && !clicked) {
+  var items = document.querySelectorAll('[class*="itemInfo-"]');
+  if (items.length > 0) {
+    itemEl = items[0];
+    items[0].click();
+    clicked = true;
+    break;
+  }
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+// Wait for editor to reload the script
+await new Promise(function(r) { setTimeout(r, 1200); });
+// Find the dialog close button: walk up from the clicked item to find container,
+// then find the close button within it.
+var closeX = 0, closeY = 0;
+if (itemEl) {
+  var container = itemEl;
+  for (var i = 0; i < 10 && container; i++) {
+    var closeBtn = container.querySelector('[class*="close-"]');
+    if (closeBtn && closeBtn.tagName === 'BUTTON') {
+      var r = closeBtn.getBoundingClientRect();
+      closeX = r.x + r.width / 2;
+      closeY = r.y + r.height / 2;
+      break;
+    }
+    container = container.parentElement;
+  }
+}
+var monacoEl = document.querySelector('.monaco-editor');
+var isVisible = !!(monacoEl && monacoEl.offsetParent !== null);
+var monacoReady = false;
+if (isVisible && monacoEl) {
+  var vl = monacoEl.querySelector('.view-lines');
+  monacoReady = !!(vl && vl.children.length > 0);
+}
+return JSON.stringify({ok:true,data:{status:isVisible?"open":"closed",is_visible:isVisible,monaco_ready:monacoReady,close_x:closeX,close_y:closeY}});
+`)
+}
+
+// jsPineFindReplace uses the Monaco API to find all occurrences and replace them,
+// preserving undo history via pushEditOperations.
+func jsPineFindReplace(find, replace string) string {
+	return wrapJSEval(fmt.Sprintf(jsPineMonacoPreamble+`
+var findStr = %s;
+var replaceStr = %s;
+var monacoEl = document.querySelector('.monaco-editor');
+if (!monacoEl || monacoEl.offsetParent === null) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"Pine editor not visible — call POST /pine/toggle first"});
+}
+if (!monacoNs) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"Monaco namespace not found"});
+}
+var models = monacoNs.editor.getModels();
+if (!models || models.length === 0) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"No Monaco models found"});
+}
+var model = models[0];
+var matches = model.findMatches(findStr, false, false, true, null, false);
+var matchCount = matches.length;
+if (matchCount === 0) {
+  var src = model.getValue();
+  var scriptName = "";
+  var m = src.match(/(?:indicator|strategy|library)\s*\(\s*(?:"([^"]+)"|'([^']+)')/);
+  if (m) scriptName = m[1] || m[2] || "";
+  return JSON.stringify({ok:true,data:{status:"no_matches",is_visible:true,monaco_ready:true,match_count:0,script_name:scriptName,source_length:src.length,line_count:src.split("\\n").length}});
+}
+var edits = [];
+for (var i = 0; i < matches.length; i++) {
+  edits.push({range: matches[i].range, text: replaceStr});
+}
+model.pushEditOperations([], edits, function() { return null; });
+var newSource = model.getValue();
+var scriptName = "";
+var m = newSource.match(/(?:indicator|strategy|library)\s*\(\s*(?:"([^"]+)"|'([^']+)')/);
+if (m) scriptName = m[1] || m[2] || "";
+return JSON.stringify({ok:true,data:{status:"replaced",is_visible:true,monaco_ready:true,match_count:matchCount,script_name:scriptName,source_length:newSource.length,line_count:newSource.split("\\n").length}});
+`, jsString(find), jsString(replace)))
+}

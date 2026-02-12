@@ -361,6 +361,18 @@ func (r *rawCDP) dispatchMouseClick(ctx context.Context, sessionID string, x, y 
 	return nil
 }
 
+// insertText types text into the currently focused element via CDP Input.insertText.
+func (r *rawCDP) insertText(ctx context.Context, sessionID, text string) error {
+	params := struct {
+		Text string `json:"text"`
+	}{Text: text}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.insertText", params); err != nil {
+		return fmt.Errorf("rawcdp: insertText: %w", err)
+	}
+	return nil
+}
+
 // dispatchKeyEvent sends a trusted CDP Input.dispatchKeyEvent sequence
 // (keyDown + keyUp) for a keyboard shortcut on a session.
 // modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.
