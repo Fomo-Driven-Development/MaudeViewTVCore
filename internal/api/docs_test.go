@@ -84,6 +84,16 @@ func (s *stubService) SetVisibleRange(ctx context.Context, chartID string, from,
 	return cdpcontrol.VisibleRange{}, nil
 }
 func (s *stubService) ResetScales(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error) {
+	return cdpcontrol.ChartApiProbe{}, nil
+}
+func (s *stubService) ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) ResolveSymbol(ctx context.Context, chartID, symbol string) (cdpcontrol.ResolvedSymbolInfo, error) {
+	return cdpcontrol.ResolvedSymbolInfo{}, nil
+}
+func (s *stubService) SwitchTimezone(ctx context.Context, chartID, tz string) error { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

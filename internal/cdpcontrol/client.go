@@ -474,6 +474,48 @@ func (c *Client) DeleteWatchlist(ctx context.Context, id string) error {
 	return nil
 }
 
+// --- ChartAPI methods ---
+
+func (c *Client) ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsProbeChartApiDeep(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ProbeChartApi(ctx context.Context, chartID string) (ChartApiProbe, error) {
+	var out ChartApiProbe
+	if err := c.evalOnChart(ctx, chartID, jsProbeChartApi(), &out); err != nil {
+		return ChartApiProbe{}, err
+	}
+	if out.AccessPaths == nil {
+		out.AccessPaths = []string{}
+	}
+	if out.Methods == nil {
+		out.Methods = []string{}
+	}
+	return out, nil
+}
+
+func (c *Client) ResolveSymbol(ctx context.Context, chartID, symbol string) (ResolvedSymbolInfo, error) {
+	var out ResolvedSymbolInfo
+	if err := c.evalOnChart(ctx, chartID, jsResolveSymbol(symbol), &out); err != nil {
+		return ResolvedSymbolInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SwitchTimezone(ctx context.Context, chartID, tz string) error {
+	var out struct {
+		Timezone string `json:"timezone"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsSwitchTimezone(tz), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

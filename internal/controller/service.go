@@ -208,3 +208,28 @@ func (s *Service) FlagSymbol(ctx context.Context, id, symbol string) error {
 	}
 	return s.cdp.FlagSymbol(ctx, strings.TrimSpace(id), strings.TrimSpace(symbol))
 }
+
+// --- ChartAPI methods ---
+
+func (s *Service) ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ProbeChartApiDeep(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error) {
+	return s.cdp.ProbeChartApi(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ResolveSymbol(ctx context.Context, chartID, symbol string) (cdpcontrol.ResolvedSymbolInfo, error) {
+	if strings.TrimSpace(symbol) == "" {
+		return cdpcontrol.ResolvedSymbolInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	}
+	return s.cdp.ResolveSymbol(ctx, strings.TrimSpace(chartID), strings.TrimSpace(symbol))
+}
+
+func (s *Service) SwitchTimezone(ctx context.Context, chartID, tz string) error {
+	if strings.TrimSpace(tz) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "timezone is required"}
+	}
+	return s.cdp.SwitchTimezone(ctx, strings.TrimSpace(chartID), strings.TrimSpace(tz))
+}
+

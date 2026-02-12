@@ -541,6 +541,236 @@ return JSON.stringify({ok:true,data:{status:"executed"}});
 `)
 }
 
+// --- ChartAPI JS functions ---
+// jsChartApiPreamble extends jsPreamble with chartApi() resolution.
+// Tries multiple access paths and sets `capi` to the chartApi() singleton.
+const jsChartApiPreamble = jsPreamble + `
+var capi = null;
+if (api && typeof api.chartApi === "function") { try { capi = api.chartApi(); } catch(_) {} }
+if (!capi && chart && typeof chart.chartApi === "function") { try { capi = chart.chartApi(); } catch(_) {} }
+if (!capi && api && api._chartApi) { capi = api._chartApi; }
+if (!capi && chart && chart._chartApi) { capi = chart._chartApi; }
+if (!capi && api) {
+  var _keys = Object.keys(api);
+  for (var _i = 0; _i < _keys.length; _i++) {
+    var _v = api[_keys[_i]];
+    if (_v && typeof _v === "object" && typeof _v.quoteCreateSession === "function") { capi = _v; break; }
+  }
+}
+if (!capi && chart) {
+  var _ckeys = Object.keys(chart);
+  for (var _ci = 0; _ci < _ckeys.length; _ci++) {
+    var _cv = chart[_ckeys[_ci]];
+    if (_cv && typeof _cv === "object" && typeof _cv.quoteCreateSession === "function") { capi = _cv; break; }
+  }
+}
+`
+
+func jsProbeChartApi() string {
+	return wrapJSEval(jsChartApiPreamble + `
+if (!capi) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[]}});
+var paths = [];
+if (api && typeof api.chartApi === "function") paths.push("api.chartApi()");
+if (chart && typeof chart.chartApi === "function") paths.push("chart.chartApi()");
+if (api && api._chartApi) paths.push("api._chartApi");
+if (chart && chart._chartApi) paths.push("chart._chartApi");
+if (paths.length === 0) {
+  if (api) {
+    var _ak = Object.keys(api);
+    for (var _ai = 0; _ai < _ak.length; _ai++) {
+      var _av = api[_ak[_ai]];
+      if (_av && typeof _av === "object" && typeof _av.quoteCreateSession === "function") {
+        paths.push("api[" + JSON.stringify(_ak[_ai]) + "]");
+        break;
+      }
+    }
+  }
+  if (paths.length === 0 && chart) {
+    var _ck = Object.keys(chart);
+    for (var _ci2 = 0; _ci2 < _ck.length; _ci2++) {
+      var _cv2 = chart[_ck[_ci2]];
+      if (_cv2 && typeof _cv2 === "object" && typeof _cv2.quoteCreateSession === "function") {
+        paths.push("chart[" + JSON.stringify(_ck[_ci2]) + "]");
+        break;
+      }
+    }
+  }
+  if (paths.length === 0) paths.push("key-scan");
+}
+var methods = [];
+var seen = {};
+var obj = capi;
+while (obj && obj !== Object.prototype) {
+  var mk = Object.getOwnPropertyNames(obj);
+  for (var mi = 0; mi < mk.length; mi++) {
+    var mn = mk[mi];
+    if (mn === "constructor" || seen[mn]) continue;
+    seen[mn] = true;
+    try { if (typeof capi[mn] === "function") methods.push(mn); } catch(_) {}
+  }
+  obj = Object.getPrototypeOf(obj);
+}
+methods.sort();
+return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods}});
+`)
+}
+
+func jsProbeChartApiDeep() string {
+	return wrapJSEval(jsChartApiPreamble + `
+if (!capi) return JSON.stringify({ok:true,data:{found:false}});
+var diag = {};
+var targets = ["resolveSymbol","quoteCreateSession","quoteDeleteSession","quoteAddSymbols",
+  "quoteRemoveSymbols","quoteSetFields","requestFirstBarTime","switchTimezone",
+  "chartCreateSession","chartDeleteSession","createSession","removeSession","connect","connected"];
+for (var ti = 0; ti < targets.length; ti++) {
+  var tn = targets[ti];
+  if (typeof capi[tn] === "function") {
+    diag[tn] = {exists:true,arity:capi[tn].length,src:capi[tn].toString().substring(0,120)};
+  } else if (typeof capi[tn] !== "undefined") {
+    diag[tn] = {exists:true,type:typeof capi[tn],value:String(capi[tn])};
+  } else {
+    diag[tn] = {exists:false};
+  }
+}
+var ownKeys = Object.keys(capi);
+var state = {};
+for (var oi = 0; oi < ownKeys.length; oi++) {
+  var ok2 = ownKeys[oi];
+  var ov = capi[ok2];
+  if (typeof ov === "function") continue;
+  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
+    state[ok2] = ov;
+  } else if (ov === null || ov === undefined) {
+    state[ok2] = null;
+  } else if (typeof ov === "object") {
+    state[ok2] = "{" + Object.keys(ov).length + " keys}";
+  }
+}
+var sessions = {};
+if (capi._sessions) {
+  var skeys = Object.keys(capi._sessions);
+  for (var ski = 0; ski < skeys.length; ski++) {
+    var sv = capi._sessions[skeys[ski]];
+    var smethods = [];
+    if (sv && typeof sv === "object") {
+      var svk = Object.keys(sv);
+      for (var svi = 0; svi < svk.length && svi < 20; svi++) {
+        smethods.push(svk[svi] + ":" + typeof sv[svk[svi]]);
+      }
+    }
+    sessions[skeys[ski]] = smethods;
+  }
+}
+return JSON.stringify({ok:true,data:{methods:diag,state:state,sessions:sessions}});
+`)
+}
+
+// jsChartApiSessionHelper resolves an existing chart session ID from capi._sessions
+// or from the chart widget's internal state.
+const jsChartApiSessionHelper = `
+function _findChartSession() {
+  if (capi && capi._sessions) {
+    var sk = Object.keys(capi._sessions);
+    for (var si = 0; si < sk.length; si++) {
+      if (sk[si].indexOf("cs_") === 0) return sk[si];
+    }
+  }
+  if (chart) {
+    var ck = Object.keys(chart);
+    for (var ci = 0; ci < ck.length; ci++) {
+      var cv = chart[ck[ci]];
+      if (cv && typeof cv === "object" && typeof cv._sessionId === "string" && cv._sessionId.indexOf("cs_") === 0) {
+        return cv._sessionId;
+      }
+    }
+    if (typeof chart._chartSession === "object" && chart._chartSession && chart._chartSession._sessionId) {
+      return chart._chartSession._sessionId;
+    }
+  }
+  if (api) {
+    var ak = Object.keys(api);
+    for (var ai = 0; ai < ak.length; ai++) {
+      var av = api[ak[ai]];
+      if (av && typeof av === "object" && typeof av._sessionId === "string" && av._sessionId.indexOf("cs_") === 0) {
+        return av._sessionId;
+      }
+    }
+  }
+  return null;
+}
+`
+
+func jsResolveSymbol(symbol string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsChartApiPreamble+jsChartApiSessionHelper+`
+var sym = %s;
+if (capi && typeof capi.resolveSymbol === "function") {
+  var csid = _findChartSession();
+  if (csid) {
+    var rid = "sresol_" + Math.random().toString(36).substring(2, 10);
+    var info = await new Promise(function(resolve) {
+      capi.resolveSymbol(csid, rid, sym, function(data) { resolve(data); });
+    });
+    if (info) {
+      var i = typeof info === "string" ? JSON.parse(info) : info;
+      return JSON.stringify({ok:true,data:{
+        symbol: String(i.symbol || i.pro_name || i.name || sym),
+        name: String(i.name || i.full_name || i.pro_name || ""),
+        description: String(i.description || i.short_description || ""),
+        exchange: String(i.listed_exchange || i.exchange || ""),
+        type: String(i.type || i.security_type || ""),
+        currency: String(i.currency_code || i.currency || ""),
+        timezone: String(i.timezone || ""),
+        pricescale: Number(i.pricescale || i.price_scale || 0),
+        minmov: Number(i.minmov || i.min_mov || 0),
+        has_intraday: !!(i.has_intraday),
+        has_daily: !!(i.has_daily),
+        session: String(i.session || ""),
+        session_holidays: String(i.session_holidays || "")
+      }});
+    }
+  }
+}
+if (chart && typeof chart.symbolExt === "function") {
+  var cur = "";
+  if (typeof chart.symbol === "function") cur = String(chart.symbol() || "");
+  if (cur === sym || !capi) {
+    var i = chart.symbolExt();
+    if (i) {
+      return JSON.stringify({ok:true,data:{
+        symbol: String(i.symbol || sym),
+        name: String(i.name || i.full_name || ""),
+        description: String(i.description || i.short_description || ""),
+        exchange: String(i.listed_exchange || i.exchange || ""),
+        type: String(i.type || i.security_type || ""),
+        currency: String(i.currency_code || i.currency || ""),
+        timezone: String(i.timezone || ""),
+        pricescale: Number(i.pricescale || i.price_scale || 0),
+        minmov: Number(i.minmov || i.min_mov || 0),
+        has_intraday: !!(i.has_intraday),
+        has_daily: !!(i.has_daily),
+        session: String(i.session || ""),
+        session_holidays: String(i.session_holidays || "")
+      }});
+    }
+  }
+}
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"resolveSymbol unavailable"});
+`, jsString(symbol)))
+}
+
+func jsSwitchTimezone(tz string) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var tz = %s;
+var switched = false;
+if (chart && typeof chart.setTimezone === "function") {
+  chart.setTimezone(tz);
+  switched = true;
+}
+if (!switched) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"switchTimezone unavailable"});
+return JSON.stringify({ok:true,data:{timezone:tz}});
+`, jsString(tz)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

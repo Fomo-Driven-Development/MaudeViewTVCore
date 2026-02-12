@@ -45,6 +45,10 @@ type Service interface {
 	GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error)
 	SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error)
 	ResetScales(ctx context.Context, chartID string) error
+	ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error)
+	ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error)
+	ResolveSymbol(ctx context.Context, chartID, symbol string) (cdpcontrol.ResolvedSymbolInfo, error)
+	SwitchTimezone(ctx context.Context, chartID, tz string) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -639,6 +643,71 @@ func NewServer(svc Service) http.Handler {
 	huma.Register(api, huma.Operation{OperationID: "reset-scales", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/reset-scales", Summary: "Reset all chart scales", Tags: []string{"Navigation"}},
 		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
 			if err := svc.ResetScales(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &navStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			return out, nil
+		})
+
+	// --- ChartAPI endpoints ---
+
+	type chartApiProbeOutput struct {
+		Body cdpcontrol.ChartApiProbe
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-chart-api", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/chart-api/probe", Summary: "Probe chartApi() singleton", Tags: []string{"ChartAPI"}},
+		func(ctx context.Context, input *chartIDInput) (*chartApiProbeOutput, error) {
+			probe, err := svc.ProbeChartApi(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &chartApiProbeOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	type chartApiProbeDeepOutput struct {
+		Body map[string]any
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-chart-api-deep", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/chart-api/probe/deep", Summary: "Deep probe chartApi() methods and state", Tags: []string{"ChartAPI"}},
+		func(ctx context.Context, input *chartIDInput) (*chartApiProbeDeepOutput, error) {
+			probe, err := svc.ProbeChartApiDeep(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &chartApiProbeDeepOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	type resolveSymbolInput struct {
+		ChartID string `path:"chart_id"`
+		Symbol  string `query:"symbol" required:"true"`
+	}
+	type resolveSymbolOutput struct {
+		Body cdpcontrol.ResolvedSymbolInfo
+	}
+	huma.Register(api, huma.Operation{OperationID: "resolve-symbol", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/chart-api/resolve-symbol", Summary: "Resolve metadata for any symbol", Tags: []string{"ChartAPI"}},
+		func(ctx context.Context, input *resolveSymbolInput) (*resolveSymbolOutput, error) {
+			info, err := svc.ResolveSymbol(ctx, input.ChartID, input.Symbol)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &resolveSymbolOutput{}
+			out.Body = info
+			return out, nil
+		})
+
+	type switchTimezoneInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Timezone string `json:"timezone" required:"true"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "switch-timezone", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/chart-api/timezone", Summary: "Switch chart timezone", Tags: []string{"ChartAPI"}},
+		func(ctx context.Context, input *switchTimezoneInput) (*navStatusOutput, error) {
+			if err := svc.SwitchTimezone(ctx, input.ChartID, input.Body.Timezone); err != nil {
 				return nil, mapErr(err)
 			}
 			out := &navStatusOutput{}

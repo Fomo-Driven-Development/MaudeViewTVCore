@@ -99,3 +99,28 @@ type VisibleRange struct {
 	From float64 `json:"from"`
 	To   float64 `json:"to"`
 }
+
+// ChartApiProbe describes the result of probing for the chartApi() singleton.
+type ChartApiProbe struct {
+	Found       bool     `json:"found"`
+	AccessPaths []string `json:"access_paths"`
+	Methods     []string `json:"methods"`
+}
+
+// ResolvedSymbolInfo describes extended metadata for any symbol resolved via chartApi().
+type ResolvedSymbolInfo struct {
+	Symbol          string `json:"symbol"`
+	Name            string `json:"name,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Exchange        string `json:"exchange,omitempty"`
+	Type            string `json:"type,omitempty"`
+	Currency        string `json:"currency,omitempty"`
+	Timezone        string `json:"timezone,omitempty"`
+	PriceScale      int    `json:"pricescale,omitempty"`
+	MinMov          int    `json:"minmov,omitempty"`
+	HasIntraday     bool   `json:"has_intraday,omitempty"`
+	HasDaily        bool   `json:"has_daily,omitempty"`
+	Session         string `json:"session,omitempty"`
+	SessionHolidays string `json:"session_holidays,omitempty"`
+}
+
