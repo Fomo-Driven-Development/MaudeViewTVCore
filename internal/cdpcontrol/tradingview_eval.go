@@ -828,11 +828,12 @@ var targets = ["selectDate","selectFirstAvailableDate","selectRandomDate","repla
   "isReplayStarted","isReplayAvailable","isAutoplayStarted","isReadyToPlay",
   "autoplayDelay","autoplayDelayWV","autoplayDelayList","getReplayDepth",
   "getReplaySelectedDate","currentDate","currentReplayResolution","replayTimingMode",
-  "buy","sell","closePosition","currency","position","realizedPL","destroy"];
+  "buy","sell","closePosition","currency","position","realizedPL","destroy",
+  "isReplayModeEnabled","replaySelectedDate","startReplay","enableReplayMode"];
 for (var ti = 0; ti < targets.length; ti++) {
   var tn = targets[ti];
   if (typeof rapi[tn] === "function") {
-    diag[tn] = {exists:true,arity:rapi[tn].length,src:rapi[tn].toString().substring(0,200)};
+    diag[tn] = {exists:true,arity:rapi[tn].length,src:rapi[tn].toString().substring(0,400)};
   } else if (typeof rapi[tn] !== "undefined") {
     diag[tn] = {exists:true,type:typeof rapi[tn],value:String(rapi[tn])};
   } else {
@@ -870,10 +871,26 @@ if (!rapi) {
   return JSON.stringify({ok:true,data:results});
 }
 results.found = true;
-// Check availability and current state
+function _unwrap(r) {
+  if (r === null || r === undefined) return {raw_type:"null",value:null};
+  var t = typeof r;
+  if (t === "string" || t === "number" || t === "boolean") return {raw_type:t,value:r};
+  if (t === "object") {
+    var isWV = (typeof r.value === "function" && typeof r.subscribe === "function");
+    if (isWV) {
+      try { return {raw_type:"WatchedValue",value:r.value(),has_value_fn:true,has_subscribe:true}; } catch(e) { return {raw_type:"WatchedValue",error:String(e)}; }
+    }
+    if ("_value" in r) {
+      return {raw_type:"object_with_value",value:r._value};
+    }
+    // safe key dump for unknown objects
+    try { var ks = Object.keys(r).slice(0,10); return {raw_type:"object",keys:ks}; } catch(_) { return {raw_type:"object",value:String(r)}; }
+  }
+  return {raw_type:t,value:String(r)};
+}
 function _callSafe(name) {
   if (typeof rapi[name] !== "function") return {available:false};
-  try { var r = rapi[name](); return {available:true,value:r}; } catch(e) { return {available:true,error:String(e.message||e)}; }
+  try { var r = rapi[name](); return {available:true,result:_unwrap(r)}; } catch(e) { return {available:true,error:String(e.message||e)}; }
 }
 results.is_replay_available = _callSafe("isReplayAvailable");
 results.is_replay_started = _callSafe("isReplayStarted");
@@ -885,6 +902,43 @@ results.current_resolution = _callSafe("currentReplayResolution");
 results.replay_depth = _callSafe("getReplayDepth");
 results.selected_date = _callSafe("getReplaySelectedDate");
 results.is_toolbar_visible = _callSafe("isReplayToolbarVisible");
+results.autoplay_delay_wv = _callSafe("autoplayDelayWV");
+// Inspect _replayUIController internal state
+if (rapi._replayUIController) {
+  var rc = rapi._replayUIController;
+  var rci = {};
+  if (typeof rc.isReplayModeEnabled === "function") {
+    try {
+      var wv = rc.isReplayModeEnabled();
+      rci.is_replay_mode_enabled = _unwrap(wv);
+    } catch(e) { rci.is_replay_mode_enabled = {error:String(e)}; }
+  }
+  if (typeof rc.isReplayStarted === "function") {
+    try {
+      var wv2 = rc.isReplayStarted();
+      rci.is_replay_started_internal = _unwrap(wv2);
+    } catch(e) { rci.is_replay_started_internal = {error:String(e)}; }
+  }
+  if (typeof rc.replaySelectedDate === "function") {
+    try {
+      var wv3 = rc.replaySelectedDate();
+      rci.replay_selected_date_internal = _unwrap(wv3);
+    } catch(e) { rci.replay_selected_date_internal = {error:String(e)}; }
+  }
+  if (typeof rc.readyToPlay === "function") {
+    try {
+      var wv4 = rc.readyToPlay();
+      rci.ready_to_play_internal = _unwrap(wv4);
+    } catch(e) { rci.ready_to_play_internal = {error:String(e)}; }
+  }
+  if (typeof rc.isAutoplayStarted === "function") {
+    try {
+      var wv5 = rc.isAutoplayStarted();
+      rci.is_autoplay_started_internal = _unwrap(wv5);
+    } catch(e) { rci.is_autoplay_started_internal = {error:String(e)}; }
+  }
+  results._replayUIController = rci;
+}
 // DOM replay button
 var btn = document.getElementById("header-toolbar-replay");
 if (btn) {
@@ -910,7 +964,18 @@ function _call(name) {
   } catch(_) { return null; }
 }
 s.is_replay_available = !!_call("isReplayAvailable");
-s.is_replay_started = !!_call("isReplayStarted");
+// isReplayStarted() WV can be stale; prefer _replayUIController.isReplayModeEnabled()
+s.is_replay_started = false;
+if (rapi._replayUIController && typeof rapi._replayUIController.isReplayModeEnabled === "function") {
+  try {
+    var _rme = rapi._replayUIController.isReplayModeEnabled();
+    if (typeof _rme === "boolean") s.is_replay_started = _rme;
+    else if (_rme && typeof _rme.value === "function") s.is_replay_started = !!_rme.value();
+    else if (_rme && "_value" in _rme) s.is_replay_started = !!_rme._value;
+  } catch(_) { s.is_replay_started = !!_call("isReplayStarted"); }
+} else {
+  s.is_replay_started = !!_call("isReplayStarted");
+}
 s.is_autoplay_started = !!_call("isAutoplayStarted");
 s.is_ready_to_play = !!_call("isReadyToPlay");
 s.replay_point = _call("getReplaySelectedDate");
@@ -942,7 +1007,14 @@ try {
   return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectDate failed: " + String(e.message||e)});
 }
 var started = false;
-if (typeof rapi.isReplayStarted === "function") { try { started = !!rapi.isReplayStarted(); } catch(_) {} }
+if (typeof rapi.isReplayStarted === "function") {
+  try {
+    var wv = rapi.isReplayStarted();
+    if (typeof wv === "boolean") started = wv;
+    else if (wv && typeof wv.value === "function") started = !!wv.value();
+    else if (wv && "_value" in wv) started = !!wv._value;
+  } catch(_) {}
+}
 return JSON.stringify({ok:true,data:{status:"activated",date:date,is_replay_started:started}});
 `, date))
 }
@@ -954,9 +1026,23 @@ if (typeof rapi.selectFirstAvailableDate === "function") {
   try {
     await rapi.selectFirstAvailableDate();
     var started = false;
-    if (typeof rapi.isReplayStarted === "function") { try { started = !!rapi.isReplayStarted(); } catch(_) {} }
+    if (typeof rapi.isReplayStarted === "function") {
+      try {
+        var wv = rapi.isReplayStarted();
+        if (typeof wv === "boolean") started = wv;
+        else if (wv && typeof wv.value === "function") started = !!wv.value();
+        else if (wv && "_value" in wv) started = !!wv._value;
+      } catch(_) {}
+    }
     var date = null;
-    if (typeof rapi.getReplaySelectedDate === "function") { try { date = rapi.getReplaySelectedDate(); } catch(_) {} }
+    if (typeof rapi.getReplaySelectedDate === "function") {
+      try {
+        var dv = rapi.getReplaySelectedDate();
+        if (typeof dv === "number") date = dv;
+        else if (dv && typeof dv.value === "function") date = dv.value();
+        else if (dv && "_value" in dv) date = dv._value;
+      } catch(_) {}
+    }
     return JSON.stringify({ok:true,data:{status:"activated",method:"selectFirstAvailableDate",date:date,is_replay_started:started}});
   } catch(e) {
     return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectFirstAvailableDate failed: " + String(e.message||e)});
@@ -969,9 +1055,10 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"sele
 func jsDeactivateReplay() string {
 	return wrapJSEval(jsReplayApiPreamble + `
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
-if (typeof rapi.leaveReplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"leaveReplay unavailable"});
-rapi.leaveReplay();
-return JSON.stringify({ok:true,data:{status:"deactivated"}});
+// stopReplay() calls requestCloseReplay(true) which skips confirmation dialogs
+if (typeof rapi.stopReplay === "function") { rapi.stopReplay(); return JSON.stringify({ok:true,data:{status:"deactivated"}}); }
+if (typeof rapi.leaveReplay === "function") { rapi.leaveReplay({skipConfirm:true}); return JSON.stringify({ok:true,data:{status:"deactivated"}}); }
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"stopReplay/leaveReplay unavailable"});
 `)
 }
 
@@ -1012,7 +1099,15 @@ func jsStartAutoplay() string {
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
 var already = false;
-if (typeof rapi.isAutoplayStarted === "function") { try { already = !!rapi.isAutoplayStarted(); } catch(_) {} }
+if (typeof rapi.isAutoplayStarted === "function") {
+  try {
+    var wv = rapi.isAutoplayStarted();
+    if (typeof wv === "boolean") already = wv;
+    else if (wv && typeof wv.value === "function") already = !!wv.value();
+    else if (wv && "_value" in wv) already = !!wv._value;
+    else already = false;
+  } catch(_) {}
+}
 if (!already) rapi.toggleAutoplay();
 return JSON.stringify({ok:true,data:{status:"autoplay_started"}});
 `)
@@ -1023,7 +1118,15 @@ func jsStopAutoplay() string {
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
 var running = false;
-if (typeof rapi.isAutoplayStarted === "function") { try { running = !!rapi.isAutoplayStarted(); } catch(_) {} }
+if (typeof rapi.isAutoplayStarted === "function") {
+  try {
+    var wv = rapi.isAutoplayStarted();
+    if (typeof wv === "boolean") running = wv;
+    else if (wv && typeof wv.value === "function") running = !!wv.value();
+    else if (wv && "_value" in wv) running = !!wv._value;
+    else running = false;
+  } catch(_) {}
+}
 if (running) rapi.toggleAutoplay();
 return JSON.stringify({ok:true,data:{status:"autoplay_stopped"}});
 `)
