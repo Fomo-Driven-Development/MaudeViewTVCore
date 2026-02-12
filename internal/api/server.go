@@ -144,6 +144,8 @@ type Service interface {
 	ActivateChart(ctx context.Context, index int) (cdpcontrol.LayoutStatus, error)
 	ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutStatus, error)
 	DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
+	BatchDeleteLayouts(ctx context.Context, ids []int, skipActive bool) (cdpcontrol.BatchDeleteResult, error)
+	PreviewLayout(ctx context.Context, id int, takeSnapshot bool) (cdpcontrol.LayoutDetail, error)
 	DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error)
 }
 
@@ -2182,6 +2184,44 @@ func NewServer(svc Service) http.Handler {
 				return nil, mapErr(err)
 			}
 			out := &layoutActionOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type batchDeleteOutput struct {
+		Body cdpcontrol.BatchDeleteResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "batch-delete-layouts", Method: http.MethodPost, Path: "/api/v1/layouts/batch-delete", Summary: "Delete multiple layouts in one call", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				IDs        []int `json:"ids" required:"true"`
+				SkipActive bool  `json:"skip_active,omitempty"`
+			}
+		}) (*batchDeleteOutput, error) {
+			result, err := svc.BatchDeleteLayouts(ctx, input.Body.IDs, input.Body.SkipActive)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &batchDeleteOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type layoutDetailOutput struct {
+		Body cdpcontrol.LayoutDetail
+	}
+	huma.Register(api, huma.Operation{OperationID: "preview-layout", Method: http.MethodPost, Path: "/api/v1/layout/preview", Summary: "Switch to a layout, gather details, and switch back", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				ID           int  `json:"id" required:"true"`
+				TakeSnapshot bool `json:"take_snapshot,omitempty"`
+			}
+		}) (*layoutDetailOutput, error) {
+			result, err := svc.PreviewLayout(ctx, input.Body.ID, input.Body.TakeSnapshot)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutDetailOutput{}
 			out.Body = result
 			return out, nil
 		})

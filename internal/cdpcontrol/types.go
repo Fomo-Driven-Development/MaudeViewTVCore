@@ -275,6 +275,29 @@ type DeepHealthResult struct {
 	ChartAPI       bool `json:"chart_api"`
 }
 
+// LayoutDetail describes a layout with its full content (studies, drawings, etc.).
+type LayoutDetail struct {
+	Info         LayoutInfo   `json:"layout_info"`
+	Status       LayoutStatus `json:"status"`
+	Studies      []Study      `json:"studies"`
+	DrawingCount int          `json:"drawing_count"`
+	SnapshotURL  string       `json:"snapshot_url,omitempty"`
+	PreviousID   int          `json:"previous_layout_id,omitempty"`
+}
+
+// BatchDeleteResult describes the result of a batch layout delete operation.
+type BatchDeleteResult struct {
+	Deleted []int              `json:"deleted"`
+	Skipped []int              `json:"skipped,omitempty"`
+	Errors  []BatchDeleteError `json:"errors,omitempty"`
+}
+
+// BatchDeleteError describes a single layout deletion failure.
+type BatchDeleteError struct {
+	ID    int    `json:"id"`
+	Error string `json:"error"`
+}
+
 // ReloadResult describes the result of a page reload.
 type ReloadResult struct {
 	Status string `json:"status"`

@@ -32,12 +32,21 @@ type rawCDP struct {
 
 	pending   map[int64]chan json.RawMessage
 	pendingMu sync.Mutex
+
+	eventMu       sync.RWMutex
+	eventHandlers map[string][]eventHandler
+}
+
+type eventHandler struct {
+	id int64
+	fn func(sessionID string, params json.RawMessage)
 }
 
 func newRawCDP(httpBase string) *rawCDP {
 	return &rawCDP{
-		httpBase: strings.TrimRight(httpBase, "/"),
-		pending:  make(map[int64]chan json.RawMessage),
+		httpBase:      strings.TrimRight(httpBase, "/"),
+		pending:       make(map[int64]chan json.RawMessage),
+		eventHandlers: make(map[string][]eventHandler),
 	}
 }
 
@@ -94,9 +103,15 @@ func (r *rawCDP) readLoop() {
 		}
 
 		var msg struct {
-			ID int64 `json:"id"`
+			ID        int64           `json:"id"`
+			Method    string          `json:"method"`
+			SessionID string          `json:"sessionId"`
+			Params    json.RawMessage `json:"params"`
 		}
-		if json.Unmarshal(data, &msg) == nil && msg.ID > 0 {
+		if json.Unmarshal(data, &msg) != nil {
+			continue
+		}
+		if msg.ID > 0 {
 			r.pendingMu.Lock()
 			ch, ok := r.pending[msg.ID]
 			if ok {
@@ -106,8 +121,9 @@ func (r *rawCDP) readLoop() {
 			if ok {
 				ch <- json.RawMessage(data)
 			}
+		} else if msg.Method != "" {
+			r.dispatchEvent(msg.Method, msg.SessionID, msg.Params)
 		}
-		// Events (no id) are ignored — we don't need them.
 	}
 }
 
@@ -401,6 +417,53 @@ func (r *rawCDP) dispatchKeyEvent(ctx context.Context, sessionID string, key str
 		return fmt.Errorf("rawcdp: keyUp: %w", err)
 	}
 	return nil
+}
+
+// registerEventHandler registers a handler for a CDP event method (e.g.
+// "Page.javascriptDialogOpening"). Returns an unregister function.
+func (r *rawCDP) registerEventHandler(method string, fn func(sessionID string, params json.RawMessage)) func() {
+	id := r.seq.Add(1)
+	r.eventMu.Lock()
+	r.eventHandlers[method] = append(r.eventHandlers[method], eventHandler{id: id, fn: fn})
+	r.eventMu.Unlock()
+	return func() {
+		r.eventMu.Lock()
+		defer r.eventMu.Unlock()
+		handlers := r.eventHandlers[method]
+		for i, h := range handlers {
+			if h.id == id {
+				r.eventHandlers[method] = append(handlers[:i], handlers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// dispatchEvent invokes all registered handlers for the given CDP event method.
+func (r *rawCDP) dispatchEvent(method, sessionID string, params json.RawMessage) {
+	r.eventMu.RLock()
+	handlers := make([]eventHandler, len(r.eventHandlers[method]))
+	copy(handlers, r.eventHandlers[method])
+	r.eventMu.RUnlock()
+	for _, h := range handlers {
+		h.fn(sessionID, params)
+	}
+}
+
+// enablePageDomain sends Page.enable on a flattened session so that dialog
+// events (Page.javascriptDialogOpening) are emitted.
+func (r *rawCDP) enablePageDomain(ctx context.Context, sessionID string) error {
+	_, err := r.sendFlat(ctx, sessionID, "Page.enable", nil)
+	return err
+}
+
+// handleJavaScriptDialog accepts or dismisses a JavaScript dialog on the session.
+func (r *rawCDP) handleJavaScriptDialog(ctx context.Context, sessionID string, accept bool) error {
+	params := struct {
+		Accept bool `json:"accept"`
+	}{Accept: accept}
+	_, err := r.sendFlat(ctx, sessionID, "Page.handleJavaScriptDialog", params)
+	return err
 }
 
 // browserWSURL fetches the WebSocket debugger URL from /json/version.

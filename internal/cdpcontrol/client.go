@@ -1695,6 +1695,23 @@ func (c *Client) SwitchLayout(ctx context.Context, id int) (LayoutActionResult, 
 		return LayoutActionResult{}, newError(CodeValidation, fmt.Sprintf("layout %d not found or has no URL", id), nil)
 	}
 
+	// Step 1b: Suppress beforeunload handlers to avoid blocking dialog.
+	_ = c.evalOnAnyChart(ctx, jsSuppressBeforeunload(), &struct{}{})
+
+	// Step 1c: Enable Page domain and register auto-accept handler for any
+	// remaining beforeunload dialog the JS suppression didn't catch.
+	cdpConn, sessionID, resolveErr := c.resolveAnySession(ctx)
+	var unregister func()
+	if resolveErr == nil {
+		_ = cdpConn.enablePageDomain(ctx, sessionID)
+		sid := sessionID
+		unregister = cdpConn.registerEventHandler("Page.javascriptDialogOpening", func(evtSessionID string, params json.RawMessage) {
+			acceptCtx, acceptCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer acceptCancel()
+			_ = cdpConn.handleJavaScriptDialog(acceptCtx, sid, true)
+		})
+	}
+
 	// Step 2: Navigate via window.location (triggers full page reload).
 	navJS := wrapJSEval(fmt.Sprintf(`window.location.href = "/chart/%s/"; return JSON.stringify({ok:true,data:{}});`, resolved.ShortURL))
 	_ = c.evalOnAnyChart(ctx, navJS, &struct{}{}) // will likely error due to navigation
@@ -1710,6 +1727,11 @@ func (c *Client) SwitchLayout(ctx context.Context, id int) (LayoutActionResult, 
 
 	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	defer func() {
+		if unregister != nil {
+			unregister()
+		}
+	}()
 	time.Sleep(2 * time.Second)
 
 	for {

@@ -342,6 +342,12 @@ func (s *stubService) ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutSt
 func (s *stubService) DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
 	return cdpcontrol.LayoutActionResult{}, nil
 }
+func (s *stubService) BatchDeleteLayouts(ctx context.Context, ids []int, skipActive bool) (cdpcontrol.BatchDeleteResult, error) {
+	return cdpcontrol.BatchDeleteResult{}, nil
+}
+func (s *stubService) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) (cdpcontrol.LayoutDetail, error) {
+	return cdpcontrol.LayoutDetail{}, nil
+}
 func (s *stubService) DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error) {
 	return cdpcontrol.DeepHealthResult{}, nil
 }

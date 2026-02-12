@@ -817,6 +817,142 @@ func (s *Service) DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionRes
 	return s.cdp.DismissDialog(ctx)
 }
 
+func (s *Service) BatchDeleteLayouts(ctx context.Context, ids []int, skipActive bool) (cdpcontrol.BatchDeleteResult, error) {
+	if len(ids) == 0 {
+		return cdpcontrol.BatchDeleteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "ids must not be empty"}
+	}
+	if len(ids) > 50 {
+		return cdpcontrol.BatchDeleteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "max 50 layouts per batch"}
+	}
+
+	var activeID int
+	if skipActive {
+		status, err := s.cdp.GetLayoutStatus(ctx)
+		if err == nil {
+			// LayoutStatus.LayoutID is a short URL, not numeric. Look up
+			// the numeric ID from the layouts list.
+			layouts, lErr := s.cdp.ListLayouts(ctx)
+			if lErr == nil {
+				for _, l := range layouts {
+					if l.URL == status.LayoutID {
+						activeID = l.ID
+						break
+					}
+				}
+			}
+		}
+	}
+
+	var result cdpcontrol.BatchDeleteResult
+	for i, id := range ids {
+		if skipActive && id == activeID {
+			result.Skipped = append(result.Skipped, id)
+			continue
+		}
+		_, err := s.cdp.DeleteLayout(ctx, id)
+		if err != nil {
+			result.Errors = append(result.Errors, cdpcontrol.BatchDeleteError{ID: id, Error: err.Error()})
+		} else {
+			result.Deleted = append(result.Deleted, id)
+		}
+		if i < len(ids)-1 {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) (cdpcontrol.LayoutDetail, error) {
+	if id <= 0 {
+		return cdpcontrol.LayoutDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "id must be > 0"}
+	}
+
+	// Get the layouts list for both current-ID lookup and target validation.
+	layouts, err := s.cdp.ListLayouts(ctx)
+	if err != nil {
+		return cdpcontrol.LayoutDetail{}, err
+	}
+
+	// Resolve the current layout's numeric ID by matching the short URL
+	// from LayoutStatus against the layout list (LayoutStatus.LayoutID is
+	// a short URL like "HXdrcgc8", not a numeric ID).
+	var previousID int
+	currentStatus, statusErr := s.cdp.GetLayoutStatus(ctx)
+	if statusErr == nil {
+		for _, l := range layouts {
+			if l.URL == currentStatus.LayoutID {
+				previousID = l.ID
+				break
+			}
+		}
+	}
+
+	// Find the target layout info.
+	var layoutInfo cdpcontrol.LayoutInfo
+	found := false
+	for _, l := range layouts {
+		if l.ID == id {
+			layoutInfo = l
+			found = true
+			break
+		}
+	}
+	if !found {
+		return cdpcontrol.LayoutDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fmt.Sprintf("layout %d not found", id)}
+	}
+
+	// If already on this layout, no need to switch.
+	alreadyOnTarget := previousID == id
+
+	if !alreadyOnTarget {
+		if _, err := s.cdp.SwitchLayout(ctx, id); err != nil {
+			return cdpcontrol.LayoutDetail{}, fmt.Errorf("switch to layout %d: %w", id, err)
+		}
+		// Allow TradingView API to fully initialize after page load.
+		time.Sleep(2 * time.Second)
+	}
+
+	// Gather layout details.
+	detail := cdpcontrol.LayoutDetail{
+		Info:       layoutInfo,
+		PreviousID: previousID,
+	}
+
+	if status, err := s.cdp.GetLayoutStatus(ctx); err == nil {
+		detail.Status = status
+	}
+
+	// Use first chart for study/drawing queries.
+	charts, _ := s.cdp.ListCharts(ctx)
+	chartID := ""
+	if len(charts) > 0 {
+		chartID = charts[0].ChartID
+	}
+
+	if chartID != "" {
+		if studies, err := s.cdp.ListStudies(ctx, chartID); err == nil {
+			detail.Studies = studies
+		}
+		if drawings, err := s.cdp.ListDrawings(ctx, chartID); err == nil {
+			detail.DrawingCount = len(drawings)
+		}
+	}
+
+	if takeSnapshot && chartID != "" {
+		snap, err := s.TakeSnapshot(ctx, chartID, "png", "")
+		if err == nil {
+			detail.SnapshotURL = fmt.Sprintf("/api/v1/snapshots/%s/image", snap.ID)
+		}
+	}
+
+	// Switch back to the original layout.
+	if !alreadyOnTarget && previousID > 0 {
+		_, _ = s.cdp.SwitchLayout(ctx, previousID)
+	}
+
+	return detail, nil
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

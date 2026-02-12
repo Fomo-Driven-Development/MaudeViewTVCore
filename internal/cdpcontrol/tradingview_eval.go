@@ -2445,6 +2445,17 @@ return JSON.stringify({ok:true,data:{layout_name:layoutName,layout_id:layoutId,g
 `)
 }
 
+func jsSuppressBeforeunload() string {
+	return wrapJSEval(`
+window.onbeforeunload = null;
+var evts = typeof getEventListeners === "function" ? getEventListeners(window) : null;
+if (!evts) {
+  window.addEventListener("beforeunload", function(e) { e.stopImmediatePropagation(); }, true);
+}
+return JSON.stringify({ok:true,data:{}});
+`)
+}
+
 func jsSwitchLayoutResolveURL(id int) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 if (!api || !api._loadChartService) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_loadChartService unavailable"});
