@@ -476,20 +476,13 @@ VR15_FROM=$(echo "$VR15" | jq -r '.from // empty')
 VR15_TO=$(echo "$VR15" | jq -r '.to // empty')
 
 if [ -n "$VR15_FROM" ]; then
-  # go-to-date may be unavailable on some chart types
-  GTD_RESP=$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" \
-    -d "{\"timestamp\":$VR15_FROM}" "$BASE/api/v1/chart/$CHART_ID/go-to-date" 2>/dev/null)
-  GTD_CODE=$(echo "$GTD_RESP" | tail -1)
-  if [ "$GTD_CODE" = "200" ]; then ok "POST go-to-date"; else skip "POST go-to-date" "HTTP $GTD_CODE (may be unavailable)"; fi
+  req "POST go-to-date" "POST" "/api/v1/chart/$CHART_ID/go-to-date" "{\"timestamp\":$VR15_FROM}" >/dev/null
   sleep 0.5
 fi
 
 # Set visible range (read current, write it back — idempotent)
 if [ -n "$VR15_FROM" ] && [ -n "$VR15_TO" ]; then
-  SVR_RESP=$(curl -s -w "\n%{http_code}" -X PUT -H "Content-Type: application/json" \
-    -d "{\"from\":$VR15_FROM,\"to\":$VR15_TO}" "$BASE/api/v1/chart/$CHART_ID/visible-range" 2>/dev/null)
-  SVR_CODE=$(echo "$SVR_RESP" | tail -1)
-  if [ "$SVR_CODE" = "200" ]; then ok "PUT set visible-range"; else skip "PUT set visible-range" "HTTP $SVR_CODE (may not be implemented)"; fi
+  req "PUT set visible-range" "PUT" "/api/v1/chart/$CHART_ID/visible-range" "{\"from\":$VR15_FROM,\"to\":$VR15_TO}" >/dev/null
   sleep 0.5
 fi
 
@@ -551,7 +544,7 @@ printf "${CYAN}--- Phase 17: Alert Read & Fires ---${NC}\n"
 
 # List alerts
 ALERTS_JSON=$(get "GET alerts list (phase17)" "/api/v1/alerts")
-FIRST_ALERT_ID=$(echo "$ALERTS_JSON" | jq -r '.alerts[0].id // empty')
+FIRST_ALERT_ID=$(echo "$ALERTS_JSON" | jq -r '.alerts[0].alert_id // empty')
 
 if [ -n "$FIRST_ALERT_ID" ]; then
   get "GET single alert" "/api/v1/alerts/$FIRST_ALERT_ID" >/dev/null

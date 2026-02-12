@@ -534,14 +534,51 @@ return JSON.stringify({ok:true,data:{status:"executed"}});
 `)
 }
 
+// jsResolutionToSeconds converts a TradingView resolution string to approximate
+// bar duration in seconds. Used by scroll-based navigation as a fallback.
+const jsResolutionToSeconds = `
+function _resToSec(res) {
+  if (!res) return 86400;
+  var s = String(res).toUpperCase();
+  if (s === "D" || s === "1D") return 86400;
+  if (s === "W" || s === "1W") return 604800;
+  if (s === "M" || s === "1M") return 2592000;
+  var m = s.match(/^(\d+)([DWMS]?)$/);
+  if (!m) return 86400;
+  var n = parseInt(m[1], 10);
+  var u = m[2];
+  if (u === "D") return n * 86400;
+  if (u === "W") return n * 604800;
+  if (u === "M") return n * 2592000;
+  if (u === "S") return n;
+  return n * 60;
+}
+`
+
 func jsGoToDate(timestamp int64) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+jsResolutionToSeconds+`
 var ts = %d;
 if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
 var done = false;
+// Try native goToDate first
 if (typeof chart.goToDate === "function") { try { chart.goToDate(ts); done = true; } catch(_) {} }
+// Try native setVisibleRange
 if (!done && typeof chart.setVisibleRange === "function") {
   try { await chart.setVisibleRange({from:ts, to:ts + 86400}); done = true; } catch(_) {}
+}
+// Fallback: scroll-based navigation using resolution and visible range
+if (!done && typeof chart.getVisibleRange === "function" && typeof chart.scrollChartByBar === "function") {
+  try {
+    var r = chart.getVisibleRange();
+    if (r && r.from && r.to) {
+      var mid = (r.from + r.to) / 2;
+      var res = typeof chart.resolution === "function" ? chart.resolution() : "D";
+      var barSec = _resToSec(res);
+      var offset = Math.round((ts - mid) / barSec);
+      if (offset !== 0) { chart.scrollChartByBar(offset); done = true; }
+      else { done = true; }
+    }
+  } catch(_) {}
 }
 if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"goToDate unavailable"});
 return JSON.stringify({ok:true,data:{status:"executed",timestamp:ts}});
@@ -561,18 +598,31 @@ return JSON.stringify({ok:true,data:{from:Number(r.from || 0),to:Number(r.to || 
 }
 
 func jsSetVisibleRange(from, to float64) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+jsResolutionToSeconds+`
 var from = %v;
 var to = %v;
 if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
-if (typeof chart.setVisibleRange !== "function") {
-  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setVisibleRange unavailable"});
+var done = false;
+// Try native setVisibleRange first
+if (typeof chart.setVisibleRange === "function") {
+  try { await chart.setVisibleRange({from:from, to:to}); done = true; } catch(_) {}
 }
-try {
-  await chart.setVisibleRange({from:from, to:to});
-} catch(e) {
-  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setVisibleRange: " + String(e && e.message || e)});
+// Fallback: scroll to the midpoint of the requested range
+if (!done && typeof chart.getVisibleRange === "function" && typeof chart.scrollChartByBar === "function") {
+  try {
+    var r = chart.getVisibleRange();
+    if (r && r.from && r.to) {
+      var targetMid = (from + to) / 2;
+      var curMid = (r.from + r.to) / 2;
+      var res = typeof chart.resolution === "function" ? chart.resolution() : "D";
+      var barSec = _resToSec(res);
+      var offset = Math.round((targetMid - curMid) / barSec);
+      if (offset !== 0) chart.scrollChartByBar(offset);
+      done = true;
+    }
+  } catch(_) {}
 }
+if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setVisibleRange unavailable"});
 return JSON.stringify({ok:true,data:{from:from,to:to}});
 `, from, to))
 }
@@ -2432,7 +2482,15 @@ if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_mes
 var saveSvc = typeof api.getSaveChartService === "function" ? api.getSaveChartService() : null;
 if (!saveSvc || !saveSvc._saveAsController || typeof saveSvc._saveAsController._doCloneCurrentLayout !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_doCloneCurrentLayout unavailable"});
 var cloneName = %s;
-await saveSvc._saveAsController._doCloneCurrentLayout(cloneName);
+try {
+  await saveSvc._saveAsController._doCloneCurrentLayout(cloneName);
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"clone failed: " + String(e && e.message || e)});
+}
+// Refresh the in-memory chart list so subsequent list reads see the clone
+if (api._loadChartService && typeof api._loadChartService.refreshChartList === "function") {
+  try { api._loadChartService.refreshChartList(); } catch(_) {}
+}
 var layoutName = typeof api.layoutName === "function" ? String(api.layoutName() || "") : "";
 var layoutId = typeof api.layoutId === "function" ? String(api.layoutId() || "") : "";
 return JSON.stringify({ok:true,data:{status:"cloned",layout_name:layoutName,layout_id:layoutId}});
