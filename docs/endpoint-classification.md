@@ -78,7 +78,7 @@
 | 22 | DELETE | `/api/v1/watchlist/{wid}` | JS internal REST | `fetch("/api/v1/symbols_list/custom/{id}/", {method:"DELETE"})` |
 | 23 | POST | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | `fetch("/api/v1/symbols_list/custom/{id}/append/", {method:"POST"})` |
 | 24 | DELETE | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | `fetch("/api/v1/symbols_list/custom/{id}/remove/", {method:"POST"})` |
-| 25 | POST | `/api/v1/watchlist/{wid}/flag` | Mixed (DOM + React fiber) | Finds `[data-name='symbol-list-wrap']`, walks `__reactFiber` tree, calls `markSymbol()` |
+| 25 | POST | `/api/v1/watchlist/{wid}/flag` | Mixed (DOM + React fiber) **[EXPERIMENTAL]** | Finds `[data-name='symbol-list-wrap']`, walks `__reactFiber` tree, calls `markSymbol()`. Fragile — `__reactFiber` key scanning + `markSymbol` prop walk breaks on React version upgrades. No REST alternative exists. |
 
 ### Navigation (tag: Navigation)
 

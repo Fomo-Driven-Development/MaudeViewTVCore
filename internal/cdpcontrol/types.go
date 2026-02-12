@@ -259,6 +259,22 @@ type LayoutActionResult struct {
 	LayoutID   string `json:"layout_id,omitempty"`
 }
 
+// DeepHealthResult describes the availability of every implementation mechanism.
+type DeepHealthResult struct {
+	TradingViewAPI bool `json:"tradingview_api"`
+	ChartWidget    bool `json:"chart_widget"`
+	WebpackRequire bool `json:"webpack_require"`
+	AlertsAPI      bool `json:"alerts_api"`
+	WatchlistREST  bool `json:"watchlist_rest"`
+	ReplayAPI      bool `json:"replay_api"`
+	BacktestingAPI bool `json:"backtesting_api"`
+	PineEditorDOM  bool `json:"pine_editor_dom"`
+	MonacoWebpack  bool `json:"monaco_webpack"`
+	LoadChart      bool `json:"load_chart"`
+	SaveChart      bool `json:"save_chart"`
+	ChartAPI       bool `json:"chart_api"`
+}
+
 // ReloadResult describes the result of a page reload.
 type ReloadResult struct {
 	Status string `json:"status"`

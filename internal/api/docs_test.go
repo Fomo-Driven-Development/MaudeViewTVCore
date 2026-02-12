@@ -339,6 +339,9 @@ func (s *stubService) ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutSt
 func (s *stubService) DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error) {
 	return cdpcontrol.LayoutActionResult{}, nil
 }
+func (s *stubService) DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error) {
+	return cdpcontrol.DeepHealthResult{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

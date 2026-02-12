@@ -7,6 +7,53 @@ const jsPreamble = `
 var api = window.TradingViewApi;
 var chart = api && typeof api.activeChart === "function" ? api.activeChart() : null;`
 
+// jsProbeObjectHelper provides _probeObj(obj, paths) — shared method enumeration
+// and state collection used by all probe functions.
+const jsProbeObjectHelper = `
+function _probeObj(obj, paths) {
+  if (!obj) return {found:false,access_paths:[],methods:[],state:{}};
+  var methods = []; var seen = {};
+  var p = obj;
+  while (p && p !== Object.prototype) {
+    var mk = Object.getOwnPropertyNames(p);
+    for (var mi = 0; mi < mk.length; mi++) {
+      var mn = mk[mi];
+      if (mn === "constructor" || seen[mn]) continue;
+      seen[mn] = true;
+      try { if (typeof obj[mn] === "function") methods.push(mn); } catch(_) {}
+    }
+    p = Object.getPrototypeOf(p);
+  }
+  methods.sort();
+  var state = {};
+  var ownKeys = Object.keys(obj);
+  for (var oi = 0; oi < ownKeys.length; oi++) {
+    var k = ownKeys[oi]; var v = obj[k];
+    if (typeof v === "function") continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") state[k] = v;
+    else if (v === null || v === undefined) state[k] = null;
+    else if (typeof v === "object") state[k] = "{" + Object.keys(v).length + " keys}";
+  }
+  return {found:true,access_paths:paths,methods:methods,state:state};
+}
+`
+
+// jsWatchedValueHelper provides _wv(v) and _callWV(obj, name) — shared
+// WatchedValue unwrapping used across replay, backtesting, and drawing functions.
+const jsWatchedValueHelper = `
+function _wv(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return v;
+  if (typeof v === "object" && typeof v.value === "function") { try { return v.value(); } catch(_) { return null; } }
+  if (typeof v === "object" && "_value" in v) return v._value;
+  return v;
+}
+function _callWV(obj, name) {
+  if (typeof obj[name] !== "function") return null;
+  try { return _wv(obj[name]()); } catch(_) { return null; }
+}
+`
+
 func jsGetSymbol() string {
 	return wrapJSEval(jsPreamble + `
 var symbol = "";
@@ -567,7 +614,7 @@ if (!capi && chart) {
 `
 
 func jsProbeChartApi() string {
-	return wrapJSEval(jsChartApiPreamble + `
+	return wrapJSEval(jsChartApiPreamble + jsProbeObjectHelper + `
 if (!capi) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[]}});
 var paths = [];
 if (api && typeof api.chartApi === "function") paths.push("api.chartApi()");
@@ -597,21 +644,70 @@ if (paths.length === 0) {
   }
   if (paths.length === 0) paths.push("key-scan");
 }
-var methods = [];
-var seen = {};
-var obj = capi;
-while (obj && obj !== Object.prototype) {
-  var mk = Object.getOwnPropertyNames(obj);
-  for (var mi = 0; mi < mk.length; mi++) {
-    var mn = mk[mi];
-    if (mn === "constructor" || seen[mn]) continue;
-    seen[mn] = true;
-    try { if (typeof capi[mn] === "function") methods.push(mn); } catch(_) {}
-  }
-  obj = Object.getPrototypeOf(obj);
+var r = _probeObj(capi, paths);
+return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:r.methods}});
+`)
 }
-methods.sort();
-return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods}});
+
+func jsDeepHealthCheck() string {
+	return wrapJSEvalAsync(jsPreamble + `
+var r = {
+  tradingview_api: !!(api && typeof api.activeChart === "function"),
+  chart_widget: !!(api && api._chartWidgetCollection && typeof api._chartWidgetCollection.images === "function"),
+  chart_api: false,
+  webpack_require: false,
+  alerts_api: false,
+  watchlist_rest: false,
+  replay_api: !!(api && api._replayApi),
+  backtesting_api: !!(api && api._backtestingStrategyApi),
+  pine_editor_dom: !!(document.querySelector('button[data-name="pine-dialog-button"]') || document.querySelector('button[aria-label="Pine"]')),
+  monaco_webpack: !!(window.__tvMonacoNs && window.__tvMonacoNs.editor),
+  load_chart: !!(api && api._loadChartService),
+  save_chart: false
+};
+// chart_api — look for chartApi() or quoteCreateSession
+if (api && typeof api.chartApi === "function") { try { r.chart_api = !!api.chartApi(); } catch(_) {} }
+if (!r.chart_api) {
+  var ch = r.tradingview_api ? api.activeChart() : null;
+  if (ch && typeof ch.chartApi === "function") { try { r.chart_api = !!ch.chartApi(); } catch(_) {} }
+}
+// save_chart — check via _loadChartService._saveChartService
+if (api && api._loadChartService) {
+  var ls = api._loadChartService;
+  var lsKeys = Object.keys(ls);
+  for (var li = 0; li < lsKeys.length; li++) {
+    var lv = ls[lsKeys[li]];
+    if (lv && typeof lv === "object" && typeof lv.saveChartSilently === "function") { r.save_chart = true; break; }
+  }
+}
+// webpack_require
+var _wpReq = window.__tvAgentWpRequire || null;
+if (!_wpReq) {
+  var _ca = window.webpackChunktradingview;
+  if (_ca && Array.isArray(_ca)) {
+    try { _ca.push([["__dhc_" + Date.now()], {}, function(req) { _wpReq = req; }]); } catch(_) {}
+    if (_wpReq) window.__tvAgentWpRequire = _wpReq;
+  }
+}
+r.webpack_require = !!(_wpReq && _wpReq.c);
+// alerts_api — scan webpack modules for getAlertsRestApi
+if (r.webpack_require) {
+  if (api && typeof api.alerts === "function") { try { await api.alerts(); } catch(_) {} }
+  var _mc = _wpReq.c;
+  var _mkeys = Object.keys(_mc);
+  for (var _mi = 0; _mi < _mkeys.length; _mi++) {
+    try {
+      var _exp = _mc[_mkeys[_mi]].exports;
+      if (_exp && typeof _exp.getAlertsRestApi === "function") { r.alerts_api = true; break; }
+    } catch(_) {}
+  }
+}
+// watchlist_rest — check for fetch-based watchlist API (basic DOM check)
+r.watchlist_rest = !!(api && typeof api.getWatchedListWidget === "function");
+if (!r.watchlist_rest) {
+  r.watchlist_rest = !!document.querySelector('[data-name="base-watchlist-menu"]');
+}
+return JSON.stringify({ok:true,data:r});
 `)
 }
 
@@ -783,38 +879,9 @@ if (api && api._replayApi) { rapi = api._replayApi; }
 `
 
 func jsProbeReplayManager() string {
-	return wrapJSEval(jsReplayApiPreamble + `
-if (!rapi) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[],state:{}}});
-var paths = ["api._replayApi"];
-var methods = [];
-var seen = {};
-var obj = rapi;
-while (obj && obj !== Object.prototype) {
-  var mk = Object.getOwnPropertyNames(obj);
-  for (var mi = 0; mi < mk.length; mi++) {
-    var mn = mk[mi];
-    if (mn === "constructor" || seen[mn]) continue;
-    seen[mn] = true;
-    try { if (typeof rapi[mn] === "function") methods.push(mn); } catch(_) {}
-  }
-  obj = Object.getPrototypeOf(obj);
-}
-methods.sort();
-var ownKeys = Object.keys(rapi);
-var state = {};
-for (var oi = 0; oi < ownKeys.length; oi++) {
-  var ok2 = ownKeys[oi];
-  var ov = rapi[ok2];
-  if (typeof ov === "function") continue;
-  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
-    state[ok2] = ov;
-  } else if (ov === null || ov === undefined) {
-    state[ok2] = null;
-  } else if (typeof ov === "object") {
-    state[ok2] = "{" + Object.keys(ov).length + " keys}";
-  }
-}
-return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods,state:state}});
+	return wrapJSEval(jsReplayApiPreamble + jsProbeObjectHelper + `
+var r = _probeObj(rapi, ["api._replayApi"]);
+return JSON.stringify({ok:true,data:r});
 `)
 }
 
@@ -949,55 +1016,37 @@ return JSON.stringify({ok:true,data:results});
 }
 
 func jsGetReplayStatus() string {
-	return wrapJSEval(jsReplayApiPreamble + `
+	return wrapJSEval(jsReplayApiPreamble + jsWatchedValueHelper + `
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 var s = {};
-function _call(name) {
-  if (typeof rapi[name] !== "function") return null;
-  try {
-    var r = rapi[name]();
-    if (r === null || r === undefined) return null;
-    if (typeof r === "string" || typeof r === "number" || typeof r === "boolean") return r;
-    if (typeof r === "object" && typeof r.value === "function") return r.value();
-    if (typeof r === "object" && "_value" in r) return r._value;
-    return String(r);
-  } catch(_) { return null; }
-}
-s.is_replay_available = !!_call("isReplayAvailable");
+s.is_replay_available = !!_callWV(rapi, "isReplayAvailable");
 // isReplayStarted() WV can be stale; prefer _replayUIController.isReplayModeEnabled()
 s.is_replay_started = false;
 if (rapi._replayUIController && typeof rapi._replayUIController.isReplayModeEnabled === "function") {
   try {
-    var _rme = rapi._replayUIController.isReplayModeEnabled();
-    if (typeof _rme === "boolean") s.is_replay_started = _rme;
-    else if (_rme && typeof _rme.value === "function") s.is_replay_started = !!_rme.value();
-    else if (_rme && "_value" in _rme) s.is_replay_started = !!_rme._value;
-  } catch(_) { s.is_replay_started = !!_call("isReplayStarted"); }
+    s.is_replay_started = !!_wv(rapi._replayUIController.isReplayModeEnabled());
+  } catch(_) { s.is_replay_started = !!_callWV(rapi, "isReplayStarted"); }
 } else {
-  s.is_replay_started = !!_call("isReplayStarted");
+  s.is_replay_started = !!_callWV(rapi, "isReplayStarted");
 }
-s.is_autoplay_started = !!_call("isAutoplayStarted");
-s.is_ready_to_play = !!_call("isReadyToPlay");
-s.replay_point = _call("getReplaySelectedDate");
-s.server_time = _call("currentDate");
-s.autoplay_delay = Number(_call("autoplayDelay") || 0);
-s.depth = _call("getReplayDepth");
+s.is_autoplay_started = !!_callWV(rapi, "isAutoplayStarted");
+s.is_ready_to_play = !!_callWV(rapi, "isReadyToPlay");
+s.replay_point = _callWV(rapi, "getReplaySelectedDate");
+s.server_time = _callWV(rapi, "currentDate");
+s.autoplay_delay = Number(_callWV(rapi, "autoplayDelay") || 0);
+s.depth = _callWV(rapi, "getReplayDepth");
 s.is_replay_finished = false;
 s.is_replay_connected = false;
 // Try chart.replayStatus() WatchedValue for additional state
 if (chart && typeof chart.replayStatus === "function") {
-  try {
-    var wv = chart.replayStatus();
-    if (wv && typeof wv.value === "function") s.replay_status_value = wv.value();
-    else if (wv && "_value" in wv) s.replay_status_value = wv._value;
-  } catch(_) {}
+  try { s.replay_status_value = _wv(chart.replayStatus()); } catch(_) {}
 }
 return JSON.stringify({ok:true,data:s});
 `)
 }
 
 func jsActivateReplay(date float64) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+jsWatchedValueHelper+`
 var date = %v;
 // selectDate expects milliseconds; convert if value looks like seconds (< 1e12)
 if (date < 1e12) date = date * 1000;
@@ -1008,43 +1057,19 @@ try {
 } catch(e) {
   return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectDate failed: " + String(e.message||e)});
 }
-var started = false;
-if (typeof rapi.isReplayStarted === "function") {
-  try {
-    var wv = rapi.isReplayStarted();
-    if (typeof wv === "boolean") started = wv;
-    else if (wv && typeof wv.value === "function") started = !!wv.value();
-    else if (wv && "_value" in wv) started = !!wv._value;
-  } catch(_) {}
-}
+var started = !!_callWV(rapi, "isReplayStarted");
 return JSON.stringify({ok:true,data:{status:"activated",date:date,is_replay_started:started}});
 `, date))
 }
 
 func jsActivateReplayAuto() string {
-	return wrapJSEvalAsync(jsReplayApiPreamble + `
+	return wrapJSEvalAsync(jsReplayApiPreamble + jsWatchedValueHelper + `
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.selectFirstAvailableDate === "function") {
   try {
     await rapi.selectFirstAvailableDate();
-    var started = false;
-    if (typeof rapi.isReplayStarted === "function") {
-      try {
-        var wv = rapi.isReplayStarted();
-        if (typeof wv === "boolean") started = wv;
-        else if (wv && typeof wv.value === "function") started = !!wv.value();
-        else if (wv && "_value" in wv) started = !!wv._value;
-      } catch(_) {}
-    }
-    var date = null;
-    if (typeof rapi.getReplaySelectedDate === "function") {
-      try {
-        var dv = rapi.getReplaySelectedDate();
-        if (typeof dv === "number") date = dv;
-        else if (dv && typeof dv.value === "function") date = dv.value();
-        else if (dv && "_value" in dv) date = dv._value;
-      } catch(_) {}
-    }
+    var started = !!_callWV(rapi, "isReplayStarted");
+    var date = _callWV(rapi, "getReplaySelectedDate");
     return JSON.stringify({ok:true,data:{status:"activated",method:"selectFirstAvailableDate",date:date,is_replay_started:started}});
   } catch(e) {
     return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectFirstAvailableDate failed: " + String(e.message||e)});
@@ -1099,39 +1124,19 @@ return JSON.stringify({ok:true,data:{status:"stepped"}});
 }
 
 func jsStartAutoplay() string {
-	return wrapJSEval(jsReplayApiPreamble + `
+	return wrapJSEval(jsReplayApiPreamble + jsWatchedValueHelper + `
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
-var already = false;
-if (typeof rapi.isAutoplayStarted === "function") {
-  try {
-    var wv = rapi.isAutoplayStarted();
-    if (typeof wv === "boolean") already = wv;
-    else if (wv && typeof wv.value === "function") already = !!wv.value();
-    else if (wv && "_value" in wv) already = !!wv._value;
-    else already = false;
-  } catch(_) {}
-}
-if (!already) rapi.toggleAutoplay();
+if (!_callWV(rapi, "isAutoplayStarted")) rapi.toggleAutoplay();
 return JSON.stringify({ok:true,data:{status:"autoplay_started"}});
 `)
 }
 
 func jsStopAutoplay() string {
-	return wrapJSEval(jsReplayApiPreamble + `
+	return wrapJSEval(jsReplayApiPreamble + jsWatchedValueHelper + `
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
-var running = false;
-if (typeof rapi.isAutoplayStarted === "function") {
-  try {
-    var wv = rapi.isAutoplayStarted();
-    if (typeof wv === "boolean") running = wv;
-    else if (wv && typeof wv.value === "function") running = !!wv.value();
-    else if (wv && "_value" in wv) running = !!wv._value;
-    else running = false;
-  } catch(_) {}
-}
-if (running) rapi.toggleAutoplay();
+if (!!_callWV(rapi, "isAutoplayStarted")) rapi.toggleAutoplay();
 return JSON.stringify({ok:true,data:{status:"autoplay_stopped"}});
 `)
 }
@@ -1182,50 +1187,13 @@ const jsBacktestingApiPreamble = jsPreamble + `
 var bsa = api ? api._backtestingStrategyApi : null;
 `
 
-// jsBacktestingWVHelper is a shared JS helper that unwraps WatchedValues.
-const jsBacktestingWVHelper = `
-function _wv(v) {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return v;
-  if (typeof v === "object" && typeof v.value === "function") { try { return v.value(); } catch(_) { return null; } }
-  if (typeof v === "object" && "_value" in v) return v._value;
-  return v;
-}
-`
+// jsBacktestingWVHelper aliases jsWatchedValueHelper for backward compatibility.
+const jsBacktestingWVHelper = jsWatchedValueHelper
 
 func jsProbeBacktestingApi() string {
-	return wrapJSEval(jsBacktestingApiPreamble + `
-if (!bsa) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[],state:{}}});
-var paths = ["api._backtestingStrategyApi"];
-var methods = [];
-var seen = {};
-var obj = bsa;
-while (obj && obj !== Object.prototype) {
-  var mk = Object.getOwnPropertyNames(obj);
-  for (var mi = 0; mi < mk.length; mi++) {
-    var mn = mk[mi];
-    if (mn === "constructor" || seen[mn]) continue;
-    seen[mn] = true;
-    try { if (typeof bsa[mn] === "function") methods.push(mn); } catch(_) {}
-  }
-  obj = Object.getPrototypeOf(obj);
-}
-methods.sort();
-var ownKeys = Object.keys(bsa);
-var state = {};
-for (var oi = 0; oi < ownKeys.length; oi++) {
-  var ok2 = ownKeys[oi];
-  var ov = bsa[ok2];
-  if (typeof ov === "function") continue;
-  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
-    state[ok2] = ov;
-  } else if (ov === null || ov === undefined) {
-    state[ok2] = null;
-  } else if (typeof ov === "object") {
-    state[ok2] = "{" + Object.keys(ov).length + " keys}";
-  }
-}
-return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods,state:state}});
+	return wrapJSEval(jsBacktestingApiPreamble + jsProbeObjectHelper + `
+var r = _probeObj(bsa, ["api._backtestingStrategyApi"]);
+return JSON.stringify({ok:true,data:r});
 `)
 }
 
@@ -1361,6 +1329,7 @@ if (_wpReq && _wpReq.c) {
     } catch(_) {}
   }
 }
+function _coerceIds(arr) { return arr.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; }); }
 `
 
 func jsScanAlertsAccess() string {
@@ -1401,36 +1370,7 @@ if (!wpRequire && chunkArr) {
 results.has_wpRequire = !!wpRequire;
 
 if (wpRequire) {
-  // Step 4: Try module 609177 (from alerts() source)
-  try {
-    var mod = wpRequire(609177);
-    if (mod) {
-      var modKeys = Object.keys(mod);
-      results.module_609177_keys = modKeys;
-      if (typeof mod.getAlertsRestApi === "function") {
-        results.found_getAlertsRestApi = "wpRequire(609177).getAlertsRestApi";
-        var restApi = mod.getAlertsRestApi();
-        if (restApi) {
-          var methods = [];
-          var seen = {};
-          var p = restApi;
-          while (p && p !== Object.prototype) {
-            var names = Object.getOwnPropertyNames(p);
-            for (var ni = 0; ni < names.length; ni++) {
-              if (names[ni] === "constructor" || seen[names[ni]]) continue;
-              seen[names[ni]] = true;
-              try { if (typeof restApi[names[ni]] === "function") methods.push(names[ni]); } catch(_) {}
-            }
-            p = Object.getPrototypeOf(p);
-          }
-          methods.sort();
-          results.restApi_methods = methods;
-        }
-      }
-    }
-  } catch(e) { results.module_609177_error = String(e).substring(0,200); }
-
-  // Step 5: Scan module cache for getAlertsRestApi or createAlert
+  // Scan module cache for getAlertsRestApi or createAlert
   if (wpRequire.c) {
     var cache = wpRequire.c;
     var cacheKeys = Object.keys(cache);
@@ -1451,47 +1391,22 @@ if (wpRequire) {
       } catch(_) {}
     }
     results.cache_alert_hits = cacheHits;
-  }
-
-  // Step 6: Call getAlertsRestApi from module 418369 and inspect the singleton
-  try {
-    var alertMod = wpRequire(418369);
-    if (alertMod && typeof alertMod.getAlertsRestApi === "function") {
-      results.found_getAlertsRestApi = true;
-      var restApi = alertMod.getAlertsRestApi();
-      if (restApi) {
-        results.restApi_type = typeof restApi;
-        var methods = [];
-        var seen = {};
-        var rp = restApi;
-        while (rp && rp !== Object.prototype) {
-          var rnames = Object.getOwnPropertyNames(rp);
-          for (var ri = 0; ri < rnames.length; ri++) {
-            var rn = rnames[ri];
-            if (rn === "constructor" || seen[rn]) continue;
-            seen[rn] = true;
-            try { if (typeof restApi[rn] === "function") methods.push(rn); } catch(_) {}
+    // Resolve singleton via first cache hit
+    results.found_getAlertsRestApi = false;
+    for (var hi = 0; hi < cacheHits.length; hi++) {
+      if (cacheHits[hi].key === "getAlertsRestApi" && cacheHits[hi].type === "function") {
+        try {
+          var hitMod = cache[cacheHits[hi].moduleId].exports;
+          var restApi = hitMod.getAlertsRestApi();
+          if (restApi) {
+            results.found_getAlertsRestApi = true;
+            results.restApi_type = typeof restApi;
           }
-          rp = Object.getPrototypeOf(rp);
-        }
-        methods.sort();
-        results.restApi_methods = methods;
-        // Own state
-        var state = {};
-        var rok = Object.keys(restApi);
-        for (var si = 0; si < rok.length; si++) {
-          var sv = restApi[rok[si]];
-          if (typeof sv === "function") continue;
-          if (typeof sv === "string" || typeof sv === "number" || typeof sv === "boolean") state[rok[si]] = sv;
-          else if (sv === null || sv === undefined) state[rok[si]] = null;
-          else if (typeof sv === "object") state[rok[si]] = "{" + Object.keys(sv).length + " keys}";
-        }
-        results.restApi_state = state;
-      } else {
-        results.restApi_null = true;
+        } catch(_) {}
+        break;
       }
     }
-  } catch(e) { results.module_418369_error = String(e).substring(0, 200); }
+  }
 }
 
 return JSON.stringify({ok:true,data:results});
@@ -1499,38 +1414,9 @@ return JSON.stringify({ok:true,data:results});
 }
 
 func jsProbeAlertsRestApi() string {
-	return wrapJSEvalAsync(jsAlertsApiPreamble + `
-if (!aapi) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[],state:{}}});
-var paths = ["webpack:getAlertsRestApi()"];
-var methods = [];
-var seen = {};
-var obj = aapi;
-while (obj && obj !== Object.prototype) {
-  var mk = Object.getOwnPropertyNames(obj);
-  for (var mi = 0; mi < mk.length; mi++) {
-    var mn = mk[mi];
-    if (mn === "constructor" || seen[mn]) continue;
-    seen[mn] = true;
-    try { if (typeof aapi[mn] === "function") methods.push(mn); } catch(_) {}
-  }
-  obj = Object.getPrototypeOf(obj);
-}
-methods.sort();
-var ownKeys = Object.keys(aapi);
-var state = {};
-for (var oi = 0; oi < ownKeys.length; oi++) {
-  var ok2 = ownKeys[oi];
-  var ov = aapi[ok2];
-  if (typeof ov === "function") continue;
-  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
-    state[ok2] = ov;
-  } else if (ov === null || ov === undefined) {
-    state[ok2] = null;
-  } else if (typeof ov === "object") {
-    state[ok2] = "{" + Object.keys(ov).length + " keys}";
-  }
-}
-return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods,state:state}});
+	return wrapJSEvalAsync(jsAlertsApiPreamble + jsProbeObjectHelper + `
+var r = _probeObj(aapi, ["webpack:getAlertsRestApi()"]);
+return JSON.stringify({ok:true,data:r});
 `)
 }
 
@@ -1589,8 +1475,7 @@ return JSON.stringify({ok:true,data:{alerts:result}});
 
 func jsGetAlerts(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var rawIds = %s;
-var ids = rawIds.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.getAlerts !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getAlerts unavailable"});
 var result = await aapi.getAlerts({alert_ids: ids});
@@ -1620,7 +1505,7 @@ return JSON.stringify({ok:true,data:{alert:result}});
 
 func jsDeleteAlerts(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var ids = %s; ids = ids.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.deleteAlerts !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"deleteAlerts unavailable"});
 var result = await aapi.deleteAlerts({alert_ids: ids});
@@ -1630,7 +1515,7 @@ return JSON.stringify({ok:true,data:{status:"deleted",result:result}});
 
 func jsStopAlerts(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var ids = %s; ids = ids.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.stopAlerts !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"stopAlerts unavailable"});
 var result = await aapi.stopAlerts({alert_ids: ids});
@@ -1640,7 +1525,7 @@ return JSON.stringify({ok:true,data:{status:"stopped",result:result}});
 
 func jsRestartAlerts(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var ids = %s; ids = ids.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.restartAlerts !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"restartAlerts unavailable"});
 var result = await aapi.restartAlerts({alert_ids: ids});
@@ -1650,7 +1535,7 @@ return JSON.stringify({ok:true,data:{status:"restarted",result:result}});
 
 func jsCloneAlerts(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var ids = %s; ids = ids.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.cloneAlerts !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"cloneAlerts unavailable"});
 var result = await aapi.cloneAlerts({alert_ids: ids});
@@ -1669,7 +1554,7 @@ return JSON.stringify({ok:true,data:{fires:result}});
 
 func jsDeleteFires(ids []string) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsAlertsApiPreamble+`
-var ids = %s; ids = ids.map(function(id) { var n = Number(id); return isNaN(n) ? id : n; });
+var ids = _coerceIds(%s);
 if (!aapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"alerts API unavailable"});
 if (typeof aapi.deleteFires !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"deleteFires unavailable"});
 var result = await aapi.deleteFires({fire_ids: ids});
@@ -1781,18 +1666,14 @@ return JSON.stringify({ok:true,data:{status:"removed"}});
 }
 
 func jsGetDrawingToggles() string {
-	return wrapJSEval(jsPreamble + `
+	return wrapJSEval(jsPreamble + jsWatchedValueHelper + `
 if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"API unavailable"});
 var result = {};
 function _wvRead(fn, fallbackProp) {
   var wv = null;
   if (typeof api[fn] === "function") { try { wv = api[fn](); } catch(_) {} }
   if (!wv && fallbackProp && api[fallbackProp]) wv = api[fallbackProp];
-  if (wv === null || wv === undefined) return null;
-  if (typeof wv === "boolean" || typeof wv === "number") return wv;
-  if (typeof wv.value === "function") { try { return wv.value(); } catch(_) { return null; } }
-  if ("_value" in wv) return wv._value;
-  return null;
+  return _wv(wv);
 }
 result.hide_all = _wvRead("hideAllDrawingTools", "_hideDrawingsWatchedValue");
 result.lock_all = _wvRead("lockAllDrawingTools", "_lockDrawingsWatchedValue");
@@ -1860,14 +1741,10 @@ return JSON.stringify({ok:true,data:{status:"set",id:id,visible:vis}});
 }
 
 func jsGetDrawingTool() string {
-	return wrapJSEval(jsPreamble + `
+	return wrapJSEval(jsPreamble + jsWatchedValueHelper + `
 if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"API unavailable"});
 if (typeof api.selectedLineTool !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"selectedLineTool unavailable"});
-var wv = api.selectedLineTool();
-var tool = null;
-if (typeof wv === "string") tool = wv;
-else if (wv && typeof wv.value === "function") { try { tool = wv.value(); } catch(_) {} }
-else if (wv && "_value" in wv) tool = wv._value;
+var tool = _wv(api.selectedLineTool());
 return JSON.stringify({ok:true,data:{tool:tool}});
 `)
 }

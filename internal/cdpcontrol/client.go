@@ -340,13 +340,7 @@ func (c *Client) Scroll(ctx context.Context, chartID string, bars int) error {
 }
 
 func (c *Client) ScrollToRealtime(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsScrollToRealtime(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsScrollToRealtime())
 }
 
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
@@ -377,13 +371,7 @@ func (c *Client) SetVisibleRange(ctx context.Context, chartID string, from, to f
 }
 
 func (c *Client) ResetScales(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsResetScales(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsResetScales())
 }
 
 func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
@@ -456,23 +444,19 @@ func (c *Client) RemoveWatchlistSymbols(ctx context.Context, id string, symbols 
 }
 
 func (c *Client) FlagSymbol(ctx context.Context, id, symbol string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsFlagSymbol(id, symbol), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsFlagSymbol(id, symbol))
 }
 
 func (c *Client) DeleteWatchlist(ctx context.Context, id string) error {
-	var out struct {
-		Status string `json:"status"`
+	return c.doSessionAction(ctx, jsDeleteWatchlist(id))
+}
+
+func (c *Client) DeepHealthCheck(ctx context.Context) (DeepHealthResult, error) {
+	var out DeepHealthResult
+	if err := c.evalOnAnyChart(ctx, jsDeepHealthCheck(), &out); err != nil {
+		return DeepHealthResult{}, err
 	}
-	if err := c.evalOnAnyChart(ctx, jsDeleteWatchlist(id), &out); err != nil {
-		return err
-	}
-	return nil
+	return out, nil
 }
 
 // --- ChartAPI methods ---
@@ -490,12 +474,7 @@ func (c *Client) ProbeChartApi(ctx context.Context, chartID string) (ChartApiPro
 	if err := c.evalOnChart(ctx, chartID, jsProbeChartApi(), &out); err != nil {
 		return ChartApiProbe{}, err
 	}
-	if out.AccessPaths == nil {
-		out.AccessPaths = []string{}
-	}
-	if out.Methods == nil {
-		out.Methods = []string{}
-	}
+	initProbeDefaults(&out.AccessPaths, &out.Methods, nil)
 	return out, nil
 }
 
@@ -508,13 +487,7 @@ func (c *Client) ResolveSymbol(ctx context.Context, chartID, symbol string) (Res
 }
 
 func (c *Client) SwitchTimezone(ctx context.Context, chartID, tz string) error {
-	var out struct {
-		Timezone string `json:"timezone"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSwitchTimezone(tz), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSwitchTimezone(tz))
 }
 
 // --- Replay Manager methods ---
@@ -524,15 +497,7 @@ func (c *Client) ProbeReplayManager(ctx context.Context, chartID string) (Replay
 	if err := c.evalOnChart(ctx, chartID, jsProbeReplayManager(), &out); err != nil {
 		return ReplayManagerProbe{}, err
 	}
-	if out.AccessPaths == nil {
-		out.AccessPaths = []string{}
-	}
-	if out.Methods == nil {
-		out.Methods = []string{}
-	}
-	if out.State == nil {
-		out.State = map[string]any{}
-	}
+	initProbeDefaults(&out.AccessPaths, &out.Methods, &out.State)
 	return out, nil
 }
 
@@ -569,13 +534,7 @@ func (c *Client) ActivateReplayAuto(ctx context.Context, chartID string) (map[st
 }
 
 func (c *Client) DeactivateReplay(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsDeactivateReplay(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsDeactivateReplay())
 }
 
 func (c *Client) GetReplayStatus(ctx context.Context, chartID string) (ReplayStatus, error) {
@@ -598,53 +557,23 @@ func (c *Client) StartReplay(ctx context.Context, chartID string, point float64)
 }
 
 func (c *Client) StopReplay(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsStopReplay(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsStopReplay())
 }
 
 func (c *Client) ReplayStep(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsReplayStep(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsReplayStep())
 }
 
 func (c *Client) StartAutoplay(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsStartAutoplay(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsStartAutoplay())
 }
 
 func (c *Client) StopAutoplay(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsStopAutoplay(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsStopAutoplay())
 }
 
 func (c *Client) ResetReplay(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsResetReplay(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsResetReplay())
 }
 
 func (c *Client) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
@@ -665,15 +594,7 @@ func (c *Client) ProbeBacktestingApi(ctx context.Context, chartID string) (Strat
 	if err := c.evalOnChart(ctx, chartID, jsProbeBacktestingApi(), &out); err != nil {
 		return StrategyApiProbe{}, err
 	}
-	if out.AccessPaths == nil {
-		out.AccessPaths = []string{}
-	}
-	if out.Methods == nil {
-		out.Methods = []string{}
-	}
-	if out.State == nil {
-		out.State = map[string]any{}
-	}
+	initProbeDefaults(&out.AccessPaths, &out.Methods, &out.State)
 	return out, nil
 }
 
@@ -696,23 +617,11 @@ func (c *Client) GetActiveStrategy(ctx context.Context, chartID string) (map[str
 }
 
 func (c *Client) SetActiveStrategy(ctx context.Context, chartID, strategyID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetActiveStrategy(strategyID), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetActiveStrategy(strategyID))
 }
 
 func (c *Client) SetStrategyInput(ctx context.Context, chartID, name string, value any) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetStrategyInput(name, value), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetStrategyInput(name, value))
 }
 
 func (c *Client) GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error) {
@@ -734,13 +643,7 @@ func (c *Client) GetStrategyDateRange(ctx context.Context, chartID string) (any,
 }
 
 func (c *Client) StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsStrategyGotoDate(timestamp, belowBar), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsStrategyGotoDate(timestamp, belowBar))
 }
 
 // --- Alerts REST API methods ---
@@ -758,15 +661,7 @@ func (c *Client) ProbeAlertsRestApi(ctx context.Context, chartID string) (Alerts
 	if err := c.evalOnChart(ctx, chartID, jsProbeAlertsRestApi(), &out); err != nil {
 		return AlertsApiProbe{}, err
 	}
-	if out.AccessPaths == nil {
-		out.AccessPaths = []string{}
-	}
-	if out.Methods == nil {
-		out.Methods = []string{}
-	}
-	if out.State == nil {
-		out.State = map[string]any{}
-	}
+	initProbeDefaults(&out.AccessPaths, &out.Methods, &out.State)
 	return out, nil
 }
 
@@ -819,43 +714,19 @@ func (c *Client) ModifyAlert(ctx context.Context, params map[string]any) (any, e
 }
 
 func (c *Client) DeleteAlerts(ctx context.Context, ids []string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsDeleteAlerts(ids), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsDeleteAlerts(ids))
 }
 
 func (c *Client) StopAlerts(ctx context.Context, ids []string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsStopAlerts(ids), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsStopAlerts(ids))
 }
 
 func (c *Client) RestartAlerts(ctx context.Context, ids []string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsRestartAlerts(ids), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsRestartAlerts(ids))
 }
 
 func (c *Client) CloneAlerts(ctx context.Context, ids []string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsCloneAlerts(ids), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsCloneAlerts(ids))
 }
 
 func (c *Client) ListFires(ctx context.Context) (any, error) {
@@ -869,23 +740,11 @@ func (c *Client) ListFires(ctx context.Context) (any, error) {
 }
 
 func (c *Client) DeleteFires(ctx context.Context, ids []string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsDeleteFires(ids), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsDeleteFires(ids))
 }
 
 func (c *Client) DeleteAllFires(ctx context.Context) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsDeleteAllFires(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doSessionAction(ctx, jsDeleteAllFires())
 }
 
 // --- Drawing/Shape methods ---
@@ -943,23 +802,11 @@ func (c *Client) CloneDrawing(ctx context.Context, chartID, shapeID string) (str
 }
 
 func (c *Client) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsRemoveDrawing(shapeID, disableUndo), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsRemoveDrawing(shapeID, disableUndo))
 }
 
 func (c *Client) RemoveAllDrawings(ctx context.Context, chartID string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsRemoveAllDrawings(), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsRemoveAllDrawings())
 }
 
 func (c *Client) GetDrawingToggles(ctx context.Context, chartID string) (DrawingToggles, error) {
@@ -971,43 +818,19 @@ func (c *Client) GetDrawingToggles(ctx context.Context, chartID string) (Drawing
 }
 
 func (c *Client) SetHideDrawings(ctx context.Context, chartID string, val bool) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetHideDrawings(val), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetHideDrawings(val))
 }
 
 func (c *Client) SetLockDrawings(ctx context.Context, chartID string, val bool) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetLockDrawings(val), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetLockDrawings(val))
 }
 
 func (c *Client) SetMagnet(ctx context.Context, chartID string, enabled bool, mode int) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetMagnet(enabled, mode), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetMagnet(enabled, mode))
 }
 
 func (c *Client) SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetDrawingVisibility(shapeID, visible), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetDrawingVisibility(shapeID, visible))
 }
 
 func (c *Client) GetDrawingTool(ctx context.Context, chartID string) (string, error) {
@@ -1021,23 +844,11 @@ func (c *Client) GetDrawingTool(ctx context.Context, chartID string) (string, er
 }
 
 func (c *Client) SetDrawingTool(ctx context.Context, chartID, tool string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetDrawingTool(tool), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetDrawingTool(tool))
 }
 
 func (c *Client) SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsSetDrawingZOrder(shapeID, action), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsSetDrawingZOrder(shapeID, action))
 }
 
 func (c *Client) ExportDrawingsState(ctx context.Context, chartID string) (any, error) {
@@ -1051,13 +862,7 @@ func (c *Client) ExportDrawingsState(ctx context.Context, chartID string) (any, 
 }
 
 func (c *Client) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	if err := c.evalOnChart(ctx, chartID, jsImportDrawingsState(jsJSON(state)), &out); err != nil {
-		return err
-	}
-	return nil
+	return c.doChartAction(ctx, chartID, jsImportDrawingsState(jsJSON(state)))
 }
 
 func (c *Client) TakeSnapshot(ctx context.Context, chartID, format, quality string, hideRes bool) (SnapshotResult, error) {
@@ -1433,6 +1238,30 @@ func (c *Client) PineFindReplace(ctx context.Context, find, replace string) (Pin
 		return PineState{}, err
 	}
 	return out, nil
+}
+
+// doChartAction evaluates JS on a chart tab, ignoring the response data.
+// Used by methods that only need to confirm the eval succeeded.
+func (c *Client) doChartAction(ctx context.Context, chartID, js string) error {
+	return c.evalOnChart(ctx, chartID, js, nil)
+}
+
+// doSessionAction evaluates JS on any chart tab, ignoring the response data.
+func (c *Client) doSessionAction(ctx context.Context, js string) error {
+	return c.evalOnAnyChart(ctx, js, nil)
+}
+
+// initProbeDefaults ensures probe result slices/maps are non-nil for JSON.
+func initProbeDefaults(paths *[]string, methods *[]string, state *map[string]any) {
+	if *paths == nil {
+		*paths = []string{}
+	}
+	if *methods == nil {
+		*methods = []string{}
+	}
+	if state != nil && *state == nil {
+		*state = map[string]any{}
+	}
 }
 
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {

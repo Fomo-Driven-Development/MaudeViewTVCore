@@ -143,6 +143,7 @@ type Service interface {
 	ActivateChart(ctx context.Context, index int) (cdpcontrol.LayoutStatus, error)
 	ToggleFullscreen(ctx context.Context) (cdpcontrol.LayoutStatus, error)
 	DismissDialog(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
+	DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -169,6 +170,20 @@ func NewServer(svc Service) http.Handler {
 		func(ctx context.Context, input *struct{}) (*healthOutput, error) {
 			out := &healthOutput{}
 			out.Body.Status = "ok"
+			return out, nil
+		})
+
+	type deepHealthOutput struct {
+		Body cdpcontrol.DeepHealthResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "deep-health", Method: http.MethodGet, Path: "/api/v1/health/deep", Summary: "Deep health check", Tags: []string{"Health"}},
+		func(ctx context.Context, input *struct{}) (*deepHealthOutput, error) {
+			result, err := svc.DeepHealthCheck(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &deepHealthOutput{}
+			out.Body = result
 			return out, nil
 		})
 
@@ -564,7 +579,7 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "flag-symbol", Method: http.MethodPost, Path: "/api/v1/watchlist/{watchlist_id}/flag", Summary: "Flag/unflag a symbol", Tags: []string{"Watchlists"}},
+	huma.Register(api, huma.Operation{OperationID: "flag-symbol", Method: http.MethodPost, Path: "/api/v1/watchlist/{watchlist_id}/flag", Summary: "[EXPERIMENTAL] Flag/unflag a symbol", Description: "Uses React Fiber internals to find markSymbol(). Fragile — may break on React upgrades.", Tags: []string{"Watchlists"}},
 		func(ctx context.Context, input *struct {
 			WatchlistID string `path:"watchlist_id"`
 			Body        struct {

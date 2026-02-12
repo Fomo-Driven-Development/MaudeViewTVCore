@@ -616,6 +616,12 @@ func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
 	return nil
 }
 
+// --- Health methods ---
+
+func (s *Service) DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error) {
+	return s.cdp.DeepHealthCheck(ctx)
+}
+
 // --- Page methods ---
 
 func (s *Service) ReloadPage(ctx context.Context, mode string) (cdpcontrol.ReloadResult, error) {
