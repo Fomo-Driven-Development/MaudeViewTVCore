@@ -999,6 +999,8 @@ return JSON.stringify({ok:true,data:s});
 func jsActivateReplay(date float64) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+`
 var date = %v;
+// selectDate expects milliseconds; convert if value looks like seconds (< 1e12)
+if (date < 1e12) date = date * 1000;
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.selectDate !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"selectDate unavailable"});
 try {
@@ -1065,6 +1067,8 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"stop
 func jsStartReplay(point float64) string {
 	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+`
 var point = %v;
+// selectDate expects milliseconds; convert if value looks like seconds (< 1e12)
+if (point < 1e12) point = point * 1000;
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.selectDate === "function") {
   try { await rapi.selectDate(point); } catch(e) {
