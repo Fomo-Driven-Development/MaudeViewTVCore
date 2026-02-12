@@ -181,6 +181,44 @@ type ResolvedSymbolInfo struct {
 	SessionHolidays string `json:"session_holidays,omitempty"`
 }
 
+// PineEditorProbe describes the result of probing for the pineEditorApi() singleton.
+type PineEditorProbe struct {
+	Available   bool     `json:"available"`
+	EditorOpen  bool     `json:"editor_open"`
+	Methods     []string `json:"methods"`
+	ScriptState any      `json:"script_state,omitempty"`
+	UIState     any      `json:"ui_state,omitempty"`
+}
+
+// PineEditorState describes the current state of the Pine editor.
+type PineEditorState struct {
+	Status          string `json:"status"`
+	ScriptName      string `json:"script_name,omitempty"`
+	ScriptSource    string `json:"script_source,omitempty"`
+	SourceLength    int    `json:"source_length,omitempty"`
+	LineCount       int    `json:"line_count,omitempty"`
+	IsScriptOnChart bool   `json:"is_script_on_chart"`
+	IsVisible       bool   `json:"is_visible"`
+	Ready           bool   `json:"ready"`
+	PineVersion     int    `json:"pine_version,omitempty"`
+}
+
+// PineScript describes a saved Pine script.
+type PineScript struct {
+	ScriptIDPart string `json:"script_id_part"`
+	Version      string `json:"version"`
+	ScriptName   string `json:"script_name"`
+	ScriptTitle  string `json:"script_title,omitempty"`
+	Modified     int64  `json:"modified,omitempty"`
+	Kind         string `json:"kind,omitempty"`
+}
+
+// PineConsoleMessage describes a single Pine console output message.
+type PineConsoleMessage struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 // SnapshotResult is the raw result from the in-page screenshot JS eval.
 type SnapshotResult struct {
 	DataURL  string          `json:"data_url"`

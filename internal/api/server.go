@@ -108,6 +108,15 @@ type Service interface {
 	GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error)
 	ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error)
 	DeleteSnapshot(ctx context.Context, id string) error
+	ProbePineEditor(ctx context.Context) (cdpcontrol.PineEditorProbe, error)
+	OpenPineEditor(ctx context.Context) (cdpcontrol.PineEditorState, error)
+	GetPineSource(ctx context.Context) (cdpcontrol.PineEditorState, error)
+	SetPineSource(ctx context.Context, source string) (cdpcontrol.PineEditorState, error)
+	AddPineToChart(ctx context.Context) error
+	UpdatePineOnChart(ctx context.Context) error
+	ListPineScripts(ctx context.Context) ([]cdpcontrol.PineScript, error)
+	OpenPineScript(ctx context.Context, scriptIDPart, version string) (cdpcontrol.PineEditorState, error)
+	GetPineConsole(ctx context.Context) ([]cdpcontrol.PineConsoleMessage, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -1679,6 +1688,135 @@ func NewServer(svc Service) http.Handler {
 			}
 			out := &deleteSnapshotOutput{}
 			out.Body.Status = "deleted"
+			return out, nil
+		})
+
+	// --- Pine Editor endpoints ---
+
+	type pineProbeOutput struct {
+		Body cdpcontrol.PineEditorProbe
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-pine-editor", Method: http.MethodGet, Path: "/api/v1/pine/probe", Summary: "Probe Pine editor API availability", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineProbeOutput, error) {
+			probe, err := svc.ProbePineEditor(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineProbeOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	type pineStateOutput struct {
+		Body cdpcontrol.PineEditorState
+	}
+	huma.Register(api, huma.Operation{OperationID: "open-pine-editor", Method: http.MethodPost, Path: "/api/v1/pine/open", Summary: "Open Pine editor panel", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineStateOutput, error) {
+			state, err := svc.OpenPineEditor(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStateOutput{}
+			out.Body = state
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-pine-source", Method: http.MethodGet, Path: "/api/v1/pine/source", Summary: "Get current Pine editor source", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineStateOutput, error) {
+			state, err := svc.GetPineSource(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStateOutput{}
+			out.Body = state
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-pine-source", Method: http.MethodPut, Path: "/api/v1/pine/source", Summary: "Set Pine editor source text", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Source string `json:"source" required:"true"`
+			}
+		}) (*pineStateOutput, error) {
+			state, err := svc.SetPineSource(ctx, input.Body.Source)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStateOutput{}
+			out.Body = state
+			return out, nil
+		})
+
+	type pineStatusOutput struct {
+		Body struct {
+			Status string `json:"status"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "add-pine-to-chart", Method: http.MethodPost, Path: "/api/v1/pine/add-to-chart", Summary: "Add current Pine script to chart", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineStatusOutput, error) {
+			if err := svc.AddPineToChart(ctx); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStatusOutput{}
+			out.Body.Status = "added"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "update-pine-on-chart", Method: http.MethodPost, Path: "/api/v1/pine/update-on-chart", Summary: "Update Pine script on chart", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineStatusOutput, error) {
+			if err := svc.UpdatePineOnChart(ctx); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStatusOutput{}
+			out.Body.Status = "updated"
+			return out, nil
+		})
+
+	type pineScriptsOutput struct {
+		Body struct {
+			Scripts []cdpcontrol.PineScript `json:"scripts"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-pine-scripts", Method: http.MethodGet, Path: "/api/v1/pine/scripts", Summary: "List saved Pine scripts", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineScriptsOutput, error) {
+			scripts, err := svc.ListPineScripts(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineScriptsOutput{}
+			out.Body.Scripts = scripts
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "open-pine-script", Method: http.MethodPost, Path: "/api/v1/pine/scripts/open", Summary: "Open a saved Pine script", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				ScriptIDPart string `json:"script_id_part" required:"true"`
+				Version      string `json:"version,omitempty"`
+			}
+		}) (*pineStateOutput, error) {
+			state, err := svc.OpenPineScript(ctx, input.Body.ScriptIDPart, input.Body.Version)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineStateOutput{}
+			out.Body = state
+			return out, nil
+		})
+
+	type pineConsoleOutput struct {
+		Body struct {
+			Messages []cdpcontrol.PineConsoleMessage `json:"messages"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-pine-console", Method: http.MethodGet, Path: "/api/v1/pine/console", Summary: "Get Pine console messages", Tags: []string{"Pine Editor"}},
+		func(ctx context.Context, input *struct{}) (*pineConsoleOutput, error) {
+			msgs, err := svc.GetPineConsole(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &pineConsoleOutput{}
+			out.Body.Messages = msgs
 			return out, nil
 		})
 

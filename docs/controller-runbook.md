@@ -78,6 +78,15 @@ tail -f logs/controller.log
 - `GET /api/v1/chart/{chart_id}/studies`
 - `POST /api/v1/chart/{chart_id}/studies`
 - `DELETE /api/v1/chart/{chart_id}/studies/{study_id}`
+- `GET /api/v1/pine/probe`
+- `POST /api/v1/pine/open`
+- `GET /api/v1/pine/source`
+- `PUT /api/v1/pine/source`
+- `POST /api/v1/pine/add-to-chart`
+- `POST /api/v1/pine/update-on-chart`
+- `GET /api/v1/pine/scripts`
+- `POST /api/v1/pine/scripts/open`
+- `GET /api/v1/pine/console`
 
 ### Strategy Endpoints (tag: Strategy)
 
@@ -231,6 +240,75 @@ All under `/api/v1/chart/{chart_id}/drawings/...`. Uses `evalOnChart` (chart con
 | `drawOnAllCharts` | Multi-layout feature, edge case |
 | Drawing groups (createGroupFromSelection, etc.) | Lower priority |
 | Individual shape property editing | Needs probing with shapes on chart |
+
+### Pine Editor (tag: `Pine Editor`)
+
+Programmatic control of the TradingView Pine Script editor via `api.pineEditorApi()`. The editor panel is lazy-loaded — `openEditor()` initializes it. All endpoints are session-level (`evalOnAnyChart`).
+
+| Method | Path | Op ID | Description |
+|--------|------|-------|-------------|
+| GET | `/api/v1/pine/probe` | `probe-pine-editor` | Probe Pine editor API availability + state |
+| POST | `/api/v1/pine/open` | `open-pine-editor` | Open/initialize the Pine editor panel |
+| GET | `/api/v1/pine/source` | `get-pine-source` | Get current editor source text + metadata |
+| PUT | `/api/v1/pine/source` | `set-pine-source` | Set editor source text |
+| POST | `/api/v1/pine/add-to-chart` | `add-pine-to-chart` | Compile + add current script to chart |
+| POST | `/api/v1/pine/update-on-chart` | `update-pine-on-chart` | Update already-added script on chart |
+| GET | `/api/v1/pine/scripts` | `list-pine-scripts` | List user's saved scripts |
+| POST | `/api/v1/pine/scripts/open` | `open-pine-script` | Open a saved script by ID |
+| GET | `/api/v1/pine/console` | `get-pine-console` | Get Pine console messages |
+
+#### Full Workflow
+
+```
+1. Open editor  →  2. Set source  →  3. Add to chart
+```
+
+#### Quick Curl
+
+```bash
+# Probe Pine editor
+curl -s http://127.0.0.1:8188/api/v1/pine/probe | jq
+
+# Open editor
+curl -s -X POST http://127.0.0.1:8188/api/v1/pine/open | jq
+
+# Set Pine source code
+curl -s -X PUT http://127.0.0.1:8188/api/v1/pine/source \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "//@version=6\nindicator(\"Test\", overlay=true)\nplot(close, color=color.blue)"}' | jq
+
+# Get current source
+curl -s http://127.0.0.1:8188/api/v1/pine/source | jq
+
+# Add to chart
+curl -s -X POST http://127.0.0.1:8188/api/v1/pine/add-to-chart | jq
+
+# Update on chart (after editing source)
+curl -s -X POST http://127.0.0.1:8188/api/v1/pine/update-on-chart | jq
+
+# List saved scripts
+curl -s http://127.0.0.1:8188/api/v1/pine/scripts | jq
+
+# Open a saved script
+curl -s -X POST http://127.0.0.1:8188/api/v1/pine/scripts/open \
+  -H 'Content-Type: application/json' \
+  -d '{"script_id_part": "USER;abc123", "version": "8.0"}' | jq
+
+# Get console messages
+curl -s http://127.0.0.1:8188/api/v1/pine/console | jq
+```
+
+#### Pine Editor API — Skipped Methods
+
+| Method | Reason |
+|--------|--------|
+| `saveScript()` | Cloud save — side effects, add later if needed |
+| `focusEditor()` | UI focus — minimal value as REST endpoint |
+| `openNewScript()` | Redundant — `openEditor()` + `setEditorText()` achieves the same |
+| `addOpenedScript()` / `removeOpenedScript()` | Internal tab management |
+| `destroy()` | Cleanup — would break the API |
+| `pineLibApi().saveNew()` / `saveNext()` | Library publishing — add later |
+| `pineLibApi().requestBuiltinScripts()` | Read-only list — add later if needed |
 
 ### Snapshots (tag: `Snapshots`)
 

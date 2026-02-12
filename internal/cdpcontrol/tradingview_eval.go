@@ -2007,3 +2007,255 @@ try {
 return JSON.stringify({ok:true,data:{data_url:dataUrl,width:w,height:h,metadata:meta}});
 `, jsString(format), jsString(quality), hideResolution))
 }
+
+// --- Pine Editor JS functions ---
+// These use api.pineEditorApi() which is session-level (evalOnAnyChart).
+// The editor is lazy-loaded: _pineEditor is null until openEditor() is called.
+
+// jsPineEditorPreamble resolves pineEditorApi and bails if unavailable.
+const jsPineEditorPreamble = jsPreamble + `
+var pea = null;
+if (api && typeof api.pineEditorApi === "function") {
+  try { pea = api.pineEditorApi(); } catch(_) {}
+}
+if (!pea) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"pineEditorApi unavailable"});
+`
+
+func jsProbePineEditor() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+var methods = [];
+var seen = {};
+var obj = pea;
+while (obj && obj !== Object.prototype) {
+  var names = Object.getOwnPropertyNames(obj);
+  for (var i = 0; i < names.length; i++) {
+    if (!seen[names[i]] && typeof pea[names[i]] === "function" && names[i] !== "constructor") {
+      methods.push(names[i]);
+      seen[names[i]] = true;
+    }
+  }
+  obj = Object.getPrototypeOf(obj);
+}
+var editorOpen = !!(pea._pineEditor);
+var scriptState = null;
+var uiState = null;
+if (editorOpen && pea._pineEditor._storeProvider) {
+  try {
+    var st = pea._pineEditor._storeProvider.getState();
+    if (st) {
+      scriptState = st.script || null;
+      uiState = st.ui || null;
+    }
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:{
+  available:true,
+  editor_open:editorOpen,
+  methods:methods,
+  script_state:scriptState,
+  ui_state:uiState
+}});
+`)
+}
+
+func jsOpenPineEditor() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+await pea.openEditor();
+var state = {status:"open",is_script_on_chart:false,is_visible:false,ready:false};
+if (pea._pineEditor && pea._pineEditor._storeProvider) {
+  try {
+    var st = pea._pineEditor._storeProvider.getState();
+    if (st && st.script) state.script_name = String(st.script.scriptName || "");
+    if (st && st.ui) {
+      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
+      state.is_visible = !!(st.ui.isVisible);
+      state.ready = !!(st.ui.ready);
+    }
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:state});
+`)
+}
+
+func jsGetPineSource() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+if (!pea._pineEditor) { await pea.openEditor(); }
+var pe = pea._pineEditor;
+if (!pe) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
+var source = "";
+if (pe._editorRef && pe._editorRef.current && typeof pe._editorRef.current.getValue === "function") {
+  source = pe._editorRef.current.getValue() || "";
+}
+var state = {
+  status: "open",
+  script_source: source,
+  source_length: source.length,
+  line_count: source.split("\n").length,
+  is_script_on_chart: false,
+  is_visible: false,
+  ready: false
+};
+if (pe._storeProvider) {
+  try {
+    var st = pe._storeProvider.getState();
+    if (st && st.script) {
+      state.script_name = String(st.script.scriptName || "");
+      state.pine_version = Number(st.script.pineVersion || 0);
+    }
+    if (st && st.ui) {
+      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
+      state.is_visible = !!(st.ui.isVisible);
+      state.ready = !!(st.ui.ready);
+    }
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:state});
+`)
+}
+
+func jsSetPineSource(source string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPineEditorPreamble+`
+var newSource = %s;
+if (!pea._pineEditor) { await pea.openEditor(); }
+if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
+await pea.setEditorText(newSource);
+var lineCount = newSource.split("\n").length;
+var state = {
+  status: "set",
+  source_length: newSource.length,
+  line_count: lineCount,
+  is_script_on_chart: false,
+  is_visible: false,
+  ready: false
+};
+var pe = pea._pineEditor;
+if (pe && pe._storeProvider) {
+  try {
+    var st = pe._storeProvider.getState();
+    if (st && st.script) state.script_name = String(st.script.scriptName || "");
+    if (st && st.ui) {
+      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
+      state.is_visible = !!(st.ui.isVisible);
+      state.ready = !!(st.ui.ready);
+    }
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:state});
+`, jsString(source)))
+}
+
+func jsAddPineToChart() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+if (!pea._pineEditor) { await pea.openEditor(); }
+if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
+try {
+  await pea.addScriptOnChart();
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"addScriptOnChart failed: " + String(e && e.message || e)});
+}
+return JSON.stringify({ok:true,data:{status:"added"}});
+`)
+}
+
+func jsUpdatePineOnChart() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+if (!pea._pineEditor) { await pea.openEditor(); }
+if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
+try {
+  await pea.updateScriptOnChart();
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"updateScriptOnChart failed: " + String(e && e.message || e)});
+}
+return JSON.stringify({ok:true,data:{status:"updated"}});
+`)
+}
+
+func jsListPineScripts() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+if (!pea._pineEditor) { await pea.openEditor(); }
+var pe = pea._pineEditor;
+if (!pe || !pe._storeProvider) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor store unavailable"});
+var saved = [];
+try {
+  saved = pe._storeProvider.getSavedScripts() || [];
+} catch(_) {
+  try {
+    var st = pe._storeProvider.getState();
+    if (st && st.ui && Array.isArray(st.ui.savedScripts)) saved = st.ui.savedScripts;
+  } catch(_) {}
+}
+var scripts = [];
+for (var i = 0; i < saved.length; i++) {
+  var s = saved[i] || {};
+  scripts.push({
+    script_id_part: String(s.scriptIdPart || s.id || ""),
+    version: String(s.version || ""),
+    script_name: String(s.scriptName || s.name || ""),
+    script_title: String(s.scriptTitle || s.title || ""),
+    modified: Number(s.modified || s.modifiedTime || 0),
+    kind: String(s.kind || s.type || "")
+  });
+}
+return JSON.stringify({ok:true,data:{scripts:scripts}});
+`)
+}
+
+func jsOpenPineScript(scriptIDPart, version string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPineEditorPreamble+`
+var sid = %s;
+var ver = %s;
+if (!pea._pineEditor) { await pea.openEditor(); }
+if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
+try {
+  await pea.openScript({scriptIdPart: sid, version: ver});
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"openScript failed: " + String(e && e.message || e)});
+}
+await new Promise(function(r) { setTimeout(r, 500); });
+var state = {status:"opened",is_script_on_chart:false,is_visible:false,ready:false};
+var pe = pea._pineEditor;
+if (pe && pe._editorRef && pe._editorRef.current && typeof pe._editorRef.current.getValue === "function") {
+  var src = pe._editorRef.current.getValue() || "";
+  state.source_length = src.length;
+  state.line_count = src.split("\n").length;
+}
+if (pe && pe._storeProvider) {
+  try {
+    var st = pe._storeProvider.getState();
+    if (st && st.script) {
+      state.script_name = String(st.script.scriptName || "");
+      state.pine_version = Number(st.script.pineVersion || 0);
+    }
+    if (st && st.ui) {
+      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
+      state.is_visible = !!(st.ui.isVisible);
+      state.ready = !!(st.ui.ready);
+    }
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:state});
+`, jsString(scriptIDPart), jsString(version)))
+}
+
+func jsGetPineConsole() string {
+	return wrapJSEvalAsync(jsPineEditorPreamble + `
+if (!pea._pineEditor) { await pea.openEditor(); }
+var pe = pea._pineEditor;
+if (!pe || !pe._storeProvider) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor store unavailable"});
+var messages = [];
+try {
+  var st = pe._storeProvider.getState();
+  if (st && st.console && Array.isArray(st.console.messages)) {
+    var msgs = st.console.messages;
+    for (var i = 0; i < msgs.length; i++) {
+      var m = msgs[i] || {};
+      messages.push({
+        type: String(m.type || m.kind || "info"),
+        message: String(m.message || m.text || "")
+      });
+    }
+  }
+} catch(_) {}
+return JSON.stringify({ok:true,data:{messages:messages}});
+`)
+}

@@ -1067,6 +1067,88 @@ func (c *Client) TakeSnapshot(ctx context.Context, chartID, format, quality stri
 	return out, nil
 }
 
+// --- Pine Editor methods ---
+
+func (c *Client) ProbePineEditor(ctx context.Context) (PineEditorProbe, error) {
+	var out PineEditorProbe
+	if err := c.evalOnAnyChart(ctx, jsProbePineEditor(), &out); err != nil {
+		return PineEditorProbe{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) OpenPineEditor(ctx context.Context) (PineEditorState, error) {
+	var out PineEditorState
+	if err := c.evalOnAnyChart(ctx, jsOpenPineEditor(), &out); err != nil {
+		return PineEditorState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPineSource(ctx context.Context) (PineEditorState, error) {
+	var out PineEditorState
+	if err := c.evalOnAnyChart(ctx, jsGetPineSource(), &out); err != nil {
+		return PineEditorState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetPineSource(ctx context.Context, source string) (PineEditorState, error) {
+	var out PineEditorState
+	if err := c.evalOnAnyChart(ctx, jsSetPineSource(source), &out); err != nil {
+		return PineEditorState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) AddPineToChart(ctx context.Context) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	return c.evalOnAnyChart(ctx, jsAddPineToChart(), &out)
+}
+
+func (c *Client) UpdatePineOnChart(ctx context.Context) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	return c.evalOnAnyChart(ctx, jsUpdatePineOnChart(), &out)
+}
+
+func (c *Client) ListPineScripts(ctx context.Context) ([]PineScript, error) {
+	var out struct {
+		Scripts []PineScript `json:"scripts"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListPineScripts(), &out); err != nil {
+		return nil, err
+	}
+	if out.Scripts == nil {
+		return []PineScript{}, nil
+	}
+	return out.Scripts, nil
+}
+
+func (c *Client) OpenPineScript(ctx context.Context, scriptIDPart, version string) (PineEditorState, error) {
+	var out PineEditorState
+	if err := c.evalOnAnyChart(ctx, jsOpenPineScript(scriptIDPart, version), &out); err != nil {
+		return PineEditorState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPineConsole(ctx context.Context) ([]PineConsoleMessage, error) {
+	var out struct {
+		Messages []PineConsoleMessage `json:"messages"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGetPineConsole(), &out); err != nil {
+		return nil, err
+	}
+	if out.Messages == nil {
+		return []PineConsoleMessage{}, nil
+	}
+	return out.Messages, nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

@@ -616,6 +616,50 @@ func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
 	return nil
 }
 
+// --- Pine Editor methods ---
+
+func (s *Service) ProbePineEditor(ctx context.Context) (cdpcontrol.PineEditorProbe, error) {
+	return s.cdp.ProbePineEditor(ctx)
+}
+
+func (s *Service) OpenPineEditor(ctx context.Context) (cdpcontrol.PineEditorState, error) {
+	return s.cdp.OpenPineEditor(ctx)
+}
+
+func (s *Service) GetPineSource(ctx context.Context) (cdpcontrol.PineEditorState, error) {
+	return s.cdp.GetPineSource(ctx)
+}
+
+func (s *Service) SetPineSource(ctx context.Context, source string) (cdpcontrol.PineEditorState, error) {
+	if strings.TrimSpace(source) == "" {
+		return cdpcontrol.PineEditorState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "source is required"}
+	}
+	return s.cdp.SetPineSource(ctx, source)
+}
+
+func (s *Service) AddPineToChart(ctx context.Context) error {
+	return s.cdp.AddPineToChart(ctx)
+}
+
+func (s *Service) UpdatePineOnChart(ctx context.Context) error {
+	return s.cdp.UpdatePineOnChart(ctx)
+}
+
+func (s *Service) ListPineScripts(ctx context.Context) ([]cdpcontrol.PineScript, error) {
+	return s.cdp.ListPineScripts(ctx)
+}
+
+func (s *Service) OpenPineScript(ctx context.Context, scriptIDPart, version string) (cdpcontrol.PineEditorState, error) {
+	if strings.TrimSpace(scriptIDPart) == "" {
+		return cdpcontrol.PineEditorState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "script_id_part is required"}
+	}
+	return s.cdp.OpenPineScript(ctx, strings.TrimSpace(scriptIDPart), strings.TrimSpace(version))
+}
+
+func (s *Service) GetPineConsole(ctx context.Context) ([]cdpcontrol.PineConsoleMessage, error) {
+	return s.cdp.GetPineConsole(ctx)
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {
