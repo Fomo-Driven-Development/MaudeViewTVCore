@@ -534,6 +534,35 @@ func (s *Service) ImportDrawingsState(ctx context.Context, chartID string, state
 
 // --- Snapshot methods ---
 
+func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) (snapshot.SnapshotMeta, error) {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" {
+		format = "png"
+	}
+	if format != "png" && format != "jpeg" {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "format must be \"png\" or \"jpeg\""}
+	}
+
+	imageData, err := s.cdp.BrowserScreenshot(ctx, format, quality, fullPage)
+	if err != nil {
+		return snapshot.SnapshotMeta{}, err
+	}
+
+	meta := snapshot.SnapshotMeta{
+		ID:        uuid.New().String(),
+		ChartID:   "browser",
+		Format:    format,
+		SizeBytes: len(imageData),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if err := s.snaps.Save(meta, imageData); err != nil {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeEvalFailure, Message: fmt.Sprintf("save snapshot: %v", err)}
+	}
+
+	return meta, nil
+}
+
 func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {

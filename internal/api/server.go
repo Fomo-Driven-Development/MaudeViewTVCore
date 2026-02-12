@@ -103,6 +103,7 @@ type Service interface {
 	SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error
 	ExportDrawingsState(ctx context.Context, chartID string) (any, error)
 	ImportDrawingsState(ctx context.Context, chartID string, state any) error
+	BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) (snapshot.SnapshotMeta, error)
 	TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error)
 	ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error)
 	GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error)
@@ -1666,6 +1667,24 @@ func NewServer(svc Service) http.Handler {
 			URL      string               `json:"url"`
 		}
 	}
+	huma.Register(api, huma.Operation{OperationID: "browser-screenshot", Method: http.MethodPost, Path: "/api/v1/browser_screenshot", Summary: "Take browser viewport screenshot", Tags: []string{"Snapshots"}},
+		func(ctx context.Context, input *struct {
+			Body struct {
+				Format   string `json:"format,omitempty" doc:"Image format: png (default) or jpeg"`
+				Quality  int    `json:"quality,omitempty" doc:"JPEG quality 1-100 (ignored for PNG)"`
+				FullPage bool   `json:"full_page,omitempty" doc:"Capture full scrollable page"`
+			}
+		}) (*takeSnapshotOutput, error) {
+			meta, err := svc.BrowserScreenshot(ctx, input.Body.Format, input.Body.Quality, input.Body.FullPage)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &takeSnapshotOutput{}
+			out.Body.Snapshot = meta
+			out.Body.URL = "/api/v1/snapshots/" + meta.ID + "/image"
+			return out, nil
+		})
+
 	huma.Register(api, huma.Operation{OperationID: "take-snapshot", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/snapshot", Summary: "Take chart snapshot", Tags: []string{"Snapshots"}},
 		func(ctx context.Context, input *struct {
 			ChartID string `path:"chart_id"`

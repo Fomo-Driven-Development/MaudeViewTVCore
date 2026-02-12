@@ -450,6 +450,37 @@ func (r *rawCDP) dispatchEvent(method, sessionID string, params json.RawMessage)
 	}
 }
 
+// captureScreenshot captures a screenshot of the page via CDP Page.captureScreenshot.
+// Returns the raw base64-encoded image data.
+func (r *rawCDP) captureScreenshot(ctx context.Context, sessionID, format string, quality int, fullPage bool) (string, error) {
+	params := struct {
+		Format                string `json:"format"`
+		Quality               int    `json:"quality,omitempty"`
+		CaptureBeyondViewport bool   `json:"captureBeyondViewport,omitempty"`
+		FromSurface           bool   `json:"fromSurface"`
+	}{
+		Format:                format,
+		FromSurface:           true,
+		CaptureBeyondViewport: fullPage,
+	}
+	if format == "jpeg" && quality > 0 {
+		params.Quality = quality
+	}
+
+	raw, err := r.sendFlat(ctx, sessionID, "Page.captureScreenshot", params)
+	if err != nil {
+		return "", fmt.Errorf("rawcdp: captureScreenshot: %w", err)
+	}
+
+	var resp struct {
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return "", fmt.Errorf("rawcdp: unmarshal screenshot: %w", err)
+	}
+	return resp.Data, nil
+}
+
 // enablePageDomain sends Page.enable on a flattened session so that dialog
 // events (Page.javascriptDialogOpening) are emitted.
 func (r *rawCDP) enablePageDomain(ctx context.Context, sessionID string) error {

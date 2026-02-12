@@ -2,6 +2,7 @@ package cdpcontrol
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -863,6 +864,24 @@ func (c *Client) ExportDrawingsState(ctx context.Context, chartID string) (any, 
 
 func (c *Client) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
 	return c.doChartAction(ctx, chartID, jsImportDrawingsState(jsJSON(state)))
+}
+
+// BrowserScreenshot captures a viewport screenshot via CDP Page.captureScreenshot.
+// No TradingView JS is involved — this captures whatever is visible in the browser tab.
+func (c *Client) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool) ([]byte, error) {
+	cdp, sessionID, err := c.resolveAnySession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b64, err := cdp.captureScreenshot(ctx, sessionID, format, quality, fullPage)
+	if err != nil {
+		return nil, newError(CodeEvalFailure, "browser screenshot failed", err)
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, newError(CodeEvalFailure, "decode screenshot base64", err)
+	}
+	return data, nil
 }
 
 func (c *Client) TakeSnapshot(ctx context.Context, chartID, format, quality string, hideRes bool) (SnapshotResult, error) {
