@@ -771,6 +771,285 @@ return JSON.stringify({ok:true,data:{timezone:tz}});
 `, jsString(tz)))
 }
 
+// --- Replay JS functions ---
+// These use api._replayApi as the primary control surface (higher-level wrapper),
+// with chart._replayManager as fallback for low-level operations.
+
+// jsReplayApiPreamble extends jsPreamble with replayApi resolution.
+// Sets `rapi` to the replay API singleton via api._replayApi.
+const jsReplayApiPreamble = jsPreamble + `
+var rapi = null;
+if (api && api._replayApi) { rapi = api._replayApi; }
+`
+
+func jsProbeReplayManager() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:true,data:{found:false,access_paths:[],methods:[],state:{}}});
+var paths = ["api._replayApi"];
+var methods = [];
+var seen = {};
+var obj = rapi;
+while (obj && obj !== Object.prototype) {
+  var mk = Object.getOwnPropertyNames(obj);
+  for (var mi = 0; mi < mk.length; mi++) {
+    var mn = mk[mi];
+    if (mn === "constructor" || seen[mn]) continue;
+    seen[mn] = true;
+    try { if (typeof rapi[mn] === "function") methods.push(mn); } catch(_) {}
+  }
+  obj = Object.getPrototypeOf(obj);
+}
+methods.sort();
+var ownKeys = Object.keys(rapi);
+var state = {};
+for (var oi = 0; oi < ownKeys.length; oi++) {
+  var ok2 = ownKeys[oi];
+  var ov = rapi[ok2];
+  if (typeof ov === "function") continue;
+  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
+    state[ok2] = ov;
+  } else if (ov === null || ov === undefined) {
+    state[ok2] = null;
+  } else if (typeof ov === "object") {
+    state[ok2] = "{" + Object.keys(ov).length + " keys}";
+  }
+}
+return JSON.stringify({ok:true,data:{found:true,access_paths:paths,methods:methods,state:state}});
+`)
+}
+
+func jsProbeReplayManagerDeep() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:true,data:{found:false}});
+var diag = {};
+var targets = ["selectDate","selectFirstAvailableDate","selectRandomDate","replayMode",
+  "leaveReplay","showReplayToolbar","hideReplayToolbar","doStep","toggleAutoplay",
+  "stopReplay","changeAutoplayDelay","changeReplayResolution","goToRealtime",
+  "isReplayStarted","isReplayAvailable","isAutoplayStarted","isReadyToPlay",
+  "autoplayDelay","autoplayDelayWV","autoplayDelayList","getReplayDepth",
+  "getReplaySelectedDate","currentDate","currentReplayResolution","replayTimingMode",
+  "buy","sell","closePosition","currency","position","realizedPL","destroy"];
+for (var ti = 0; ti < targets.length; ti++) {
+  var tn = targets[ti];
+  if (typeof rapi[tn] === "function") {
+    diag[tn] = {exists:true,arity:rapi[tn].length,src:rapi[tn].toString().substring(0,200)};
+  } else if (typeof rapi[tn] !== "undefined") {
+    diag[tn] = {exists:true,type:typeof rapi[tn],value:String(rapi[tn])};
+  } else {
+    diag[tn] = {exists:false};
+  }
+}
+var ownKeys = Object.keys(rapi);
+var state = {};
+for (var oi = 0; oi < ownKeys.length; oi++) {
+  var ok2 = ownKeys[oi];
+  var ov = rapi[ok2];
+  if (typeof ov === "function") continue;
+  if (typeof ov === "string" || typeof ov === "number" || typeof ov === "boolean") {
+    state[ok2] = ov;
+  } else if (ov === null || ov === undefined) {
+    state[ok2] = null;
+  } else if (typeof ov === "object") {
+    var sub = {};
+    var sk = Object.keys(ov);
+    for (var si = 0; si < sk.length && si < 10; si++) {
+      sub[sk[si]] = typeof ov[sk[si]];
+    }
+    state[ok2] = sub;
+  }
+}
+return JSON.stringify({ok:true,data:{methods:diag,state:state}});
+`)
+}
+
+func jsScanReplayActivation() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+var results = {};
+if (!rapi) {
+  results.found = false;
+  return JSON.stringify({ok:true,data:results});
+}
+results.found = true;
+// Check availability and current state
+function _callSafe(name) {
+  if (typeof rapi[name] !== "function") return {available:false};
+  try { var r = rapi[name](); return {available:true,value:r}; } catch(e) { return {available:true,error:String(e.message||e)}; }
+}
+results.is_replay_available = _callSafe("isReplayAvailable");
+results.is_replay_started = _callSafe("isReplayStarted");
+results.is_ready_to_play = _callSafe("isReadyToPlay");
+results.is_autoplay_started = _callSafe("isAutoplayStarted");
+results.current_date = _callSafe("currentDate");
+results.autoplay_delay = _callSafe("autoplayDelay");
+results.current_resolution = _callSafe("currentReplayResolution");
+results.replay_depth = _callSafe("getReplayDepth");
+results.selected_date = _callSafe("getReplaySelectedDate");
+results.is_toolbar_visible = _callSafe("isReplayToolbarVisible");
+// DOM replay button
+var btn = document.getElementById("header-toolbar-replay");
+if (btn) {
+  results.replay_button = {disabled:btn.disabled, text:btn.innerText.substring(0,50)};
+}
+return JSON.stringify({ok:true,data:results});
+`)
+}
+
+func jsGetReplayStatus() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+var s = {};
+function _call(name) {
+  if (typeof rapi[name] !== "function") return null;
+  try {
+    var r = rapi[name]();
+    if (r === null || r === undefined) return null;
+    if (typeof r === "string" || typeof r === "number" || typeof r === "boolean") return r;
+    if (typeof r === "object" && typeof r.value === "function") return r.value();
+    if (typeof r === "object" && "_value" in r) return r._value;
+    return String(r);
+  } catch(_) { return null; }
+}
+s.is_replay_available = !!_call("isReplayAvailable");
+s.is_replay_started = !!_call("isReplayStarted");
+s.is_autoplay_started = !!_call("isAutoplayStarted");
+s.is_ready_to_play = !!_call("isReadyToPlay");
+s.replay_point = _call("getReplaySelectedDate");
+s.server_time = _call("currentDate");
+s.autoplay_delay = Number(_call("autoplayDelay") || 0);
+s.depth = _call("getReplayDepth");
+s.is_replay_finished = false;
+s.is_replay_connected = false;
+// Try chart.replayStatus() WatchedValue for additional state
+if (chart && typeof chart.replayStatus === "function") {
+  try {
+    var wv = chart.replayStatus();
+    if (wv && typeof wv.value === "function") s.replay_status_value = wv.value();
+    else if (wv && "_value" in wv) s.replay_status_value = wv._value;
+  } catch(_) {}
+}
+return JSON.stringify({ok:true,data:s});
+`)
+}
+
+func jsActivateReplay(date float64) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+`
+var date = %v;
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.selectDate !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"selectDate unavailable"});
+try {
+  await rapi.selectDate(date);
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectDate failed: " + String(e.message||e)});
+}
+var started = false;
+if (typeof rapi.isReplayStarted === "function") { try { started = !!rapi.isReplayStarted(); } catch(_) {} }
+return JSON.stringify({ok:true,data:{status:"activated",date:date,is_replay_started:started}});
+`, date))
+}
+
+func jsActivateReplayAuto() string {
+	return wrapJSEvalAsync(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.selectFirstAvailableDate === "function") {
+  try {
+    await rapi.selectFirstAvailableDate();
+    var started = false;
+    if (typeof rapi.isReplayStarted === "function") { try { started = !!rapi.isReplayStarted(); } catch(_) {} }
+    var date = null;
+    if (typeof rapi.getReplaySelectedDate === "function") { try { date = rapi.getReplaySelectedDate(); } catch(_) {} }
+    return JSON.stringify({ok:true,data:{status:"activated",method:"selectFirstAvailableDate",date:date,is_replay_started:started}});
+  } catch(e) {
+    return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectFirstAvailableDate failed: " + String(e.message||e)});
+  }
+}
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"selectFirstAvailableDate unavailable"});
+`)
+}
+
+func jsDeactivateReplay() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.leaveReplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"leaveReplay unavailable"});
+rapi.leaveReplay();
+return JSON.stringify({ok:true,data:{status:"deactivated"}});
+`)
+}
+
+func jsStartReplay(point float64) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsReplayApiPreamble+`
+var point = %v;
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.selectDate === "function") {
+  try { await rapi.selectDate(point); } catch(e) {
+    return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"selectDate failed: " + String(e.message||e)});
+  }
+  return JSON.stringify({ok:true,data:{status:"started",point:point}});
+}
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"selectDate unavailable"});
+`, point))
+}
+
+func jsStopReplay() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.stopReplay === "function") { rapi.stopReplay(); return JSON.stringify({ok:true,data:{status:"stopped"}}); }
+if (typeof rapi.leaveReplay === "function") { rapi.leaveReplay(); return JSON.stringify({ok:true,data:{status:"stopped_via_leave"}}); }
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"stopReplay unavailable"});
+`)
+}
+
+func jsReplayStep() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.doStep !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"doStep unavailable"});
+rapi.doStep();
+return JSON.stringify({ok:true,data:{status:"stepped"}});
+`)
+}
+
+func jsStartAutoplay() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
+var already = false;
+if (typeof rapi.isAutoplayStarted === "function") { try { already = !!rapi.isAutoplayStarted(); } catch(_) {} }
+if (!already) rapi.toggleAutoplay();
+return JSON.stringify({ok:true,data:{status:"autoplay_started"}});
+`)
+}
+
+func jsStopAutoplay() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.toggleAutoplay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"toggleAutoplay unavailable"});
+var running = false;
+if (typeof rapi.isAutoplayStarted === "function") { try { running = !!rapi.isAutoplayStarted(); } catch(_) {} }
+if (running) rapi.toggleAutoplay();
+return JSON.stringify({ok:true,data:{status:"autoplay_stopped"}});
+`)
+}
+
+func jsResetReplay() string {
+	return wrapJSEval(jsReplayApiPreamble + `
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.goToRealtime === "function") { rapi.goToRealtime(); return JSON.stringify({ok:true,data:{status:"reset"}}); }
+if (typeof rapi.leaveReplay === "function") { rapi.leaveReplay(); return JSON.stringify({ok:true,data:{status:"reset_via_leave"}}); }
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"reset unavailable"});
+`)
+}
+
+func jsChangeAutoplayDelay(delay float64) string {
+	return wrapJSEval(fmt.Sprintf(jsReplayApiPreamble+`
+var delay = %v;
+if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
+if (typeof rapi.changeAutoplayDelay !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"changeAutoplayDelay unavailable"});
+rapi.changeAutoplayDelay(delay);
+var current = delay;
+if (typeof rapi.autoplayDelay === "function") { try { current = Number(rapi.autoplayDelay()); } catch(_) {} }
+return JSON.stringify({ok:true,data:{status:"changed",delay:current}});
+`, delay))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

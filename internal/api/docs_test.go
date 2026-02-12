@@ -94,6 +94,36 @@ func (s *stubService) ResolveSymbol(ctx context.Context, chartID, symbol string)
 	return cdpcontrol.ResolvedSymbolInfo{}, nil
 }
 func (s *stubService) SwitchTimezone(ctx context.Context, chartID, tz string) error { return nil }
+func (s *stubService) ScanReplayActivation(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) ActivateReplay(ctx context.Context, chartID string, date float64) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) ActivateReplayAuto(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) DeactivateReplay(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) ProbeReplayManager(ctx context.Context, chartID string) (cdpcontrol.ReplayManagerProbe, error) {
+	return cdpcontrol.ReplayManagerProbe{}, nil
+}
+func (s *stubService) ProbeReplayManagerDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) GetReplayStatus(ctx context.Context, chartID string) (cdpcontrol.ReplayStatus, error) {
+	return cdpcontrol.ReplayStatus{}, nil
+}
+func (s *stubService) StartReplay(ctx context.Context, chartID string, point float64) error {
+	return nil
+}
+func (s *stubService) StopReplay(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) ReplayStep(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) StartAutoplay(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) StopAutoplay(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) ResetReplay(ctx context.Context, chartID string) error   { return nil }
+func (s *stubService) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
+	return delay, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

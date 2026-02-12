@@ -516,6 +516,147 @@ func (c *Client) SwitchTimezone(ctx context.Context, chartID, tz string) error {
 	return nil
 }
 
+// --- Replay Manager methods ---
+
+func (c *Client) ProbeReplayManager(ctx context.Context, chartID string) (ReplayManagerProbe, error) {
+	var out ReplayManagerProbe
+	if err := c.evalOnChart(ctx, chartID, jsProbeReplayManager(), &out); err != nil {
+		return ReplayManagerProbe{}, err
+	}
+	if out.AccessPaths == nil {
+		out.AccessPaths = []string{}
+	}
+	if out.Methods == nil {
+		out.Methods = []string{}
+	}
+	if out.State == nil {
+		out.State = map[string]any{}
+	}
+	return out, nil
+}
+
+func (c *Client) ScanReplayActivation(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsScanReplayActivation(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ProbeReplayManagerDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsProbeReplayManagerDeep(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ActivateReplay(ctx context.Context, chartID string, date float64) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsActivateReplay(date), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ActivateReplayAuto(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsActivateReplayAuto(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) DeactivateReplay(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsDeactivateReplay(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetReplayStatus(ctx context.Context, chartID string) (ReplayStatus, error) {
+	var out ReplayStatus
+	if err := c.evalOnChart(ctx, chartID, jsGetReplayStatus(), &out); err != nil {
+		return ReplayStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) StartReplay(ctx context.Context, chartID string, point float64) error {
+	var out struct {
+		Status string  `json:"status"`
+		Point  float64 `json:"point"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsStartReplay(point), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) StopReplay(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsStopReplay(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ReplayStep(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsReplayStep(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) StartAutoplay(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsStartAutoplay(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) StopAutoplay(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsStopAutoplay(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ResetReplay(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsResetReplay(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
+	var out struct {
+		Status string  `json:"status"`
+		Delay  float64 `json:"delay"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsChangeAutoplayDelay(delay), &out); err != nil {
+		return 0, err
+	}
+	return out.Delay, nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

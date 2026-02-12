@@ -233,3 +233,64 @@ func (s *Service) SwitchTimezone(ctx context.Context, chartID, tz string) error 
 	return s.cdp.SwitchTimezone(ctx, strings.TrimSpace(chartID), strings.TrimSpace(tz))
 }
 
+// --- Replay Manager methods ---
+
+func (s *Service) ProbeReplayManager(ctx context.Context, chartID string) (cdpcontrol.ReplayManagerProbe, error) {
+	return s.cdp.ProbeReplayManager(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ScanReplayActivation(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ScanReplayActivation(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ProbeReplayManagerDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ProbeReplayManagerDeep(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ActivateReplay(ctx context.Context, chartID string, date float64) (map[string]any, error) {
+	return s.cdp.ActivateReplay(ctx, strings.TrimSpace(chartID), date)
+}
+
+func (s *Service) ActivateReplayAuto(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ActivateReplayAuto(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) DeactivateReplay(ctx context.Context, chartID string) error {
+	return s.cdp.DeactivateReplay(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetReplayStatus(ctx context.Context, chartID string) (cdpcontrol.ReplayStatus, error) {
+	return s.cdp.GetReplayStatus(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) StartReplay(ctx context.Context, chartID string, point float64) error {
+	return s.cdp.StartReplay(ctx, strings.TrimSpace(chartID), point)
+}
+
+func (s *Service) StopReplay(ctx context.Context, chartID string) error {
+	return s.cdp.StopReplay(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ReplayStep(ctx context.Context, chartID string) error {
+	return s.cdp.ReplayStep(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) StartAutoplay(ctx context.Context, chartID string) error {
+	return s.cdp.StartAutoplay(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) StopAutoplay(ctx context.Context, chartID string) error {
+	return s.cdp.StopAutoplay(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ResetReplay(ctx context.Context, chartID string) error {
+	return s.cdp.ResetReplay(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
+	if delay <= 0 {
+		return 0, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "delay must be positive"}
+	}
+	return s.cdp.ChangeAutoplayDelay(ctx, strings.TrimSpace(chartID), delay)
+}
+

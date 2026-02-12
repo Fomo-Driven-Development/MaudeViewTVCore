@@ -107,6 +107,26 @@ type ChartApiProbe struct {
 	Methods     []string `json:"methods"`
 }
 
+// ReplayManagerProbe describes the result of probing for the _replayManager singleton.
+type ReplayManagerProbe struct {
+	Found       bool           `json:"found"`
+	AccessPaths []string       `json:"access_paths"`
+	Methods     []string       `json:"methods"`
+	State       map[string]any `json:"state"`
+}
+
+// ReplayStatus describes the current state of the replay manager.
+type ReplayStatus struct {
+	IsReplayStarted   bool    `json:"is_replay_started"`
+	IsReplayFinished  bool    `json:"is_replay_finished"`
+	IsReplayConnected bool    `json:"is_replay_connected"`
+	IsAutoplayStarted bool    `json:"is_autoplay_started"`
+	ReplayPoint       any     `json:"replay_point"`
+	ServerTime        any     `json:"server_time"`
+	AutoplayDelay     float64 `json:"autoplay_delay"`
+	Depth             any     `json:"depth"`
+}
+
 // ResolvedSymbolInfo describes extended metadata for any symbol resolved via chartApi().
 type ResolvedSymbolInfo struct {
 	Symbol          string `json:"symbol"`
