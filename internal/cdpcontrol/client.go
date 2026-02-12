@@ -369,6 +369,32 @@ func (c *Client) RenameWatchlist(ctx context.Context, id, name string) (Watchlis
 	return out, nil
 }
 
+func (c *Client) AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (WatchlistDetail, error) {
+	var out WatchlistDetail
+	if err := c.evalOnAnyChart(ctx, jsAddWatchlistSymbols(id, symbols), &out); err != nil {
+		return WatchlistDetail{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (WatchlistDetail, error) {
+	var out WatchlistDetail
+	if err := c.evalOnAnyChart(ctx, jsRemoveWatchlistSymbols(id, symbols), &out); err != nil {
+		return WatchlistDetail{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) FlagSymbol(ctx context.Context, id, symbol string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsFlagSymbol(id, symbol), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) DeleteWatchlist(ctx context.Context, id string) error {
 	var out struct {
 		Status string `json:"status"`

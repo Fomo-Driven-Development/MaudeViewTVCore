@@ -137,3 +137,33 @@ func (s *Service) DeleteWatchlist(ctx context.Context, id string) error {
 	}
 	return s.cdp.DeleteWatchlist(ctx, strings.TrimSpace(id))
 }
+
+func (s *Service) AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
+	if strings.TrimSpace(id) == "" {
+		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	if len(symbols) == 0 {
+		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.AddWatchlistSymbols(ctx, strings.TrimSpace(id), symbols)
+}
+
+func (s *Service) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
+	if strings.TrimSpace(id) == "" {
+		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	if len(symbols) == 0 {
+		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.RemoveWatchlistSymbols(ctx, strings.TrimSpace(id), symbols)
+}
+
+func (s *Service) FlagSymbol(ctx context.Context, id, symbol string) error {
+	if strings.TrimSpace(id) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	}
+	if strings.TrimSpace(symbol) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	}
+	return s.cdp.FlagSymbol(ctx, strings.TrimSpace(id), strings.TrimSpace(symbol))
+}

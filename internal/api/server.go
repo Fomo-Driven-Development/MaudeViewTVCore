@@ -35,6 +35,9 @@ type Service interface {
 	CreateWatchlist(ctx context.Context, name string) (cdpcontrol.WatchlistInfo, error)
 	RenameWatchlist(ctx context.Context, id, name string) (cdpcontrol.WatchlistInfo, error)
 	DeleteWatchlist(ctx context.Context, id string) error
+	AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
+	RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
+	FlagSymbol(ctx context.Context, id, symbol string) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -425,6 +428,58 @@ func NewServer(svc Service) http.Handler {
 				return nil, mapErr(err)
 			}
 			return &struct{}{}, nil
+		})
+
+	type symbolsBodyInput struct {
+		WatchlistID string `path:"watchlist_id"`
+		Body        struct {
+			Symbols []string `json:"symbols" required:"true"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "add-symbols", Method: http.MethodPost, Path: "/api/v1/watchlist/{watchlist_id}/symbols", Summary: "Add symbol(s) to watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *symbolsBodyInput) (*watchlistDetailOutput, error) {
+			detail, err := svc.AddWatchlistSymbols(ctx, input.WatchlistID, input.Body.Symbols)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistDetailOutput{}
+			out.Body = detail
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "remove-symbols", Method: http.MethodDelete, Path: "/api/v1/watchlist/{watchlist_id}/symbols", Summary: "Remove symbol(s) from watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *symbolsBodyInput) (*watchlistDetailOutput, error) {
+			detail, err := svc.RemoveWatchlistSymbols(ctx, input.WatchlistID, input.Body.Symbols)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistDetailOutput{}
+			out.Body = detail
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "flag-symbol", Method: http.MethodPost, Path: "/api/v1/watchlist/{watchlist_id}/flag", Summary: "Flag/unflag a symbol", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct {
+			WatchlistID string `path:"watchlist_id"`
+			Body        struct {
+				Symbol string `json:"symbol" required:"true"`
+			}
+		}) (*struct {
+			Body struct {
+				Status string `json:"status"`
+			}
+		}, error) {
+			if err := svc.FlagSymbol(ctx, input.WatchlistID, input.Body.Symbol); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Status string `json:"status"`
+				}
+			}{}
+			out.Body.Status = "toggled"
+			return out, nil
 		})
 
 	return router

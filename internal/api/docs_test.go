@@ -64,6 +64,13 @@ func (s *stubService) RenameWatchlist(ctx context.Context, id, name string) (cdp
 	return cdpcontrol.WatchlistInfo{}, nil
 }
 func (s *stubService) DeleteWatchlist(ctx context.Context, id string) error { return nil }
+func (s *stubService) AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
+	return cdpcontrol.WatchlistDetail{}, nil
+}
+func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
+	return cdpcontrol.WatchlistDetail{}, nil
+}
+func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

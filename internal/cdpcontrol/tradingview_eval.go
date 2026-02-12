@@ -418,6 +418,99 @@ return JSON.stringify({ok:true,data:{status:"deleted"}});
 `, jsString(id)))
 }
 
+func jsAddWatchlistSymbols(id string, symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+var syms = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+for (var i = 0; i < syms.length; i++) {
+  var added = false;
+  if (typeof wl.addSymbol === "function") {
+    try { await wl.addSymbol(listId, syms[i]); added = true; } catch(_){}
+  }
+  if (!added && typeof wl.addSymbolToList === "function") {
+    try { await wl.addSymbolToList(listId, syms[i]); added = true; } catch(_){}
+  }
+  if (!added) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"addSymbol unavailable"});
+}
+var raw = null;
+if (typeof wl.getWatchlistById === "function") {
+  try { raw = await wl.getWatchlistById(listId); } catch(_){}
+}
+if (!raw && typeof wl.getSymbolList === "function") {
+  try { raw = await wl.getSymbolList(listId); } catch(_){}
+}
+var result = [];
+if (raw && raw.symbols && Array.isArray(raw.symbols)) {
+  for (var j = 0; j < raw.symbols.length; j++) {
+    var s = raw.symbols[j];
+    result.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+  }
+}
+return JSON.stringify({ok:true,data:{
+  id: String(raw && (raw.id || raw.listId) || listId),
+  name: String(raw && (raw.name || raw.title) || ""),
+  type: String(raw && raw.type || ""),
+  symbols: result
+}});
+`, jsString(id), jsJSON(symbols)))
+}
+
+func jsRemoveWatchlistSymbols(id string, symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+var syms = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+for (var i = 0; i < syms.length; i++) {
+  var removed = false;
+  if (typeof wl.removeSymbol === "function") {
+    try { await wl.removeSymbol(listId, syms[i]); removed = true; } catch(_){}
+  }
+  if (!removed && typeof wl.removeSymbolFromList === "function") {
+    try { await wl.removeSymbolFromList(listId, syms[i]); removed = true; } catch(_){}
+  }
+  if (!removed) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"removeSymbol unavailable"});
+}
+var raw = null;
+if (typeof wl.getWatchlistById === "function") {
+  try { raw = await wl.getWatchlistById(listId); } catch(_){}
+}
+if (!raw && typeof wl.getSymbolList === "function") {
+  try { raw = await wl.getSymbolList(listId); } catch(_){}
+}
+var result = [];
+if (raw && raw.symbols && Array.isArray(raw.symbols)) {
+  for (var j = 0; j < raw.symbols.length; j++) {
+    var s = raw.symbols[j];
+    result.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+  }
+}
+return JSON.stringify({ok:true,data:{
+  id: String(raw && (raw.id || raw.listId) || listId),
+  name: String(raw && (raw.name || raw.title) || ""),
+  type: String(raw && raw.type || ""),
+  symbols: result
+}});
+`, jsString(id), jsJSON(symbols)))
+}
+
+func jsFlagSymbol(id, symbol string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+var listId = %s;
+var sym = %s;
+if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var ok = false;
+if (typeof wl.flagSymbol === "function") {
+  try { await wl.flagSymbol(listId, sym); ok = true; } catch(_){}
+}
+if (!ok && typeof wl.toggleFlagSymbol === "function") {
+  try { await wl.toggleFlagSymbol(listId, sym); ok = true; } catch(_){}
+}
+if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"flagSymbol unavailable"});
+return JSON.stringify({ok:true,data:{status:"toggled"}});
+`, jsString(id), jsString(symbol)))
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;
