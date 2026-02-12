@@ -1067,80 +1067,210 @@ func (c *Client) TakeSnapshot(ctx context.Context, chartID, format, quality stri
 	return out, nil
 }
 
-// --- Pine Editor methods ---
+// --- Pine Editor methods (DOM-based) ---
 
-func (c *Client) ProbePineEditor(ctx context.Context) (PineEditorProbe, error) {
-	var out PineEditorProbe
-	if err := c.evalOnAnyChart(ctx, jsProbePineEditor(), &out); err != nil {
-		return PineEditorProbe{}, err
-	}
-	return out, nil
-}
-
-func (c *Client) OpenPineEditor(ctx context.Context) (PineEditorState, error) {
-	var out PineEditorState
-	if err := c.evalOnAnyChart(ctx, jsOpenPineEditor(), &out); err != nil {
-		return PineEditorState{}, err
-	}
-	return out, nil
-}
-
-func (c *Client) GetPineSource(ctx context.Context) (PineEditorState, error) {
-	var out PineEditorState
-	if err := c.evalOnAnyChart(ctx, jsGetPineSource(), &out); err != nil {
-		return PineEditorState{}, err
-	}
-	return out, nil
-}
-
-func (c *Client) SetPineSource(ctx context.Context, source string) (PineEditorState, error) {
-	var out PineEditorState
-	if err := c.evalOnAnyChart(ctx, jsSetPineSource(source), &out); err != nil {
-		return PineEditorState{}, err
-	}
-	return out, nil
-}
-
-func (c *Client) AddPineToChart(ctx context.Context) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	return c.evalOnAnyChart(ctx, jsAddPineToChart(), &out)
-}
-
-func (c *Client) UpdatePineOnChart(ctx context.Context) error {
-	var out struct {
-		Status string `json:"status"`
-	}
-	return c.evalOnAnyChart(ctx, jsUpdatePineOnChart(), &out)
-}
-
-func (c *Client) ListPineScripts(ctx context.Context) ([]PineScript, error) {
-	var out struct {
-		Scripts []PineScript `json:"scripts"`
-	}
-	if err := c.evalOnAnyChart(ctx, jsListPineScripts(), &out); err != nil {
+func (c *Client) ProbePineDOM(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnAnyChart(ctx, jsProbePineDOM(), &out); err != nil {
 		return nil, err
 	}
-	if out.Scripts == nil {
-		return []PineScript{}, nil
-	}
-	return out.Scripts, nil
+	return out, nil
 }
 
-func (c *Client) OpenPineScript(ctx context.Context, scriptIDPart, version string) (PineEditorState, error) {
-	var out PineEditorState
-	if err := c.evalOnAnyChart(ctx, jsOpenPineScript(scriptIDPart, version), &out); err != nil {
-		return PineEditorState{}, err
+func (c *Client) TogglePineEditor(ctx context.Context) (PineState, error) {
+	// Step 1: Locate the button to click and get its coordinates.
+	var loc struct {
+		Action string  `json:"action"` // "open" or "close"
+		X      float64 `json:"x"`
+		Y      float64 `json:"y"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsPineLocateToggleBtn(), &loc); err != nil {
+		return PineState{}, err
+	}
+
+	// Step 2: Dispatch a trusted CDP mouse click at the button coordinates.
+	if err := c.clickOnAnyChart(ctx, loc.X, loc.Y); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch trusted click", err)
+	}
+
+	// Step 3: Poll for the expected state change.
+	var out PineState
+	if loc.Action == "close" {
+		if err := c.evalOnAnyChart(ctx, jsPineWaitForClose(), &out); err != nil {
+			return PineState{}, err
+		}
+	} else {
+		if err := c.evalOnAnyChart(ctx, jsPineWaitForOpen(), &out); err != nil {
+			return PineState{}, err
+		}
 	}
 	return out, nil
+}
+
+func (c *Client) GetPineStatus(ctx context.Context) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineStatus(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPineSource(ctx context.Context) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineGetSource(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetPineSource(ctx context.Context, source string) (PineState, error) {
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineSetSource(source), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SavePineScript(ctx context.Context) (PineState, error) {
+	// Step 1: Focus the Monaco editor and check visibility.
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+
+	// Step 2: Send Ctrl+S via trusted CDP key dispatch.
+	// modifiers=2 means Ctrl.
+	if err := c.sendKeysOnAnyChart(ctx, "s", "KeyS", 83, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+S", err)
+	}
+
+	// Step 3: Wait for save to complete.
+	if err := c.evalOnAnyChart(ctx, jsPineWaitForSave(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) AddPineToChart(ctx context.Context) (PineState, error) {
+	// Step 1: Focus the Monaco editor and check visibility.
+	var out PineState
+	if err := c.evalOnAnyChart(ctx, jsPineFocusEditor(), &out); err != nil {
+		return PineState{}, err
+	}
+
+	// Step 2: Send Ctrl+Enter via trusted CDP key dispatch.
+	// modifiers=2 means Ctrl.
+	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 2); err != nil {
+		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+Enter", err)
+	}
+
+	// Step 3: Wait for the script addition to process.
+	if err := c.evalOnAnyChart(ctx, jsPineWaitForAddToChart(), &out); err != nil {
+		return PineState{}, err
+	}
+	return out, nil
+}
+
+// ReloadPage reloads the browser tab for the given chart (or the first chart
+// if chartID is empty). When hard is true, the browser cache is bypassed
+// (equivalent to Shift+F5). After reload the session state is invalidated and
+// the tab registry is refreshed so that subsequent calls use the new chart IDs.
+func (c *Client) ReloadPage(ctx context.Context, chartID string, hard bool) error {
+	chartID = strings.TrimSpace(chartID)
+
+	// Resolve the target session.
+	var session *tabSession
+	var info ChartInfo
+	var err error
+	if chartID == "" {
+		charts, lerr := c.ListCharts(ctx)
+		if lerr != nil {
+			return lerr
+		}
+		if len(charts) == 0 {
+			return newError(CodeChartNotFound, "no chart tabs found", nil)
+		}
+		session, info, err = c.resolveChartSession(ctx, charts[0].ChartID)
+	} else {
+		session, info, err = c.resolveChartSession(ctx, chartID)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Ensure we have a CDP session on the target.
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return newError(CodeCDPUnavailable, "CDP client not connected", nil)
+	}
+	sessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
+	if err != nil {
+		return err
+	}
+
+	// Send Page.reload.
+	type reloadParams struct {
+		IgnoreCache bool `json:"ignoreCache,omitempty"`
+	}
+	_, err = cdp.sendFlat(ctx, sessionID, "Page.reload", reloadParams{IgnoreCache: hard})
+	if err != nil {
+		return newError(CodeEvalFailure, "Page.reload failed", err)
+	}
+
+	// Invalidate the session — the JS context is destroyed on reload.
+	session.mu.Lock()
+	session.sessionID = ""
+	session.mu.Unlock()
+
+	// Wait for the page to finish loading by polling document.readyState.
+	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// Brief pause to let the reload start.
+	time.Sleep(500 * time.Millisecond)
+
+	for {
+		select {
+		case <-pollCtx.Done():
+			return newError(CodeEvalTimeout, "timed out waiting for page reload", pollCtx.Err())
+		default:
+		}
+
+		// Re-attach if needed, then evaluate.
+		sid, attachErr := c.ensureSession(pollCtx, cdp, session, info.TargetID)
+		if attachErr != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		evalCtx, evalCancel := context.WithTimeout(pollCtx, 3*time.Second)
+		raw, evalErr := cdp.evaluate(evalCtx, sid, `document.readyState`)
+		evalCancel()
+		if evalErr != nil {
+			// Session was destroyed mid-load — reset and retry.
+			session.mu.Lock()
+			session.sessionID = ""
+			session.mu.Unlock()
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if raw == "complete" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// Refresh the tab registry so new chart IDs are available.
+	_ = c.refreshTabs(ctx)
+	return nil
 }
 
 func (c *Client) GetPineConsole(ctx context.Context) ([]PineConsoleMessage, error) {
 	var out struct {
 		Messages []PineConsoleMessage `json:"messages"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsGetPineConsole(), &out); err != nil {
+	if err := c.evalOnAnyChart(ctx, jsPineGetConsole(), &out); err != nil {
 		return nil, err
 	}
 	if out.Messages == nil {
@@ -1163,6 +1293,68 @@ func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 		}
 	}
 	return c.evalOnChart(ctx, charts[0].ChartID, js, out)
+}
+
+// clickOnAnyChart dispatches a trusted CDP mouse click at the given coordinates
+// on the first available chart tab session.
+func (c *Client) clickOnAnyChart(ctx context.Context, x, y float64) error {
+	charts, err := c.ListCharts(ctx)
+	if err != nil {
+		return err
+	}
+	if len(charts) == 0 {
+		return newError(CodeChartNotFound, "no chart tabs found", nil)
+	}
+
+	session, info, err := c.resolveChartSession(ctx, charts[0].ChartID)
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return newError(CodeCDPUnavailable, "CDP client not connected", nil)
+	}
+
+	sessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
+	if err != nil {
+		return err
+	}
+
+	return cdp.dispatchMouseClick(ctx, sessionID, x, y)
+}
+
+// sendKeysOnAnyChart dispatches a trusted CDP key event on the first chart's session.
+// modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.
+func (c *Client) sendKeysOnAnyChart(ctx context.Context, key, code string, keyCode, modifiers int) error {
+	charts, err := c.ListCharts(ctx)
+	if err != nil {
+		return err
+	}
+	if len(charts) == 0 {
+		return newError(CodeChartNotFound, "no chart tabs found", nil)
+	}
+
+	session, info, err := c.resolveChartSession(ctx, charts[0].ChartID)
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return newError(CodeCDPUnavailable, "CDP client not connected", nil)
+	}
+
+	sessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
+	if err != nil {
+		return err
+	}
+
+	return cdp.dispatchKeyEvent(ctx, sessionID, key, code, keyCode, modifiers)
 }
 
 func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) error {

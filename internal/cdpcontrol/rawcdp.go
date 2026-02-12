@@ -331,6 +331,66 @@ func (r *rawCDP) listTargets(ctx context.Context) ([]*target.Info, error) {
 	return out, nil
 }
 
+// dispatchMouseClick sends trusted CDP Input.dispatchMouseEvent commands
+// (mousePressed + mouseReleased) at the given coordinates on a session.
+// This produces isTrusted=true events, equivalent to real user clicks.
+func (r *rawCDP) dispatchMouseClick(ctx context.Context, sessionID string, x, y float64) error {
+	pressed := struct {
+		Type       string  `json:"type"`
+		X          float64 `json:"x"`
+		Y          float64 `json:"y"`
+		Button     string  `json:"button"`
+		ClickCount int     `json:"clickCount"`
+	}{Type: "mousePressed", X: x, Y: y, Button: "left", ClickCount: 1}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchMouseEvent", pressed); err != nil {
+		return fmt.Errorf("rawcdp: mousePressed: %w", err)
+	}
+
+	released := struct {
+		Type       string  `json:"type"`
+		X          float64 `json:"x"`
+		Y          float64 `json:"y"`
+		Button     string  `json:"button"`
+		ClickCount int     `json:"clickCount"`
+	}{Type: "mouseReleased", X: x, Y: y, Button: "left", ClickCount: 1}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchMouseEvent", released); err != nil {
+		return fmt.Errorf("rawcdp: mouseReleased: %w", err)
+	}
+	return nil
+}
+
+// dispatchKeyEvent sends a trusted CDP Input.dispatchKeyEvent sequence
+// (keyDown + keyUp) for a keyboard shortcut on a session.
+// modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.
+func (r *rawCDP) dispatchKeyEvent(ctx context.Context, sessionID string, key string, code string, keyCode int, modifiers int) error {
+	down := struct {
+		Type                  string `json:"type"`
+		Key                   string `json:"key"`
+		Code                  string `json:"code"`
+		WindowsVirtualKeyCode int    `json:"windowsVirtualKeyCode"`
+		Modifiers             int    `json:"modifiers"`
+	}{Type: "keyDown", Key: key, Code: code, WindowsVirtualKeyCode: keyCode, Modifiers: modifiers}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", down); err != nil {
+		return fmt.Errorf("rawcdp: keyDown: %w", err)
+	}
+
+	up := struct {
+		Type                  string `json:"type"`
+		Key                   string `json:"key"`
+		Code                  string `json:"code"`
+		WindowsVirtualKeyCode int    `json:"windowsVirtualKeyCode"`
+		Modifiers             int    `json:"modifiers"`
+	}{Type: "keyUp", Key: key, Code: code, WindowsVirtualKeyCode: keyCode, Modifiers: modifiers}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", up); err != nil {
+		return fmt.Errorf("rawcdp: keyUp: %w", err)
+	}
+	return nil
+}
+
 // browserWSURL fetches the WebSocket debugger URL from /json/version.
 func (r *rawCDP) browserWSURL(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

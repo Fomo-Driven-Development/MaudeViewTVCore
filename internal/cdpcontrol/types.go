@@ -181,36 +181,15 @@ type ResolvedSymbolInfo struct {
 	SessionHolidays string `json:"session_holidays,omitempty"`
 }
 
-// PineEditorProbe describes the result of probing for the pineEditorApi() singleton.
-type PineEditorProbe struct {
-	Available   bool     `json:"available"`
-	EditorOpen  bool     `json:"editor_open"`
-	Methods     []string `json:"methods"`
-	ScriptState any      `json:"script_state,omitempty"`
-	UIState     any      `json:"ui_state,omitempty"`
-}
-
-// PineEditorState describes the current state of the Pine editor.
-type PineEditorState struct {
-	Status          string `json:"status"`
-	ScriptName      string `json:"script_name,omitempty"`
-	ScriptSource    string `json:"script_source,omitempty"`
-	SourceLength    int    `json:"source_length,omitempty"`
-	LineCount       int    `json:"line_count,omitempty"`
-	IsScriptOnChart bool   `json:"is_script_on_chart"`
-	IsVisible       bool   `json:"is_visible"`
-	Ready           bool   `json:"ready"`
-	PineVersion     int    `json:"pine_version,omitempty"`
-}
-
-// PineScript describes a saved Pine script.
-type PineScript struct {
-	ScriptIDPart string `json:"script_id_part"`
-	Version      string `json:"version"`
-	ScriptName   string `json:"script_name"`
-	ScriptTitle  string `json:"script_title,omitempty"`
-	Modified     int64  `json:"modified,omitempty"`
-	Kind         string `json:"kind,omitempty"`
+// PineState describes the current state of the Pine editor panel.
+type PineState struct {
+	Status       string `json:"status"`
+	IsVisible    bool   `json:"is_visible"`
+	MonacoReady  bool   `json:"monaco_ready"`
+	ScriptName   string `json:"script_name,omitempty"`
+	ScriptSource string `json:"script_source,omitempty"`
+	SourceLength int    `json:"source_length,omitempty"`
+	LineCount    int    `json:"line_count,omitempty"`
 }
 
 // PineConsoleMessage describes a single Pine console output message.
@@ -247,4 +226,10 @@ type SnapshotSymbolMeta struct {
 	Exchange    string `json:"exchange,omitempty"`
 	Resolution  string `json:"resolution,omitempty"`
 	Description string `json:"description,omitempty"`
+}
+
+// ReloadResult describes the result of a page reload.
+type ReloadResult struct {
+	Status string `json:"status"`
+	Mode   string `json:"mode"`
 }

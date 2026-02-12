@@ -2008,254 +2008,343 @@ return JSON.stringify({ok:true,data:{data_url:dataUrl,width:w,height:h,metadata:
 `, jsString(format), jsString(quality), hideResolution))
 }
 
-// --- Pine Editor JS functions ---
-// These use api.pineEditorApi() which is session-level (evalOnAnyChart).
-// The editor is lazy-loaded: _pineEditor is null until openEditor() is called.
+// --- Pine Editor JS functions (DOM-based) ---
+// These use DOM button clicks and Monaco direct access instead of internal APIs.
+// All are session-level operations (evalOnAnyChart).
 
-// jsPineEditorPreamble resolves pineEditorApi and bails if unavailable.
-const jsPineEditorPreamble = jsPreamble + `
-var pea = null;
-if (api && typeof api.pineEditorApi === "function") {
-  try { pea = api.pineEditorApi(); } catch(_) {}
+func jsProbePineDOM() string {
+	return wrapJSEval(`
+var result = {buttons:[], bottom_tabs:[], toolbar:[], monaco:null, console_panel:null};
+// Scan right sidebar buttons
+var sidebar = document.querySelectorAll('[data-name]');
+for (var i = 0; i < sidebar.length; i++) {
+  var el = sidebar[i];
+  var name = el.getAttribute('data-name') || '';
+  if (name.toLowerCase().indexOf('pine') !== -1 || name.toLowerCase().indexOf('editor') !== -1 || name.toLowerCase().indexOf('script') !== -1) {
+    result.buttons.push({data_name: name, tag: el.tagName, visible: el.offsetParent !== null, text: (el.textContent || '').trim().substring(0, 50)});
+  }
 }
-if (!pea) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"pineEditorApi unavailable"});
-`
+// Scan bottom panel tabs
+var bottomTabs = document.querySelectorAll('#bottom-area button, #bottom-area [role="tab"], .bottom-widgetbar-content button');
+for (var i = 0; i < bottomTabs.length; i++) {
+  var el = bottomTabs[i];
+  var txt = (el.textContent || '').trim();
+  var dn = el.getAttribute('data-name') || '';
+  if (txt || dn) {
+    result.bottom_tabs.push({data_name: dn, text: txt.substring(0, 50), tag: el.tagName, visible: el.offsetParent !== null});
+  }
+}
+// Scan Pine toolbar buttons (save, add to chart, etc.)
+var toolbarBtns = document.querySelectorAll('[class*="pine"] button, [data-name*="pine"] button, .tv-script-editor button');
+for (var i = 0; i < toolbarBtns.length; i++) {
+  var el = toolbarBtns[i];
+  var dn = el.getAttribute('data-name') || '';
+  var ariaLabel = el.getAttribute('aria-label') || '';
+  var txt = (el.textContent || '').trim();
+  result.toolbar.push({data_name: dn, aria_label: ariaLabel, text: txt.substring(0, 50), tag: el.tagName, visible: el.offsetParent !== null});
+}
+// Check for Monaco editor
+var monacoEl = document.querySelector('.monaco-editor');
+if (monacoEl) {
+  result.monaco = {found: true, visible: monacoEl.offsetParent !== null, classes: monacoEl.className.substring(0, 100)};
+}
+// Check for Pine console
+var consoleEl = document.querySelector('[class*="console"], [data-name*="console"]');
+if (consoleEl) {
+  result.console_panel = {found: true, visible: consoleEl.offsetParent !== null, tag: consoleEl.tagName};
+}
+return JSON.stringify({ok:true,data:result});
+`)
+}
 
-func jsProbePineEditor() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-var methods = [];
-var seen = {};
-var obj = pea;
-while (obj && obj !== Object.prototype) {
-  var names = Object.getOwnPropertyNames(obj);
-  for (var i = 0; i < names.length; i++) {
-    if (!seen[names[i]] && typeof pea[names[i]] === "function" && names[i] !== "constructor") {
-      methods.push(names[i]);
-      seen[names[i]] = true;
+// jsPineLocateToggleBtn returns JS that finds the button to click for
+// open/close and returns its center coordinates. The Go caller then dispatches
+// a trusted CDP Input.dispatchMouseEvent at those coordinates.
+func jsPineLocateToggleBtn() string {
+	return wrapJSEval(`
+var monacoEl = document.querySelector('.monaco-editor');
+var isOpen = !!(monacoEl && monacoEl.offsetParent !== null);
+
+var btn = null;
+if (isOpen) {
+  // Find the Close button inside the Pine editor panel
+  var panel = monacoEl;
+  for (var up = 0; up < 10 && panel; up++) {
+    panel = panel.parentElement;
+    if (!panel) break;
+    var closeBtns = panel.querySelectorAll('button');
+    for (var bi = 0; bi < closeBtns.length; bi++) {
+      var b = closeBtns[bi];
+      if (!b.offsetParent) continue;
+      var cls = b.className || '';
+      var txt = (b.textContent || '').trim().toLowerCase();
+      if (cls.indexOf('closeButton') !== -1 || txt === 'close') {
+        btn = b; break;
+      }
+    }
+    if (btn) break;
+  }
+} else {
+  // Find the sidebar Pine button
+  btn = document.querySelector('button[data-name="pine-dialog-button"]')
+     || document.querySelector('button[aria-label="Pine"]');
+  if (!btn) {
+    var allBtns = document.querySelectorAll('[role="toolbar"] button, [class*="toolbar"] button');
+    for (var i = 0; i < allBtns.length; i++) {
+      if ((allBtns[i].textContent || '').trim() === 'Pine') { btn = allBtns[i]; break; }
     }
   }
-  obj = Object.getPrototypeOf(obj);
 }
-var editorOpen = !!(pea._pineEditor);
-var scriptState = null;
-var uiState = null;
-if (editorOpen && pea._pineEditor._storeProvider) {
+if (!btn) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"Pine editor toggle button not found in DOM"});
+var rect = btn.getBoundingClientRect();
+var x = rect.x + rect.width / 2;
+var y = rect.y + rect.height / 2;
+return JSON.stringify({ok:true,data:{action:isOpen?"close":"open",x:x,y:y}});
+`)
+}
+
+// jsPineWaitForOpen polls until the Pine editor is visible with rendered content.
+func jsPineWaitForOpen() string {
+	return wrapJSEvalAsync(`
+var deadline = Date.now() + 5000;
+var isVisible = false;
+var monacoReady = false;
+while (Date.now() < deadline) {
+  var el = document.querySelector('.monaco-editor');
+  if (el && el.offsetParent !== null) {
+    isVisible = true;
+    var vl = el.querySelector('.view-lines');
+    if (vl && vl.children.length > 0) {
+      // Also verify no spinner overlay is blocking
+      var dialog = el.closest('[class*="wrap-"]') || el.closest('[class*="dialog"]');
+      var sp = dialog ? dialog.querySelector('.tv-spinner--shown') : null;
+      if (!sp || sp.offsetParent === null) { monacoReady = true; break; }
+    }
+  }
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+return JSON.stringify({ok:true,data:{status:"opened",is_visible:isVisible,monaco_ready:monacoReady}});
+`)
+}
+
+// jsPineWaitForClose polls until the Pine editor disappears.
+func jsPineWaitForClose() string {
+	return wrapJSEvalAsync(`
+var deadline = Date.now() + 3000;
+while (Date.now() < deadline) {
+  var el = document.querySelector('.monaco-editor');
+  if (!el || el.offsetParent === null) break;
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+var stillVisible = (function() { var el = document.querySelector('.monaco-editor'); return !!(el && el.offsetParent !== null); })();
+return JSON.stringify({ok:true,data:{status:"closed",is_visible:stillVisible,monaco_ready:false}});
+`)
+}
+
+// jsPineMonacoPreamble returns JS code that discovers the Monaco editor namespace
+// via the webpack module cache (since TradingView doesn't expose monaco globally)
+// and caches it on window.__tvMonacoNs. After this preamble, the variable `monacoNs`
+// is set to the monaco namespace (or null if not found).
+const jsPineMonacoPreamble = `
+// Discover Monaco namespace from webpack cache
+var monacoNs = window.__tvMonacoNs || null;
+if (!monacoNs) {
+  // Ensure webpack require is available
+  if (!window.__tvAgentWpRequire) {
+    var chunkArr = window.webpackChunktradingview;
+    if (chunkArr) {
+      chunkArr.push([["__tvMonacoDisc"], {}, function(r) { window.__tvAgentWpRequire = r; }]);
+    }
+  }
+  if (window.__tvAgentWpRequire) {
+    var cache = window.__tvAgentWpRequire.c;
+    for (var modId in cache) {
+      var mod = cache[modId];
+      if (mod && mod.exports && mod.exports.editor && typeof mod.exports.editor.getModels === 'function') {
+        monacoNs = mod.exports;
+        window.__tvMonacoNs = monacoNs;
+        break;
+      }
+    }
+  }
+}
+// Also try global monaco as fallback
+if (!monacoNs && typeof monaco !== 'undefined' && monaco.editor) {
+  monacoNs = monaco;
+  window.__tvMonacoNs = monacoNs;
+}
+`
+
+func jsPineStatus() string {
+	return wrapJSEval(`
+var monacoEl = document.querySelector('.monaco-editor');
+var isVisible = !!(monacoEl && monacoEl.offsetParent !== null);
+var monacoReady = false;
+if (isVisible && monacoEl) {
+  // Check for rendered editor content in DOM
+  var viewLines = monacoEl.querySelector('.view-lines');
+  var hasContent = !!(viewLines && viewLines.children.length > 0);
+  // Check for stale loading screen overlay (TradingView bug on reopen)
+  var dialog = monacoEl.closest('[class*="wrap-"]') || monacoEl.closest('[class*="dialog"]');
+  var hasSpinner = false;
+  if (dialog) {
+    var sp = dialog.querySelector('.tv-spinner--shown');
+    hasSpinner = !!(sp && sp.offsetParent !== null);
+  }
+  monacoReady = hasContent && !hasSpinner;
+}
+return JSON.stringify({ok:true,data:{status:isVisible?"open":"closed",is_visible:isVisible,monaco_ready:monacoReady}});
+`)
+}
+
+func jsPineGetSource() string {
+	return wrapJSEval(jsPineMonacoPreamble + `
+var monacoEl = document.querySelector('.monaco-editor');
+if (!monacoEl || monacoEl.offsetParent === null) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"Pine editor not visible — call POST /pine/toggle first"});
+}
+var source = "";
+if (monacoNs) {
   try {
-    var st = pea._pineEditor._storeProvider.getState();
-    if (st) {
-      scriptState = st.script || null;
-      uiState = st.ui || null;
+    var models = monacoNs.editor.getModels();
+    if (models && models.length > 0) {
+      source = models[0].getValue() || "";
     }
   } catch(_) {}
 }
+// Fallback: read from the visible code lines in DOM
+if (!source) {
+  try {
+    var lines = monacoEl.querySelectorAll('.view-line');
+    if (lines.length > 0) {
+      var parts = [];
+      for (var i = 0; i < lines.length; i++) {
+        parts.push(lines[i].textContent || "");
+      }
+      source = parts.join("\\n");
+    }
+  } catch(_) {}
+}
+if (!source) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"could not read source from Monaco editor"});
+var scriptName = "";
+var m = source.match(/(?:indicator|strategy|library)\s*\(\s*(?:"([^"]+)"|'([^']+)')/);
+if (m) scriptName = m[1] || m[2] || "";
 return JSON.stringify({ok:true,data:{
-  available:true,
-  editor_open:editorOpen,
-  methods:methods,
-  script_state:scriptState,
-  ui_state:uiState
+  status:"open",
+  is_visible:true,
+  monaco_ready:true,
+  script_name:scriptName,
+  script_source:source,
+  source_length:source.length,
+  line_count:source.split("\\n").length
 }});
 `)
 }
 
-func jsOpenPineEditor() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-await pea.openEditor();
-var state = {status:"open",is_script_on_chart:false,is_visible:false,ready:false};
-if (pea._pineEditor && pea._pineEditor._storeProvider) {
-  try {
-    var st = pea._pineEditor._storeProvider.getState();
-    if (st && st.script) state.script_name = String(st.script.scriptName || "");
-    if (st && st.ui) {
-      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
-      state.is_visible = !!(st.ui.isVisible);
-      state.ready = !!(st.ui.ready);
-    }
-  } catch(_) {}
-}
-return JSON.stringify({ok:true,data:state});
-`)
-}
-
-func jsGetPineSource() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-if (!pea._pineEditor) { await pea.openEditor(); }
-var pe = pea._pineEditor;
-if (!pe) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
-var source = "";
-if (pe._editorRef && pe._editorRef.current && typeof pe._editorRef.current.getValue === "function") {
-  source = pe._editorRef.current.getValue() || "";
-}
-var state = {
-  status: "open",
-  script_source: source,
-  source_length: source.length,
-  line_count: source.split("\n").length,
-  is_script_on_chart: false,
-  is_visible: false,
-  ready: false
-};
-if (pe._storeProvider) {
-  try {
-    var st = pe._storeProvider.getState();
-    if (st && st.script) {
-      state.script_name = String(st.script.scriptName || "");
-      state.pine_version = Number(st.script.pineVersion || 0);
-    }
-    if (st && st.ui) {
-      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
-      state.is_visible = !!(st.ui.isVisible);
-      state.ready = !!(st.ui.ready);
-    }
-  } catch(_) {}
-}
-return JSON.stringify({ok:true,data:state});
-`)
-}
-
-func jsSetPineSource(source string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsPineEditorPreamble+`
+func jsPineSetSource(source string) string {
+	return wrapJSEval(fmt.Sprintf(jsPineMonacoPreamble+`
 var newSource = %s;
-if (!pea._pineEditor) { await pea.openEditor(); }
-if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
-await pea.setEditorText(newSource);
-var lineCount = newSource.split("\n").length;
-var state = {
-  status: "set",
-  source_length: newSource.length,
-  line_count: lineCount,
-  is_script_on_chart: false,
-  is_visible: false,
-  ready: false
-};
-var pe = pea._pineEditor;
-if (pe && pe._storeProvider) {
+var monacoEl = document.querySelector('.monaco-editor');
+if (!monacoEl || monacoEl.offsetParent === null) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"Pine editor not visible — call POST /pine/toggle first"});
+}
+var setOk = false;
+if (monacoNs) {
   try {
-    var st = pe._storeProvider.getState();
-    if (st && st.script) state.script_name = String(st.script.scriptName || "");
-    if (st && st.ui) {
-      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
-      state.is_visible = !!(st.ui.isVisible);
-      state.ready = !!(st.ui.ready);
+    var models = monacoNs.editor.getModels();
+    if (models && models.length > 0) {
+      models[0].setValue(newSource);
+      setOk = true;
     }
   } catch(_) {}
 }
-return JSON.stringify({ok:true,data:state});
+if (!setOk) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"could not write source to Monaco editor — Monaco namespace not found"});
+var scriptName = "";
+var m = newSource.match(/(?:indicator|strategy|library)\s*\(\s*(?:"([^"]+)"|'([^']+)')/);
+if (m) scriptName = m[1] || m[2] || "";
+return JSON.stringify({ok:true,data:{
+  status:"set",
+  is_visible:true,
+  monaco_ready:true,
+  script_name:scriptName,
+  source_length:newSource.length,
+  line_count:newSource.split("\\n").length
+}});
 `, jsString(source)))
 }
 
-func jsAddPineToChart() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-if (!pea._pineEditor) { await pea.openEditor(); }
-if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
-try {
-  await pea.addScriptOnChart();
-} catch(e) {
-  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"addScriptOnChart failed: " + String(e && e.message || e)});
+// jsPineFocusEditor ensures the Monaco editor is visible and focused.
+// Called before sending trusted CDP key events for save/add-to-chart.
+func jsPineFocusEditor() string {
+	return wrapJSEval(`
+var monacoEl = document.querySelector('.monaco-editor');
+if (!monacoEl || monacoEl.offsetParent === null) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"Pine editor not visible — call POST /pine/toggle first"});
 }
-return JSON.stringify({ok:true,data:{status:"added"}});
+// Focus the Monaco textarea so keyboard shortcuts are received
+var textarea = monacoEl.querySelector('textarea.inputarea');
+if (textarea) textarea.focus();
+return JSON.stringify({ok:true,data:{status:"focused",is_visible:true,monaco_ready:true}});
 `)
 }
 
-func jsUpdatePineOnChart() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-if (!pea._pineEditor) { await pea.openEditor(); }
-if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
-try {
-  await pea.updateScriptOnChart();
-} catch(e) {
-  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"updateScriptOnChart failed: " + String(e && e.message || e)});
-}
-return JSON.stringify({ok:true,data:{status:"updated"}});
+// jsPineWaitForSave polls briefly after Ctrl+S to let the save complete.
+func jsPineWaitForSave() string {
+	return wrapJSEvalAsync(`
+await new Promise(function(r) { setTimeout(r, 1500); });
+return JSON.stringify({ok:true,data:{status:"saved",is_visible:true,monaco_ready:true}});
 `)
 }
 
-func jsListPineScripts() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-if (!pea._pineEditor) { await pea.openEditor(); }
-var pe = pea._pineEditor;
-if (!pe || !pe._storeProvider) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor store unavailable"});
-var saved = [];
-try {
-  saved = pe._storeProvider.getSavedScripts() || [];
-} catch(_) {
-  try {
-    var st = pe._storeProvider.getState();
-    if (st && st.ui && Array.isArray(st.ui.savedScripts)) saved = st.ui.savedScripts;
-  } catch(_) {}
-}
-var scripts = [];
-for (var i = 0; i < saved.length; i++) {
-  var s = saved[i] || {};
-  scripts.push({
-    script_id_part: String(s.scriptIdPart || s.id || ""),
-    version: String(s.version || ""),
-    script_name: String(s.scriptName || s.name || ""),
-    script_title: String(s.scriptTitle || s.title || ""),
-    modified: Number(s.modified || s.modifiedTime || 0),
-    kind: String(s.kind || s.type || "")
-  });
-}
-return JSON.stringify({ok:true,data:{scripts:scripts}});
-`)
-}
-
-func jsOpenPineScript(scriptIDPart, version string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsPineEditorPreamble+`
-var sid = %s;
-var ver = %s;
-if (!pea._pineEditor) { await pea.openEditor(); }
-if (!pea._pineEditor) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor failed to open"});
-try {
-  await pea.openScript({scriptIdPart: sid, version: ver});
-} catch(e) {
-  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"openScript failed: " + String(e && e.message || e)});
-}
-await new Promise(function(r) { setTimeout(r, 500); });
-var state = {status:"opened",is_script_on_chart:false,is_visible:false,ready:false};
-var pe = pea._pineEditor;
-if (pe && pe._editorRef && pe._editorRef.current && typeof pe._editorRef.current.getValue === "function") {
-  var src = pe._editorRef.current.getValue() || "";
-  state.source_length = src.length;
-  state.line_count = src.split("\n").length;
-}
-if (pe && pe._storeProvider) {
-  try {
-    var st = pe._storeProvider.getState();
-    if (st && st.script) {
-      state.script_name = String(st.script.scriptName || "");
-      state.pine_version = Number(st.script.pineVersion || 0);
-    }
-    if (st && st.ui) {
-      state.is_script_on_chart = !!(st.ui.isScriptOnChart);
-      state.is_visible = !!(st.ui.isVisible);
-      state.ready = !!(st.ui.ready);
-    }
-  } catch(_) {}
-}
-return JSON.stringify({ok:true,data:state});
-`, jsString(scriptIDPart), jsString(version)))
-}
-
-func jsGetPineConsole() string {
-	return wrapJSEvalAsync(jsPineEditorPreamble + `
-if (!pea._pineEditor) { await pea.openEditor(); }
-var pe = pea._pineEditor;
-if (!pe || !pe._storeProvider) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"editor store unavailable"});
-var messages = [];
-try {
-  var st = pe._storeProvider.getState();
-  if (st && st.console && Array.isArray(st.console.messages)) {
-    var msgs = st.console.messages;
-    for (var i = 0; i < msgs.length; i++) {
-      var m = msgs[i] || {};
-      messages.push({
-        type: String(m.type || m.kind || "info"),
-        message: String(m.message || m.text || "")
-      });
+// jsPineWaitForAddToChart waits for TradingView to process Ctrl+Enter.
+// If a "Cannot add a script with unsaved changes" confirmation dialog appears,
+// it clicks "Save and add to chart" to proceed.
+func jsPineWaitForAddToChart() string {
+	return wrapJSEvalAsync(`
+var deadline = Date.now() + 3000;
+while (Date.now() < deadline) {
+  // Check for the confirmation dialog about unsaved changes
+  var btns = document.querySelectorAll('button');
+  for (var i = 0; i < btns.length; i++) {
+    var txt = (btns[i].textContent || '').trim();
+    if (txt === 'Save and add to chart') {
+      btns[i].click();
+      await new Promise(function(r) { setTimeout(r, 2000); });
+      return JSON.stringify({ok:true,data:{status:"added",is_visible:true,monaco_ready:true}});
     }
   }
-} catch(_) {}
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+return JSON.stringify({ok:true,data:{status:"added",is_visible:true,monaco_ready:true}});
+`)
+}
+
+func jsPineGetConsole() string {
+	return wrapJSEval(`
+var messages = [];
+// Try reading from Pine console DOM elements
+var consoleSelectors = [
+  '[class*="console"] [class*="message"]',
+  '[class*="console"] [class*="row"]',
+  '.tv-script-editor__console [class*="message"]',
+  '[data-name*="console"] [class*="message"]'
+];
+for (var si = 0; si < consoleSelectors.length; si++) {
+  var els = document.querySelectorAll(consoleSelectors[si]);
+  if (els.length > 0) {
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var text = (el.textContent || '').trim();
+      if (!text) continue;
+      var type = 'info';
+      var cls = el.className || '';
+      if (cls.indexOf('error') !== -1) type = 'error';
+      else if (cls.indexOf('warn') !== -1) type = 'warning';
+      messages.push({type:type, message:text});
+    }
+    break;
+  }
+}
 return JSON.stringify({ok:true,data:{messages:messages}});
 `)
 }

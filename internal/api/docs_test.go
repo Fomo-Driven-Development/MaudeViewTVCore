@@ -233,25 +233,26 @@ func (s *stubService) ReadSnapshotImage(ctx context.Context, id string) ([]byte,
 	return nil, "", nil
 }
 func (s *stubService) DeleteSnapshot(ctx context.Context, id string) error { return nil }
-func (s *stubService) ProbePineEditor(ctx context.Context) (cdpcontrol.PineEditorProbe, error) {
-	return cdpcontrol.PineEditorProbe{}, nil
+func (s *stubService) ReloadPage(ctx context.Context, mode string) (cdpcontrol.ReloadResult, error) {
+	return cdpcontrol.ReloadResult{}, nil
 }
-func (s *stubService) OpenPineEditor(ctx context.Context) (cdpcontrol.PineEditorState, error) {
-	return cdpcontrol.PineEditorState{}, nil
+func (s *stubService) TogglePineEditor(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
 }
-func (s *stubService) GetPineSource(ctx context.Context) (cdpcontrol.PineEditorState, error) {
-	return cdpcontrol.PineEditorState{}, nil
+func (s *stubService) GetPineStatus(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
 }
-func (s *stubService) SetPineSource(ctx context.Context, source string) (cdpcontrol.PineEditorState, error) {
-	return cdpcontrol.PineEditorState{}, nil
+func (s *stubService) GetPineSource(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
 }
-func (s *stubService) AddPineToChart(ctx context.Context) error   { return nil }
-func (s *stubService) UpdatePineOnChart(ctx context.Context) error { return nil }
-func (s *stubService) ListPineScripts(ctx context.Context) ([]cdpcontrol.PineScript, error) {
-	return []cdpcontrol.PineScript{}, nil
+func (s *stubService) SetPineSource(ctx context.Context, source string) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
 }
-func (s *stubService) OpenPineScript(ctx context.Context, scriptIDPart, version string) (cdpcontrol.PineEditorState, error) {
-	return cdpcontrol.PineEditorState{}, nil
+func (s *stubService) SavePineScript(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
+}
+func (s *stubService) AddPineToChart(ctx context.Context) (cdpcontrol.PineState, error) {
+	return cdpcontrol.PineState{}, nil
 }
 func (s *stubService) GetPineConsole(ctx context.Context) ([]cdpcontrol.PineConsoleMessage, error) {
 	return []cdpcontrol.PineConsoleMessage{}, nil

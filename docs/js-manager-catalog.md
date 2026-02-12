@@ -568,17 +568,17 @@ Debug adapter registration for Monaco. `registerDebugAdapterDescriptorFactory()`
 | `_deepBacktestingManager`       | Strategy backtesting                               |
 
 ### MEDIUM — Useful for specific workflows
-| Manager | Primary Use |
-|---------|-------------|
-| `ContextMenuManager` | Programmatic context menu actions |
-| `_scriptManager` | Pine Script editor control |
-| `_sessionSummaryManager` | Trading session P&L |
-| `dialogsOpenerManager` | Dialog state control |
-| `toastManager` | Notification observation |
-| `_executionsPointsManager` | Trade execution visualization |
-| `_orderPresetsManager` | Order presets |
-| `_subscriberManager` | Data feed subscriptions |
-| `_authTokenManager` | Auth token access |
+| Manager                    | Primary Use                       |
+| -------------------------- | --------------------------------- |
+| `ContextMenuManager`       | Programmatic context menu actions |
+| `_scriptManager`           | Pine Script editor control        |
+| `_sessionSummaryManager`   | Trading session P&L               |
+| `dialogsOpenerManager`     | Dialog state control              |
+| `toastManager`             | Notification observation          |
+| `_executionsPointsManager` | Trade execution visualization     |
+| `_orderPresetsManager`     | Order presets                     |
+| `_subscriberManager`       | Data feed subscriptions           |
+| `_authTokenManager`        | Auth token access                 |
 
 ### LOW — UI internals
 | Manager | Primary Use |
