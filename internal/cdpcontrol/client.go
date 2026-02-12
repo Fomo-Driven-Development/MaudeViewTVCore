@@ -657,6 +657,151 @@ func (c *Client) ChangeAutoplayDelay(ctx context.Context, chartID string, delay 
 	return out.Delay, nil
 }
 
+// --- Alerts REST API methods ---
+
+func (c *Client) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsScanAlertsAccess(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ProbeAlertsRestApi(ctx context.Context, chartID string) (AlertsApiProbe, error) {
+	var out AlertsApiProbe
+	if err := c.evalOnChart(ctx, chartID, jsProbeAlertsRestApi(), &out); err != nil {
+		return AlertsApiProbe{}, err
+	}
+	if out.AccessPaths == nil {
+		out.AccessPaths = []string{}
+	}
+	if out.Methods == nil {
+		out.Methods = []string{}
+	}
+	if out.State == nil {
+		out.State = map[string]any{}
+	}
+	return out, nil
+}
+
+func (c *Client) ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsProbeAlertsRestApiDeep(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ListAlerts(ctx context.Context) (any, error) {
+	var out struct {
+		Alerts any `json:"alerts"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListAlerts(), &out); err != nil {
+		return nil, err
+	}
+	return out.Alerts, nil
+}
+
+func (c *Client) GetAlerts(ctx context.Context, ids []string) (any, error) {
+	var out struct {
+		Alerts any `json:"alerts"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGetAlerts(ids), &out); err != nil {
+		return nil, err
+	}
+	return out.Alerts, nil
+}
+
+func (c *Client) CreateAlert(ctx context.Context, params map[string]any) (any, error) {
+	var out struct {
+		Alert any `json:"alert"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsCreateAlert(params), &out); err != nil {
+		return nil, err
+	}
+	return out.Alert, nil
+}
+
+func (c *Client) ModifyAlert(ctx context.Context, params map[string]any) (any, error) {
+	var out struct {
+		Alert any `json:"alert"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsModifyAlert(params), &out); err != nil {
+		return nil, err
+	}
+	return out.Alert, nil
+}
+
+func (c *Client) DeleteAlerts(ctx context.Context, ids []string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsDeleteAlerts(ids), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) StopAlerts(ctx context.Context, ids []string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsStopAlerts(ids), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) RestartAlerts(ctx context.Context, ids []string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsRestartAlerts(ids), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) CloneAlerts(ctx context.Context, ids []string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsCloneAlerts(ids), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ListFires(ctx context.Context) (any, error) {
+	var out struct {
+		Fires any `json:"fires"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListFires(), &out); err != nil {
+		return nil, err
+	}
+	return out.Fires, nil
+}
+
+func (c *Client) DeleteFires(ctx context.Context, ids []string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsDeleteFires(ids), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) DeleteAllFires(ctx context.Context) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsDeleteAllFires(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

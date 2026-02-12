@@ -294,3 +294,87 @@ func (s *Service) ChangeAutoplayDelay(ctx context.Context, chartID string, delay
 	return s.cdp.ChangeAutoplayDelay(ctx, strings.TrimSpace(chartID), delay)
 }
 
+// --- Alerts REST API methods ---
+
+func (s *Service) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ScanAlertsAccess(ctx, strings.TrimSpace(chartID))
+}
+
+
+
+func (s *Service) ProbeAlertsRestApi(ctx context.Context, chartID string) (cdpcontrol.AlertsApiProbe, error) {
+	return s.cdp.ProbeAlertsRestApi(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ProbeAlertsRestApiDeep(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ListAlerts(ctx context.Context) (any, error) {
+	return s.cdp.ListAlerts(ctx)
+}
+
+func (s *Service) GetAlerts(ctx context.Context, ids []string) (any, error) {
+	if len(ids) == 0 {
+		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "alert_ids must not be empty"}
+	}
+	return s.cdp.GetAlerts(ctx, ids)
+}
+
+func (s *Service) CreateAlert(ctx context.Context, params map[string]any) (any, error) {
+	if len(params) == 0 {
+		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "params must not be empty"}
+	}
+	return s.cdp.CreateAlert(ctx, params)
+}
+
+func (s *Service) ModifyAlert(ctx context.Context, params map[string]any) (any, error) {
+	if len(params) == 0 {
+		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "params must not be empty"}
+	}
+	return s.cdp.ModifyAlert(ctx, params)
+}
+
+func (s *Service) DeleteAlerts(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "alert_ids must not be empty"}
+	}
+	return s.cdp.DeleteAlerts(ctx, ids)
+}
+
+func (s *Service) StopAlerts(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "alert_ids must not be empty"}
+	}
+	return s.cdp.StopAlerts(ctx, ids)
+}
+
+func (s *Service) RestartAlerts(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "alert_ids must not be empty"}
+	}
+	return s.cdp.RestartAlerts(ctx, ids)
+}
+
+func (s *Service) CloneAlerts(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "alert_ids must not be empty"}
+	}
+	return s.cdp.CloneAlerts(ctx, ids)
+}
+
+func (s *Service) ListFires(ctx context.Context) (any, error) {
+	return s.cdp.ListFires(ctx)
+}
+
+func (s *Service) DeleteFires(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "fire_ids must not be empty"}
+	}
+	return s.cdp.DeleteFires(ctx, ids)
+}
+
+func (s *Service) DeleteAllFires(ctx context.Context) error {
+	return s.cdp.DeleteAllFires(ctx)
+}
+

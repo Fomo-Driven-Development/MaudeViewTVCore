@@ -124,6 +124,30 @@ func (s *stubService) ResetReplay(ctx context.Context, chartID string) error   {
 func (s *stubService) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
 	return delay, nil
 }
+func (s *stubService) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) ProbeAlertsRestApi(ctx context.Context, chartID string) (cdpcontrol.AlertsApiProbe, error) {
+	return cdpcontrol.AlertsApiProbe{}, nil
+}
+func (s *stubService) ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) ListAlerts(ctx context.Context) (any, error)                { return nil, nil }
+func (s *stubService) GetAlerts(ctx context.Context, ids []string) (any, error)   { return nil, nil }
+func (s *stubService) CreateAlert(ctx context.Context, params map[string]any) (any, error) {
+	return nil, nil
+}
+func (s *stubService) ModifyAlert(ctx context.Context, params map[string]any) (any, error) {
+	return nil, nil
+}
+func (s *stubService) DeleteAlerts(ctx context.Context, ids []string) error  { return nil }
+func (s *stubService) StopAlerts(ctx context.Context, ids []string) error    { return nil }
+func (s *stubService) RestartAlerts(ctx context.Context, ids []string) error { return nil }
+func (s *stubService) CloneAlerts(ctx context.Context, ids []string) error   { return nil }
+func (s *stubService) ListFires(ctx context.Context) (any, error)            { return nil, nil }
+func (s *stubService) DeleteFires(ctx context.Context, ids []string) error   { return nil }
+func (s *stubService) DeleteAllFires(ctx context.Context) error              { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

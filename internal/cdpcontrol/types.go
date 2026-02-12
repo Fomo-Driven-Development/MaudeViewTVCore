@@ -127,6 +127,14 @@ type ReplayStatus struct {
 	Depth             any     `json:"depth"`
 }
 
+// AlertsApiProbe describes the result of probing for the getAlertsRestApi() singleton.
+type AlertsApiProbe struct {
+	Found       bool           `json:"found"`
+	AccessPaths []string       `json:"access_paths"`
+	Methods     []string       `json:"methods"`
+	State       map[string]any `json:"state"`
+}
+
 // ResolvedSymbolInfo describes extended metadata for any symbol resolved via chartApi().
 type ResolvedSymbolInfo struct {
 	Symbol          string `json:"symbol"`
