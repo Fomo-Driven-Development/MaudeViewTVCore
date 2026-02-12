@@ -10,9 +10,9 @@ help:
 	@echo ""
 	@echo "  just start-browser       Start Chrome with remote debugging"
 	@echo "  just start-browser-logs  Start Chrome with debugging and console logs"
-	@echo "  just crash-report        Bundle latest controller/chromium diagnostics"
+	@echo "  just crash-report        Bundle latest tv_controller/chromium diagnostics"
 	@echo "  just run-researcher      Build and run passive TradingView researcher"
-	@echo "  just run-controller      Build and run Huma control API"
+	@echo "  just run-tv-controller   Build and run Huma control API"
 	@echo "  just mapper-static-only  Run static analysis stage only"
 	@echo "  just mapper-runtime-only Run runtime probes stage only"
 	@echo "  just mapper-correlate    Run correlation stage only"
@@ -35,8 +35,8 @@ run-researcher:
     go build -o ./bin/researcher ./cmd/researcher && ./bin/researcher
 
 # Build and run the Huma controller API
-run-controller:
-    go build -o ./bin/controller ./cmd/controller && ./bin/controller
+run-tv-controller:
+    go build -o ./bin/tv_controller ./cmd/tv_controller && ./bin/tv_controller
 
 # Mapper stage: static analysis only
 mapper-static-only:

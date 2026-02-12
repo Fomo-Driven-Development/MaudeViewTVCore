@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# collect-crash-report.sh - Bundle controller/chromium diagnostics for crash triage
+# collect-crash-report.sh - Bundle tv_controller/chromium diagnostics for crash triage
 #
 # Output:
 #   logs/crash-report-<timestamp>.tar.gz
@@ -23,7 +23,7 @@ mkdir -p "${WORK_DIR}"
     echo "timestamp=${STAMP}"
     echo ""
     echo "==== process snapshot ===="
-    ps -ef | grep -E "bin/controller|chromium|chrome" | grep -v grep || true
+    ps -ef | grep -E "bin/tv_controller|chromium|chrome" | grep -v grep || true
     echo ""
     echo "==== local endpoints ===="
     curl -s -i --max-time 2 http://127.0.0.1:8188/health || true
@@ -33,7 +33,7 @@ mkdir -p "${WORK_DIR}"
 
 # Copy key logs if present.
 for f in \
-    "${LOG_DIR}/controller.log" \
+    "${LOG_DIR}/tv_controller.log" \
     "${LOG_DIR}/chromium-debug.log" \
     "${LOG_DIR}/chromium.pid"; do
     if [ -f "${f}" ]; then
@@ -42,8 +42,8 @@ for f in \
 done
 
 # Always include tails for quick scan.
-if [ -f "${LOG_DIR}/controller.log" ]; then
-    tail -n 400 "${LOG_DIR}/controller.log" > "${WORK_DIR}/controller.tail.log" || true
+if [ -f "${LOG_DIR}/tv_controller.log" ]; then
+    tail -n 400 "${LOG_DIR}/tv_controller.log" > "${WORK_DIR}/controller.tail.log" || true
 fi
 if [ -f "${LOG_DIR}/chromium-debug.log" ]; then
     tail -n 600 "${LOG_DIR}/chromium-debug.log" > "${WORK_DIR}/chromium-debug.tail.log" || true

@@ -19,7 +19,7 @@ just start-browser
 2. Start controller:
 
 ```bash
-just run-controller
+just run-tv-controller
 ```
 
 3. Open docs (forced dark mode):
@@ -35,7 +35,7 @@ Defaults:
 
 Behavior:
 
-- If preferred port is busy and fallback is enabled, controller picks the first free candidate.
+- If preferred port is busy and fallback is enabled, tv_controller picks the first free candidate.
 - If no candidate is free, startup fails with an explicit error.
 
 ## Key Environment Variables
@@ -53,7 +53,7 @@ Behavior:
 
 ## Logs
 
-- Controller logs write to stdout and `logs/controller.log` by default.
+- Controller logs write to stdout and `logs/tv_controller.log` by default.
 - For deeper diagnostics, set:
 
 ```bash
@@ -63,7 +63,7 @@ CONTROLLER_LOG_LEVEL=debug
 - Follow logs live:
 
 ```bash
-tail -f logs/controller.log
+tail -f logs/tv_controller.log
 ```
 
 ## Endpoints

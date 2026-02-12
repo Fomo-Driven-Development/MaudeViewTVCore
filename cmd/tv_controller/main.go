@@ -31,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("controller config loaded",
+	slog.Info("tv_controller config loaded",
 		"bind_addr", cfg.BindAddr,
 		"tab_url_filter", cfg.TabURLFilter,
 		"eval_timeout_ms", cfg.EvalTimeoutMS,
@@ -67,9 +67,9 @@ func main() {
 	srv := &http.Server{Addr: bindAddr, Handler: h}
 
 	go func() {
-		slog.Info("controller listening", "addr", bindAddr, "docs", "http://"+bindAddr+"/docs")
+		slog.Info("tv_controller listening", "addr", bindAddr, "docs", "http://"+bindAddr+"/docs")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("controller server failed", "error", err)
+			slog.Error("tv_controller server failed", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -81,7 +81,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("controller shutdown failed", "error", err)
+		slog.Error("tv_controller shutdown failed", "error", err)
 	}
 }
 

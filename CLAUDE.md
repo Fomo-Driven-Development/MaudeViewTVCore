@@ -16,7 +16,7 @@ just start-browser          # Launch Chromium with remote debugging on CDP port
 
 # Three main binaries
 just run-researcher         # Build + run passive traffic capture
-just run-controller         # Build + run Huma REST API server
+just run-tv-controller      # Build + run Huma REST API server
 
 # Mapper pipeline (individual stages or full)
 just mapper-static-only     # Static JS bundle analysis
@@ -28,7 +28,7 @@ just mapper-smoke           # Smoke test + baseline report
 just mapper-full            # All stages sequentially
 ```
 
-Manual build: `go build -o ./bin/<name> ./cmd/<name>` where name is `researcher`, `controller`, or `mapper`.
+Manual build: `go build -o ./bin/<name> ./cmd/<name>` where name is `researcher`, `tv_controller`, or `mapper`.
 
 ## Running Tests
 
@@ -45,7 +45,7 @@ Key test files exist in: `internal/mapper/staticanalysis/`, `internal/mapper/run
 ### Three Entry Points (`cmd/`)
 
 1. **researcher** — Passive capture daemon. Attaches to browser tabs matching a URL filter, intercepts HTTP requests/responses, WebSocket frames, and static resources. Writes JSONL to `research_data/`.
-2. **controller** — Huma REST API for active TradingView chart control (set symbol/resolution, manage studies, execute actions). Evaluates JavaScript in browser tabs via CDP.
+2. **tv_controller** — Huma REST API for active TradingView chart control (set symbol/resolution, manage studies, execute actions). Evaluates JavaScript in browser tabs via CDP.
 3. **mapper** — Multi-stage analysis pipeline with `--mode` flag: `static-only`, `runtime-only`, `correlate`, `report`, `validate`, `smoke`, `full`.
 
 ### Internal Packages (`internal/`)
@@ -77,7 +77,7 @@ research_data/ → mapper pipeline:
   correlate    → capability-correlations.jsonl
   report       → capability-matrix.jsonl + schema + summary.md
 
-Chromium (CDP) ← controller API ← cdpcontrol (JS eval in TradingView pages)
+Chromium (CDP) ← tv_controller API ← cdpcontrol (JS eval in TradingView pages)
 ```
 
 ## Key Patterns

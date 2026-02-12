@@ -30,7 +30,7 @@ func LoadController() (*ControllerConfig, error) {
 		PortAutoFallback: getEnvBoolOrDefault("CONTROLLER_PORT_AUTO_FALLBACK", true),
 		PortCandidates:   parseCSV(getEnvOrDefault("CONTROLLER_PORT_CANDIDATES", "127.0.0.1:8188,127.0.0.1:8189,127.0.0.1:8190,127.0.0.1:8191")),
 		LogLevel:         strings.ToLower(getEnvOrDefault("CONTROLLER_LOG_LEVEL", "info")),
-		LogFile:          getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/controller.log"),
+		LogFile:          getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/tv_controller.log"),
 		SnapshotDir:      getEnvOrDefault("SNAPSHOT_DIR", "./snapshots"),
 	}
 	if cfg.EvalTimeoutMS < 1000 {
