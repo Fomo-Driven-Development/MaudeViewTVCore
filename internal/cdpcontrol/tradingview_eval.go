@@ -232,88 +232,54 @@ return JSON.stringify({ok:true,data:{id:String(id),name:name,inputs:current}});
 }
 
 // --- Watchlist JS functions ---
+// These use TradingView's internal REST API (fetch from page context)
+// and React fiber props for operations without REST endpoints (flag/mark).
 
-// jsWatchlistPreamble discovers the watchlist/symbol-list facade.
-const jsWatchlistPreamble = `
-var wl = null;
-if (window.TradingViewApi && typeof window.TradingViewApi.getWatchlist === "function") {
-  wl = window.TradingViewApi;
-}
-if (!wl) {
-  var frames = document.querySelectorAll("iframe");
-  for (var fi = 0; fi < frames.length; fi++) {
-    try {
-      var fw = frames[fi].contentWindow;
-      if (fw && fw.TradingViewApi && typeof fw.TradingViewApi.getWatchlist === "function") {
-        wl = fw.TradingViewApi;
-        break;
-      }
-    } catch(_){}
+// jsWatchlistFetch is a shared helper that calls TV's internal symbols_list API.
+const jsWatchlistFetch = `
+async function _wlFetch(path, opts) {
+  var resp = await fetch(path, Object.assign({credentials:"include"}, opts || {}));
+  if (!resp.ok) {
+    var body = "";
+    try { var j = await resp.json(); body = j.detail || j.message || JSON.stringify(j); } catch(_) { body = await resp.text(); }
+    throw new Error("HTTP " + resp.status + ": " + body);
   }
+  return resp.json();
 }
 `
 
 func jsListWatchlists() string {
-	return wrapJSEvalAsync(jsWatchlistPreamble + `
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var raw = null;
-if (typeof wl.getWatchlist === "function") {
-  try { raw = await wl.getWatchlist(); } catch(_){}
-}
-if (!raw && typeof wl.getSymbolLists === "function") {
-  try { raw = await wl.getSymbolLists(); } catch(_){}
-}
-if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getWatchlist returned null"});
+	return wrapJSEvalAsync(jsWatchlistFetch + `
+var raw = await _wlFetch("/api/v1/symbols_list/all/");
+if (!Array.isArray(raw)) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"symbols_list/all returned non-array"});
 var lists = [];
-if (Array.isArray(raw)) {
-  for (var i = 0; i < raw.length; i++) {
-    var it = raw[i] || {};
-    lists.push({
-      id: String(it.id || it.listId || ""),
-      name: String(it.name || it.title || ""),
-      type: String(it.type || ""),
-      active: !!(it.active || it.isActive),
-      count: Number(it.count || (it.symbols && it.symbols.length) || 0)
-    });
-  }
-} else if (typeof raw === "object") {
-  var keys = Object.keys(raw);
-  for (var k = 0; k < keys.length; k++) {
-    var it = raw[keys[k]] || {};
-    lists.push({
-      id: String(it.id || it.listId || keys[k]),
-      name: String(it.name || it.title || ""),
-      type: String(it.type || ""),
-      active: !!(it.active || it.isActive),
-      count: Number(it.count || (it.symbols && it.symbols.length) || 0)
-    });
-  }
+for (var i = 0; i < raw.length; i++) {
+  var it = raw[i] || {};
+  lists.push({
+    id: String(it.id || ""),
+    name: String(it.name || ""),
+    type: String(it.type || ""),
+    active: !!(it.active),
+    count: Number((it.symbols && it.symbols.length) || 0)
+  });
 }
 return JSON.stringify({ok:true,data:{watchlists:lists}});
 `)
 }
 
 func jsGetActiveWatchlist() string {
-	return wrapJSEvalAsync(jsWatchlistPreamble + `
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var raw = null;
-if (typeof wl.getActiveWatchlist === "function") {
-  try { raw = await wl.getActiveWatchlist(); } catch(_){}
-}
-if (!raw && typeof wl.getActiveSymbolList === "function") {
-  try { raw = await wl.getActiveSymbolList(); } catch(_){}
-}
-if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getActiveWatchlist returned null"});
+	return wrapJSEvalAsync(jsWatchlistFetch + `
+var raw = await _wlFetch("/api/v1/symbols_list/active/");
 var syms = [];
 if (raw.symbols && Array.isArray(raw.symbols)) {
   for (var i = 0; i < raw.symbols.length; i++) {
     var s = raw.symbols[i];
-    syms.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+    syms.push(typeof s === "string" ? s : String(s));
   }
 }
 return JSON.stringify({ok:true,data:{
-  id: String(raw.id || raw.listId || ""),
-  name: String(raw.name || raw.title || ""),
+  id: String(raw.id || ""),
+  name: String(raw.name || ""),
   type: String(raw.type || ""),
   symbols: syms
 }});
@@ -321,43 +287,37 @@ return JSON.stringify({ok:true,data:{
 }
 
 func jsSetActiveWatchlist(id string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var ok = false;
-if (typeof wl.setActiveWatchlist === "function") {
-  try { await wl.setActiveWatchlist(listId); ok = true; } catch(_){}
-}
-if (!ok && typeof wl.selectSymbolList === "function") {
-  try { await wl.selectSymbolList(listId); ok = true; } catch(_){}
-}
-if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setActiveWatchlist unavailable"});
-return JSON.stringify({ok:true,data:{id:listId,name:""}});
+var raw = await _wlFetch("/api/v1/symbols_list/active/" + encodeURIComponent(listId) + "/", {method:"POST"});
+return JSON.stringify({ok:true,data:{
+  id: String(raw.id || listId),
+  name: String(raw.name || ""),
+  type: String(raw.type || ""),
+  count: Number((raw.symbols && raw.symbols.length) || 0)
+}});
 `, jsString(id)))
 }
 
 func jsGetWatchlist(id string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
+var all = await _wlFetch("/api/v1/symbols_list/all/");
 var raw = null;
-if (typeof wl.getWatchlistById === "function") {
-  try { raw = await wl.getWatchlistById(listId); } catch(_){}
+for (var i = 0; i < all.length; i++) {
+  if (String(all[i].id) === listId) { raw = all[i]; break; }
 }
-if (!raw && typeof wl.getSymbolList === "function") {
-  try { raw = await wl.getSymbolList(listId); } catch(_){}
-}
-if (!raw) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"watchlist not found: "+listId});
+if (!raw) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"watchlist not found: " + listId});
 var syms = [];
 if (raw.symbols && Array.isArray(raw.symbols)) {
-  for (var i = 0; i < raw.symbols.length; i++) {
-    var s = raw.symbols[i];
-    syms.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+  for (var j = 0; j < raw.symbols.length; j++) {
+    var s = raw.symbols[j];
+    syms.push(typeof s === "string" ? s : String(s));
   }
 }
 return JSON.stringify({ok:true,data:{
-  id: String(raw.id || raw.listId || listId),
-  name: String(raw.name || raw.title || ""),
+  id: String(raw.id || listId),
+  name: String(raw.name || ""),
   type: String(raw.type || ""),
   symbols: syms
 }});
@@ -365,149 +325,110 @@ return JSON.stringify({ok:true,data:{
 }
 
 func jsCreateWatchlist(name string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listName = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var raw = null;
-if (typeof wl.createWatchlist === "function") {
-  try { raw = await wl.createWatchlist(listName); } catch(_){}
-}
-if (!raw && typeof wl.createSymbolList === "function") {
-  try { raw = await wl.createSymbolList(listName); } catch(_){}
-}
-if (!raw) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"createWatchlist unavailable"});
+var raw = await _wlFetch("/api/v1/symbols_list/custom/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({name: listName, symbols: []})
+});
 return JSON.stringify({ok:true,data:{
-  id: String(raw.id || raw.listId || ""),
-  name: String(raw.name || raw.title || listName),
-  type: String(raw.type || ""),
-  count: Number(raw.count || (raw.symbols && raw.symbols.length) || 0)
+  id: String(raw.id || ""),
+  name: String(raw.name || listName),
+  type: String(raw.type || "custom"),
+  count: Number((raw.symbols && raw.symbols.length) || 0)
 }});
 `, jsString(name)))
 }
 
 func jsRenameWatchlist(id, name string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
 var newName = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var ok = false;
-if (typeof wl.renameWatchlist === "function") {
-  try { await wl.renameWatchlist(listId, newName); ok = true; } catch(_){}
-}
-if (!ok && typeof wl.renameSymbolList === "function") {
-  try { await wl.renameSymbolList(listId, newName); ok = true; } catch(_){}
-}
-if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"renameWatchlist unavailable"});
-return JSON.stringify({ok:true,data:{id:listId,name:newName,type:"",count:0}});
+var raw = await _wlFetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/rename/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({name: newName})
+});
+return JSON.stringify({ok:true,data:{
+  id: String(raw.id || listId),
+  name: String(raw.name || newName),
+  type: String(raw.type || "custom"),
+  count: Number((raw.symbols && raw.symbols.length) || 0)
+}});
 `, jsString(id), jsString(name)))
 }
 
 func jsDeleteWatchlist(id string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var ok = false;
-if (typeof wl.deleteWatchlist === "function") {
-  try { await wl.deleteWatchlist(listId); ok = true; } catch(_){}
-}
-if (!ok && typeof wl.removeSymbolList === "function") {
-  try { await wl.removeSymbolList(listId); ok = true; } catch(_){}
-}
-if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"deleteWatchlist unavailable"});
+await _wlFetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/", {method: "DELETE"});
 return JSON.stringify({ok:true,data:{status:"deleted"}});
 `, jsString(id)))
 }
 
 func jsAddWatchlistSymbols(id string, symbols []string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
 var syms = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-for (var i = 0; i < syms.length; i++) {
-  var added = false;
-  if (typeof wl.addSymbol === "function") {
-    try { await wl.addSymbol(listId, syms[i]); added = true; } catch(_){}
-  }
-  if (!added && typeof wl.addSymbolToList === "function") {
-    try { await wl.addSymbolToList(listId, syms[i]); added = true; } catch(_){}
-  }
-  if (!added) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"addSymbol unavailable"});
-}
-var raw = null;
-if (typeof wl.getWatchlistById === "function") {
-  try { raw = await wl.getWatchlistById(listId); } catch(_){}
-}
-if (!raw && typeof wl.getSymbolList === "function") {
-  try { raw = await wl.getSymbolList(listId); } catch(_){}
-}
+var updated = await _wlFetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/append/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
 var result = [];
-if (raw && raw.symbols && Array.isArray(raw.symbols)) {
-  for (var j = 0; j < raw.symbols.length; j++) {
-    var s = raw.symbols[j];
-    result.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+if (Array.isArray(updated)) {
+  for (var i = 0; i < updated.length; i++) {
+    result.push(typeof updated[i] === "string" ? updated[i] : String(updated[i]));
   }
 }
-return JSON.stringify({ok:true,data:{
-  id: String(raw && (raw.id || raw.listId) || listId),
-  name: String(raw && (raw.name || raw.title) || ""),
-  type: String(raw && raw.type || ""),
-  symbols: result
-}});
+return JSON.stringify({ok:true,data:{id:listId,name:"",type:"",symbols:result}});
 `, jsString(id), jsJSON(symbols)))
 }
 
 func jsRemoveWatchlistSymbols(id string, symbols []string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
 var listId = %s;
 var syms = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-for (var i = 0; i < syms.length; i++) {
-  var removed = false;
-  if (typeof wl.removeSymbol === "function") {
-    try { await wl.removeSymbol(listId, syms[i]); removed = true; } catch(_){}
-  }
-  if (!removed && typeof wl.removeSymbolFromList === "function") {
-    try { await wl.removeSymbolFromList(listId, syms[i]); removed = true; } catch(_){}
-  }
-  if (!removed) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"removeSymbol unavailable"});
-}
-var raw = null;
-if (typeof wl.getWatchlistById === "function") {
-  try { raw = await wl.getWatchlistById(listId); } catch(_){}
-}
-if (!raw && typeof wl.getSymbolList === "function") {
-  try { raw = await wl.getSymbolList(listId); } catch(_){}
-}
+var updated = await _wlFetch("/api/v1/symbols_list/custom/" + encodeURIComponent(listId) + "/remove/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
 var result = [];
-if (raw && raw.symbols && Array.isArray(raw.symbols)) {
-  for (var j = 0; j < raw.symbols.length; j++) {
-    var s = raw.symbols[j];
-    result.push(typeof s === "string" ? s : String(s.symbol || s.name || s));
+if (Array.isArray(updated)) {
+  for (var i = 0; i < updated.length; i++) {
+    result.push(typeof updated[i] === "string" ? updated[i] : String(updated[i]));
   }
 }
-return JSON.stringify({ok:true,data:{
-  id: String(raw && (raw.id || raw.listId) || listId),
-  name: String(raw && (raw.name || raw.title) || ""),
-  type: String(raw && raw.type || ""),
-  symbols: result
-}});
+return JSON.stringify({ok:true,data:{id:listId,name:"",type:"",symbols:result}});
 `, jsString(id), jsJSON(symbols)))
 }
 
 func jsFlagSymbol(id, symbol string) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistPreamble+`
+	// Flag/mark uses React fiber props since there is no REST endpoint.
+	return wrapJSEvalAsync(fmt.Sprintf(`
 var listId = %s;
 var sym = %s;
-if (!wl) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist API unavailable"});
-var ok = false;
-if (typeof wl.flagSymbol === "function") {
-  try { await wl.flagSymbol(listId, sym); ok = true; } catch(_){}
+var el = document.querySelector("[data-name='symbol-list-wrap']");
+if (!el) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"watchlist widget not found"});
+var fiberKey = null;
+var keys = Object.keys(el);
+for (var i = 0; i < keys.length; i++) {
+  if (keys[i].indexOf("__reactFiber") === 0) { fiberKey = keys[i]; break; }
 }
-if (!ok && typeof wl.toggleFlagSymbol === "function") {
-  try { await wl.toggleFlagSymbol(listId, sym); ok = true; } catch(_){}
+if (!fiberKey) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"React fiber not found"});
+var fiber = el[fiberKey];
+var depth = 0;
+while (fiber && depth < 12) {
+  if (fiber.memoizedProps && typeof fiber.memoizedProps.markSymbol === "function") {
+    await fiber.memoizedProps.markSymbol(sym);
+    return JSON.stringify({ok:true,data:{status:"toggled"}});
+  }
+  fiber = fiber["return"];
+  depth++;
 }
-if (!ok) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"flagSymbol unavailable"});
-return JSON.stringify({ok:true,data:{status:"toggled"}});
+return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"markSymbol unavailable"});
 `, jsString(id), jsString(symbol)))
 }
 
