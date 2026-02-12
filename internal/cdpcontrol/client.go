@@ -316,6 +316,75 @@ func (c *Client) RemoveStudy(ctx context.Context, chartID, studyID string) error
 	return nil
 }
 
+func (c *Client) Zoom(ctx context.Context, chartID, direction string) error {
+	var out struct {
+		Status    string `json:"status"`
+		Direction string `json:"direction"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsZoom(direction), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Scroll(ctx context.Context, chartID string, bars int) error {
+	var out struct {
+		Status string `json:"status"`
+		Bars   int    `json:"bars"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsScroll(bars), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ScrollToRealtime(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsScrollToRealtime(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
+	var out struct {
+		Status    string `json:"status"`
+		Timestamp int64  `json:"timestamp"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGoToDate(timestamp), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetVisibleRange(ctx context.Context, chartID string) (VisibleRange, error) {
+	var out VisibleRange
+	if err := c.evalOnChart(ctx, chartID, jsGetVisibleRange(), &out); err != nil {
+		return VisibleRange{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetVisibleRange(ctx context.Context, chartID string, from, to float64) (VisibleRange, error) {
+	var out VisibleRange
+	if err := c.evalOnChart(ctx, chartID, jsSetVisibleRange(from, to), &out); err != nil {
+		return VisibleRange{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ResetScales(ctx context.Context, chartID string) error {
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsResetScales(), &out); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
 	var out struct {
 		Watchlists []WatchlistInfo `json:"watchlists"`

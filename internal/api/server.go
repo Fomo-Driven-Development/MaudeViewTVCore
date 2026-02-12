@@ -38,6 +38,13 @@ type Service interface {
 	AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
 	RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
 	FlagSymbol(ctx context.Context, id, symbol string) error
+	Zoom(ctx context.Context, chartID, direction string) error
+	Scroll(ctx context.Context, chartID string, bars int) error
+	ScrollToRealtime(ctx context.Context, chartID string) error
+	GoToDate(ctx context.Context, chartID string, timestamp int64) error
+	GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error)
+	SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error)
+	ResetScales(ctx context.Context, chartID string) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -479,6 +486,164 @@ func NewServer(svc Service) http.Handler {
 				}
 			}{}
 			out.Body.Status = "toggled"
+			return out, nil
+		})
+
+	// --- Navigation endpoints ---
+
+	type navStatusOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			Status  string `json:"status"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "zoom", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/zoom", Summary: "Zoom in or out", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Direction string `json:"direction" required:"true"`
+			}
+		}) (*struct {
+			Body struct {
+				ChartID   string `json:"chart_id"`
+				Status    string `json:"status"`
+				Direction string `json:"direction"`
+			}
+		}, error) {
+			if err := svc.Zoom(ctx, input.ChartID, input.Body.Direction); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					ChartID   string `json:"chart_id"`
+					Status    string `json:"status"`
+					Direction string `json:"direction"`
+				}
+			}{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			out.Body.Direction = input.Body.Direction
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "scroll", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/scroll", Summary: "Scroll chart by bars", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Bars int `json:"bars" required:"true"`
+			}
+		}) (*struct {
+			Body struct {
+				ChartID string `json:"chart_id"`
+				Status  string `json:"status"`
+				Bars    int    `json:"bars"`
+			}
+		}, error) {
+			if err := svc.Scroll(ctx, input.ChartID, input.Body.Bars); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					ChartID string `json:"chart_id"`
+					Status  string `json:"status"`
+					Bars    int    `json:"bars"`
+				}
+			}{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			out.Body.Bars = input.Body.Bars
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "scroll-to-realtime", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/scroll/to-realtime", Summary: "Scroll to latest bar", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
+			if err := svc.ScrollToRealtime(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &navStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "go-to-date", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/go-to-date", Summary: "Navigate chart to a specific date", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Timestamp int64 `json:"timestamp" required:"true"`
+			}
+		}) (*struct {
+			Body struct {
+				ChartID   string `json:"chart_id"`
+				Status    string `json:"status"`
+				Timestamp int64  `json:"timestamp"`
+			}
+		}, error) {
+			if err := svc.GoToDate(ctx, input.ChartID, input.Body.Timestamp); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					ChartID   string `json:"chart_id"`
+					Status    string `json:"status"`
+					Timestamp int64  `json:"timestamp"`
+				}
+			}{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			out.Body.Timestamp = input.Body.Timestamp
+			return out, nil
+		})
+
+	type visibleRangeOutput struct {
+		Body struct {
+			ChartID string  `json:"chart_id"`
+			From    float64 `json:"from"`
+			To      float64 `json:"to"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-visible-range", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/visible-range", Summary: "Get visible bar range", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*visibleRangeOutput, error) {
+			r, err := svc.GetVisibleRange(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &visibleRangeOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.From = r.From
+			out.Body.To = r.To
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-visible-range", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/visible-range", Summary: "Set visible bar range", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				From float64 `json:"from" required:"true"`
+				To   float64 `json:"to" required:"true"`
+			}
+		}) (*visibleRangeOutput, error) {
+			r, err := svc.SetVisibleRange(ctx, input.ChartID, input.Body.From, input.Body.To)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &visibleRangeOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.From = r.From
+			out.Body.To = r.To
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "reset-scales", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/reset-scales", Summary: "Reset all chart scales", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
+			if err := svc.ResetScales(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &navStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
 			return out, nil
 		})
 

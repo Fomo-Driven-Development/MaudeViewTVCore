@@ -93,3 +93,9 @@ type WatchlistDetail struct {
 	Type    string   `json:"type,omitempty"`
 	Symbols []string `json:"symbols"`
 }
+
+// VisibleRange describes the visible bar range on a chart.
+type VisibleRange struct {
+	From float64 `json:"from"`
+	To   float64 `json:"to"`
+}

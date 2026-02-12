@@ -71,6 +71,19 @@ func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, sym
 	return cdpcontrol.WatchlistDetail{}, nil
 }
 func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
+func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error { return nil }
+func (s *stubService) Scroll(ctx context.Context, chartID string, bars int) error { return nil }
+func (s *stubService) ScrollToRealtime(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
+	return nil
+}
+func (s *stubService) GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error) {
+	return cdpcontrol.VisibleRange{}, nil
+}
+func (s *stubService) SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error) {
+	return cdpcontrol.VisibleRange{}, nil
+}
+func (s *stubService) ResetScales(ctx context.Context, chartID string) error { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

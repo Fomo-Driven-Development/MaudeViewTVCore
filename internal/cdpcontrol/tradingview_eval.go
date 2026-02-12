@@ -437,6 +437,110 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"mark
 `, jsString(id), jsString(symbol)))
 }
 
+// --- Navigation JS functions ---
+
+// jsExecAction is a JS helper that tries all known executeActionById paths.
+const jsExecAction = `
+function _execAction(id) {
+  if (api && typeof api.executeActionById === "function") { api.executeActionById(id); return true; }
+  if (chart && typeof chart.executeActionById === "function") { chart.executeActionById(id); return true; }
+  if (api && typeof api.executeAction === "function") { api.executeAction(id); return true; }
+  return false;
+}
+`
+
+func jsZoom(direction string) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+jsExecAction+`
+var dir = %s;
+if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var actionId = dir === "in" ? "chartZoomIn" : "chartZoomOut";
+if (!_execAction(actionId)) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"zoom unavailable"});
+}
+return JSON.stringify({ok:true,data:{status:"executed",direction:dir}});
+`, jsString(direction)))
+}
+
+func jsScroll(bars int) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+jsExecAction+`
+var bars = %d;
+if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+if (typeof chart.scrollChartByBar === "function") {
+  chart.scrollChartByBar(bars);
+} else {
+  var id = bars > 0 ? "chartScrollRight" : "chartScrollLeft";
+  var n = Math.abs(bars);
+  for (var i = 0; i < n; i++) { if (!_execAction(id)) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"scroll unavailable"}); }
+}
+return JSON.stringify({ok:true,data:{status:"executed",bars:bars}});
+`, bars))
+}
+
+func jsScrollToRealtime() string {
+	return wrapJSEval(jsPreamble + jsExecAction + `
+if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var done = false;
+if (typeof chart.scrollToRealtime === "function") { try { chart.scrollToRealtime(); done = true; } catch(_) {} }
+if (!done) { done = _execAction("chartScrollToLast"); }
+if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"scrollToRealtime unavailable"});
+return JSON.stringify({ok:true,data:{status:"executed"}});
+`)
+}
+
+func jsGoToDate(timestamp int64) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+var ts = %d;
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var done = false;
+if (typeof chart.goToDate === "function") { try { chart.goToDate(ts); done = true; } catch(_) {} }
+if (!done && typeof chart.setVisibleRange === "function") {
+  try { await chart.setVisibleRange({from:ts, to:ts + 86400}); done = true; } catch(_) {}
+}
+if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"goToDate unavailable"});
+return JSON.stringify({ok:true,data:{status:"executed",timestamp:ts}});
+`, timestamp))
+}
+
+func jsGetVisibleRange() string {
+	return wrapJSEval(jsPreamble + `
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+if (typeof chart.getVisibleRange !== "function") {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getVisibleRange unavailable"});
+}
+var r = chart.getVisibleRange();
+if (!r) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"getVisibleRange returned null"});
+return JSON.stringify({ok:true,data:{from:Number(r.from || 0),to:Number(r.to || 0)}});
+`)
+}
+
+func jsSetVisibleRange(from, to float64) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+var from = %v;
+var to = %v;
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+if (typeof chart.setVisibleRange !== "function") {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setVisibleRange unavailable"});
+}
+try {
+  await chart.setVisibleRange({from:from, to:to});
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setVisibleRange: " + String(e && e.message || e)});
+}
+return JSON.stringify({ok:true,data:{from:from,to:to}});
+`, from, to))
+}
+
+func jsResetScales() string {
+	return wrapJSEval(jsPreamble + jsExecAction + `
+if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+var reset = false;
+if (typeof chart.resetScales === "function") { try { chart.resetScales(); reset = true; } catch(_) {} }
+if (!reset) { reset = _execAction("chartResetView"); }
+if (!reset) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"resetScales unavailable"});
+return JSON.stringify({ok:true,data:{status:"executed"}});
+`)
+}
+
 func jsRemoveStudy(studyID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var id = %s;

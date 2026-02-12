@@ -92,6 +92,47 @@ func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) erro
 	return s.cdp.RemoveStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
 
+func (s *Service) Zoom(ctx context.Context, chartID, direction string) error {
+	direction = strings.TrimSpace(strings.ToLower(direction))
+	if direction != "in" && direction != "out" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "direction must be \"in\" or \"out\""}
+	}
+	return s.cdp.Zoom(ctx, strings.TrimSpace(chartID), direction)
+}
+
+func (s *Service) Scroll(ctx context.Context, chartID string, bars int) error {
+	if bars == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "bars must be non-zero"}
+	}
+	return s.cdp.Scroll(ctx, strings.TrimSpace(chartID), bars)
+}
+
+func (s *Service) ScrollToRealtime(ctx context.Context, chartID string) error {
+	return s.cdp.ScrollToRealtime(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
+	if timestamp <= 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "timestamp must be positive"}
+	}
+	return s.cdp.GoToDate(ctx, strings.TrimSpace(chartID), timestamp)
+}
+
+func (s *Service) GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error) {
+	return s.cdp.GetVisibleRange(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error) {
+	if from >= to {
+		return cdpcontrol.VisibleRange{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "from must be less than to"}
+	}
+	return s.cdp.SetVisibleRange(ctx, strings.TrimSpace(chartID), from, to)
+}
+
+func (s *Service) ResetScales(ctx context.Context, chartID string) error {
+	return s.cdp.ResetScales(ctx, strings.TrimSpace(chartID))
+}
+
 func (s *Service) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
 	return s.cdp.ListWatchlists(ctx)
 }
