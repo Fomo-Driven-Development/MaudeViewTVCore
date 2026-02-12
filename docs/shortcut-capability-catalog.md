@@ -102,12 +102,42 @@ Drawing template types observed: `LineToolTrendLine`, `LineToolHorzLine`, `LineT
 - [ ] Reorder symbols
 - [ ] Sort watchlist by criteria
 
-## 4. Screener
+## 4. Hotlists (Market Movers)
+
+> Not part of the original keyboard shortcuts page but discovered in captured JS bundles.
+> Hotlists are TradingView's market movers feature (top gainers, most active, top losers, etc.) accessible via a "Hot Lists" tab in the watchlist dialog.
+
+- [ ] List available markets
+- [ ] List exchanges for a market
+- [ ] Get hotlist symbols by exchange and group
+
+### Deferred — JS Runtime API (hotlistsManager)
+
+No REST API — hotlists are driven entirely through a browser-side JS singleton. Implementation would use `evalOnAnyChart` + JS eval (like symbol flagging), not `fetch()`.
+
+| JS Call | Description |
+|---------|-------------|
+| `hotlistsManager().getMarkets()` | Get market/hotlist organization |
+| `hotlistsManager().availableExchanges` | List supported exchanges |
+| `hotlistsManager().groupsTitlesMap` | Map group IDs to display titles |
+| `hotlistsManager().compilations` | Set of compilation hotlists |
+| `hotlistsManager().getOneHotlist(null, exchange, group)` | Fetch symbols for a specific hotlist |
+| `hotlistsManager().getExchangeName(exchange)` | Get exchange display name |
+| `hotlistsManager().getExchangeFlag(exchange)` | Get country flag for exchange |
+
+Data shape returned by `getOneHotlist`:
+```json
+[{"s": "NASDAQ:AAPL", ...}, ...]
+```
+
+Found in JS bundles: `59865.a854cae3cdb9fdb8b7f8.js`, `show-watchlists-dialog.3506536237399bfa292c.js`.
+
+## 5. Screener
 
 - [ ] Add new filter
 - [ ] Show/hide filters
 
-## 5. Pine Script Editor
+## 6. Pine Script Editor
 
 ### Deferred — REST API Endpoints (Pine Facade)
 
@@ -172,7 +202,7 @@ Service: `www.tradingview.com`
 - [ ] Unfold all
 - [ ] Go to definition
 
-## 6. Trading
+## 7. Trading
 
 - [ ] Open/close Order Panel
 - [ ] Open/close DOM
@@ -181,7 +211,7 @@ Service: `www.tradingview.com`
 - [ ] Place limit order to sell
 - [ ] Click in DOM cell
 
-## 7. Alerts
+## 8. Alerts
 
 - [ ] Add alert
 - [ ] Open Edit alert dialog
@@ -216,7 +246,7 @@ Service: `crud-storage.tradingview.com`
 |--------|------|-------------|
 | GET | `/api/alert_preset/` | Get alert presets |
 
-## 8. News
+## 9. News
 
 > Not part of the original keyboard shortcuts page but discovered in captured traffic.
 
@@ -229,7 +259,7 @@ Service: `news-mediator.tradingview.com`
 | GET | `/public/news-flow/v2/news` | Get news feed |
 | GET | `/public/news/v1/story` | Get individual story details |
 
-## 9. Desktop App
+## 10. Desktop App
 
 - [ ] New tab
 - [ ] Close tab
