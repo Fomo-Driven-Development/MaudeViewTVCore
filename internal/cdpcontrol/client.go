@@ -1059,6 +1059,14 @@ func (c *Client) ImportDrawingsState(ctx context.Context, chartID string, state 
 	return nil
 }
 
+func (c *Client) TakeSnapshot(ctx context.Context, chartID, format, quality string, hideRes bool) (SnapshotResult, error) {
+	var out SnapshotResult
+	if err := c.evalOnChart(ctx, chartID, jsTakeSnapshot(format, quality, hideRes), &out); err != nil {
+		return SnapshotResult{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) evalOnAnyChart(ctx context.Context, js string, out any) error {
 	charts, err := c.ListCharts(ctx)
 	if err != nil {

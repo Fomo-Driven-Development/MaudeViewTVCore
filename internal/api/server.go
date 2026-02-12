@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/tv_agent/internal/snapshot"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -102,6 +103,11 @@ type Service interface {
 	SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error
 	ExportDrawingsState(ctx context.Context, chartID string) (any, error)
 	ImportDrawingsState(ctx context.Context, chartID string, state any) error
+	TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error)
+	ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error)
+	GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error)
+	ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error)
+	DeleteSnapshot(ctx context.Context, id string) error
 }
 
 func NewServer(svc Service) http.Handler {
@@ -1599,6 +1605,100 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
+	// --- Snapshot endpoints ---
+
+	type takeSnapshotOutput struct {
+		Body struct {
+			Snapshot snapshot.SnapshotMeta `json:"snapshot"`
+			URL      string               `json:"url"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "take-snapshot", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/snapshot", Summary: "Take chart snapshot", Tags: []string{"Snapshots"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Format  string `json:"format,omitempty"`
+				Quality string `json:"quality,omitempty"`
+			}
+		}) (*takeSnapshotOutput, error) {
+			meta, err := svc.TakeSnapshot(ctx, input.ChartID, input.Body.Format, input.Body.Quality)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &takeSnapshotOutput{}
+			out.Body.Snapshot = meta
+			out.Body.URL = "/api/v1/snapshots/" + meta.ID + "/image"
+			return out, nil
+		})
+
+	type listSnapshotsOutput struct {
+		Body struct {
+			Snapshots []snapshot.SnapshotMeta `json:"snapshots"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-snapshots", Method: http.MethodGet, Path: "/api/v1/snapshots", Summary: "List snapshots", Tags: []string{"Snapshots"}},
+		func(ctx context.Context, input *struct{}) (*listSnapshotsOutput, error) {
+			metas, err := svc.ListSnapshots(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &listSnapshotsOutput{}
+			out.Body.Snapshots = metas
+			if out.Body.Snapshots == nil {
+				out.Body.Snapshots = []snapshot.SnapshotMeta{}
+			}
+			return out, nil
+		})
+
+	type snapshotIDInput struct {
+		SnapshotID string `path:"snapshot_id"`
+	}
+	type getSnapshotOutput struct {
+		Body snapshot.SnapshotMeta
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-snapshot", Method: http.MethodGet, Path: "/api/v1/snapshots/{snapshot_id}", Summary: "Get snapshot metadata", Tags: []string{"Snapshots"}},
+		func(ctx context.Context, input *snapshotIDInput) (*getSnapshotOutput, error) {
+			meta, err := svc.GetSnapshot(ctx, input.SnapshotID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &getSnapshotOutput{}
+			out.Body = meta
+			return out, nil
+		})
+
+	type deleteSnapshotOutput struct {
+		Body struct {
+			Status string `json:"status"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "delete-snapshot", Method: http.MethodDelete, Path: "/api/v1/snapshots/{snapshot_id}", Summary: "Delete snapshot", Tags: []string{"Snapshots"}},
+		func(ctx context.Context, input *snapshotIDInput) (*deleteSnapshotOutput, error) {
+			if err := svc.DeleteSnapshot(ctx, input.SnapshotID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &deleteSnapshotOutput{}
+			out.Body.Status = "deleted"
+			return out, nil
+		})
+
+	// Raw chi handler for serving snapshot image bytes (Huma doesn't support binary responses).
+	router.Get("/api/v1/snapshots/{snapshot_id}/image", func(w http.ResponseWriter, r *http.Request) {
+		snapshotID := chi.URLParam(r, "snapshot_id")
+		data, format, err := svc.ReadSnapshotImage(r.Context(), snapshotID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		ct := "image/png"
+		if format == "jpeg" {
+			ct = "image/jpeg"
+		}
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+		_, _ = w.Write(data)
+	})
+
 	return router
 }
 
@@ -1611,7 +1711,7 @@ func mapErr(err error) error {
 		switch coded.Code {
 		case cdpcontrol.CodeValidation:
 			return huma.Error400BadRequest(coded.Message)
-		case cdpcontrol.CodeChartNotFound:
+		case cdpcontrol.CodeChartNotFound, cdpcontrol.CodeSnapshotNotFound:
 			return huma.Error404NotFound(coded.Message)
 		case cdpcontrol.CodeEvalTimeout:
 			return huma.Error504GatewayTimeout(coded.Message)

@@ -15,6 +15,7 @@ import (
 	"github.com/dgnsrekt/tv_agent/internal/config"
 	"github.com/dgnsrekt/tv_agent/internal/controller"
 	"github.com/dgnsrekt/tv_agent/internal/netutil"
+	"github.com/dgnsrekt/tv_agent/internal/snapshot"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -38,6 +39,7 @@ func main() {
 		"port_candidates", cfg.PortCandidates,
 		"log_level", cfg.LogLevel,
 		"log_file", cfg.LogFile,
+		"snapshot_dir", cfg.SnapshotDir,
 	)
 
 	bindAddr, err := netutil.SelectBindAddr(cfg.BindAddr, cfg.PortCandidates, cfg.PortAutoFallback)
@@ -53,7 +55,13 @@ func main() {
 	}
 	defer func() { _ = cdpClient.Close() }()
 
-	svc := controller.NewService(cdpClient)
+	snapStore, err := snapshot.NewStore(cfg.SnapshotDir)
+	if err != nil {
+		slog.Error("failed to create snapshot store", "dir", cfg.SnapshotDir, "error", err)
+		os.Exit(1)
+	}
+
+	svc := controller.NewService(cdpClient, snapStore)
 	h := api.NewServer(svc)
 
 	srv := &http.Server{Addr: bindAddr, Handler: h}

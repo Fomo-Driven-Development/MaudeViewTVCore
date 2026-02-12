@@ -49,6 +49,7 @@ Behavior:
 - `CONTROLLER_EVAL_TIMEOUT_MS`
 - `CONTROLLER_LOG_LEVEL`
 - `CONTROLLER_LOG_FILE`
+- `SNAPSHOT_DIR`
 
 ## Logs
 
@@ -230,6 +231,52 @@ All under `/api/v1/chart/{chart_id}/drawings/...`. Uses `evalOnChart` (chart con
 | `drawOnAllCharts` | Multi-layout feature, edge case |
 | Drawing groups (createGroupFromSelection, etc.) | Lower priority |
 | Individual shape property editing | Needs probing with shapes on chart |
+
+### Snapshots (tag: `Snapshots`)
+
+Takes chart screenshots via `api.takeClientScreenshot()`, stores them with UUID filenames, and serves them back. Metadata includes symbol, exchange, resolution, theme from `api._chartWidgetCollection.images()`.
+
+| Method | Path | Op ID | Description |
+|--------|------|-------|-------------|
+| POST | `/api/v1/chart/{chart_id}/snapshot` | `take-snapshot` | Take snapshot, store, return metadata + URL |
+| GET | `/api/v1/snapshots` | `list-snapshots` | List all snapshots (newest first) |
+| GET | `/api/v1/snapshots/{snapshot_id}` | `get-snapshot` | Get snapshot metadata |
+| GET | `/api/v1/snapshots/{snapshot_id}/image` | *(raw chi)* | Serve raw image bytes |
+| DELETE | `/api/v1/snapshots/{snapshot_id}` | `delete-snapshot` | Delete snapshot + file |
+
+#### Storage
+
+Flat directory (configurable via `SNAPSHOT_DIR`, default `./snapshots`):
+
+```
+snapshots/
+  {uuid}.png     <- image file
+  {uuid}.json    <- metadata sidecar
+```
+
+#### Quick Curl
+
+```bash
+# Take a PNG snapshot
+curl -s -X POST http://127.0.0.1:8188/api/v1/chart/{id}/snapshot \
+  -H 'Content-Type: application/json' -d '{"format":"png"}' | jq
+
+# Take a JPEG snapshot with quality
+curl -s -X POST http://127.0.0.1:8188/api/v1/chart/{id}/snapshot \
+  -H 'Content-Type: application/json' -d '{"format":"jpeg","quality":"0.85"}' | jq
+
+# List snapshots
+curl -s http://127.0.0.1:8188/api/v1/snapshots | jq
+
+# Get metadata
+curl -s http://127.0.0.1:8188/api/v1/snapshots/{uuid} | jq
+
+# Fetch raw image
+curl -s http://127.0.0.1:8188/api/v1/snapshots/{uuid}/image -o test.png
+
+# Delete
+curl -s -X DELETE http://127.0.0.1:8188/api/v1/snapshots/{uuid}
+```
 
 ## Quick Curl
 

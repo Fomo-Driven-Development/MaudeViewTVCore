@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/tv_agent/internal/snapshot"
 )
 
 type stubService struct{}
@@ -219,6 +220,19 @@ func (s *stubService) ExportDrawingsState(ctx context.Context, chartID string) (
 func (s *stubService) ImportDrawingsState(ctx context.Context, chartID string, state any) error {
 	return nil
 }
+func (s *stubService) TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error) {
+	return snapshot.SnapshotMeta{}, nil
+}
+func (s *stubService) ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error) {
+	return []snapshot.SnapshotMeta{}, nil
+}
+func (s *stubService) GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error) {
+	return snapshot.SnapshotMeta{}, nil
+}
+func (s *stubService) ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error) {
+	return nil, "", nil
+}
+func (s *stubService) DeleteSnapshot(ctx context.Context, id string) error { return nil }
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

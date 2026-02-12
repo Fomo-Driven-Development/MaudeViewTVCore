@@ -1949,3 +1949,61 @@ await chart.applyLineToolsState(dto);
 return JSON.stringify({ok:true,data:{status:"imported"}});
 `, state))
 }
+
+func jsTakeSnapshot(format, quality string, hideResolution bool) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingView API unavailable"});
+if (typeof api.takeClientScreenshot !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"takeClientScreenshot unavailable"});
+
+var fmt = %s;
+var qual = parseFloat(%s) || 0.92;
+var hideRes = %v;
+var opts = {};
+if (hideRes) opts.hideResolution = true;
+
+var canvas = await api.takeClientScreenshot(opts);
+if (!canvas || typeof canvas.toDataURL !== "function") {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"screenshot returned non-canvas"});
+}
+
+var mime = fmt === "jpeg" ? "image/jpeg" : "image/png";
+var dataUrl = canvas.toDataURL(mime, qual);
+var w = canvas.width || 0;
+var h = canvas.height || 0;
+
+var meta = {layout:"",theme:"",charts:[]};
+try {
+  if (api._chartWidgetCollection && typeof api._chartWidgetCollection.images === "function") {
+    var imgs = api._chartWidgetCollection.images();
+    if (imgs) {
+      meta.layout = String(imgs.layout || "");
+      meta.theme = String(imgs.theme || "");
+      if (Array.isArray(imgs.charts)) {
+        for (var i = 0; i < imgs.charts.length; i++) {
+          var c = imgs.charts[i] || {};
+          var cm = c.meta || {};
+          var entry = {
+            meta: {
+              symbol: String(cm.symbol || ""),
+              exchange: String(cm.exchange || ""),
+              resolution: String(cm.resolution || ""),
+              description: String(cm.description || "")
+            }
+          };
+          if (Array.isArray(c.ohlc)) entry.ohlc = c.ohlc.map(String);
+          if (c.quotes && typeof c.quotes === "object") {
+            var q = {};
+            var qk = Object.keys(c.quotes);
+            for (var j = 0; j < qk.length; j++) q[qk[j]] = String(c.quotes[qk[j]]);
+            entry.quotes = q;
+          }
+          meta.charts.push(entry);
+        }
+      }
+    }
+  }
+} catch(_) {}
+
+return JSON.stringify({ok:true,data:{data_url:dataUrl,width:w,height:h,metadata:meta}});
+`, jsString(format), jsString(quality), hideResolution))
+}

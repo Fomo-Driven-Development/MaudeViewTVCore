@@ -2,18 +2,24 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/tv_agent/internal/snapshot"
+	"github.com/google/uuid"
 )
 
 // Service wraps active TradingView control operations.
 type Service struct {
-	cdp *cdpcontrol.Client
+	cdp   *cdpcontrol.Client
+	snaps *snapshot.Store
 }
 
-func NewService(cdp *cdpcontrol.Client) *Service {
-	return &Service{cdp: cdp}
+func NewService(cdp *cdpcontrol.Client, snaps *snapshot.Store) *Service {
+	return &Service{cdp: cdp, snaps: snaps}
 }
 
 func (s *Service) ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error) {
@@ -524,5 +530,97 @@ func (s *Service) ImportDrawingsState(ctx context.Context, chartID string, state
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "state is required"}
 	}
 	return s.cdp.ImportDrawingsState(ctx, strings.TrimSpace(chartID), state)
+}
+
+// --- Snapshot methods ---
+
+func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality string) (snapshot.SnapshotMeta, error) {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" {
+		format = "png"
+	}
+	if format != "png" && format != "jpeg" {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "format must be \"png\" or \"jpeg\""}
+	}
+
+	result, err := s.cdp.TakeSnapshot(ctx, strings.TrimSpace(chartID), format, quality, false)
+	if err != nil {
+		return snapshot.SnapshotMeta{}, err
+	}
+
+	imageData, err := decodeDataURL(result.DataURL)
+	if err != nil {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeEvalFailure, Message: fmt.Sprintf("decode data url: %v", err)}
+	}
+
+	meta := snapshot.SnapshotMeta{
+		ID:        uuid.New().String(),
+		ChartID:   strings.TrimSpace(chartID),
+		Format:    format,
+		Width:     result.Width,
+		Height:    result.Height,
+		SizeBytes: len(imageData),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if len(result.Metadata.Charts) > 0 {
+		c := result.Metadata.Charts[0]
+		meta.Symbol = c.Meta.Symbol
+		meta.Exchange = c.Meta.Exchange
+		meta.Resolution = c.Meta.Resolution
+		meta.Description = c.Meta.Description
+	}
+	meta.Theme = result.Metadata.Theme
+	meta.Layout = result.Metadata.Layout
+
+	if err := s.snaps.Save(meta, imageData); err != nil {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeEvalFailure, Message: fmt.Sprintf("save snapshot: %v", err)}
+	}
+
+	return meta, nil
+}
+
+func (s *Service) ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error) {
+	return s.snaps.List()
+}
+
+func (s *Service) GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error) {
+	if strings.TrimSpace(id) == "" {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	}
+	meta, err := s.snaps.Get(strings.TrimSpace(id))
+	if err != nil {
+		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
+	}
+	return meta, nil
+}
+
+func (s *Service) ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	}
+	data, format, err := s.snaps.ReadImage(strings.TrimSpace(id))
+	if err != nil {
+		return nil, "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
+	}
+	return data, format, nil
+}
+
+func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	}
+	if err := s.snaps.Delete(strings.TrimSpace(id)); err != nil {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
+	}
+	return nil
+}
+
+func decodeDataURL(dataURL string) ([]byte, error) {
+	parts := strings.SplitN(dataURL, ",", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid data URL format")
+	}
+	return base64.StdEncoding.DecodeString(parts[1])
 }
 

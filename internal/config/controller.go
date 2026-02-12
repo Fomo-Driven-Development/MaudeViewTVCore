@@ -16,6 +16,7 @@ type ControllerConfig struct {
 	PortCandidates   []string
 	LogLevel         string
 	LogFile          string
+	SnapshotDir      string
 }
 
 // LoadController reads controller configuration from environment variables.
@@ -30,6 +31,7 @@ func LoadController() (*ControllerConfig, error) {
 		PortCandidates:   parseCSV(getEnvOrDefault("CONTROLLER_PORT_CANDIDATES", "127.0.0.1:8188,127.0.0.1:8189,127.0.0.1:8190,127.0.0.1:8191")),
 		LogLevel:         strings.ToLower(getEnvOrDefault("CONTROLLER_LOG_LEVEL", "info")),
 		LogFile:          getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/controller.log"),
+		SnapshotDir:      getEnvOrDefault("SNAPSHOT_DIR", "./snapshots"),
 	}
 	if cfg.EvalTimeoutMS < 1000 {
 		cfg.EvalTimeoutMS = 1000

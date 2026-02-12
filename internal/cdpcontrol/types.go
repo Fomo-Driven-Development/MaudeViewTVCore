@@ -8,7 +8,8 @@ const (
 	CodeAPIUnavailable = "API_UNAVAILABLE"
 	CodeEvalFailure    = "EVAL_FAILURE"
 	CodeEvalTimeout    = "EVAL_TIMEOUT"
-	CodeCDPUnavailable = "CDP_UNAVAILABLE"
+	CodeCDPUnavailable    = "CDP_UNAVAILABLE"
+	CodeSnapshotNotFound  = "SNAPSHOT_NOT_FOUND"
 )
 
 // CodedError is a typed error used for stable API mapping.
@@ -180,3 +181,32 @@ type ResolvedSymbolInfo struct {
 	SessionHolidays string `json:"session_holidays,omitempty"`
 }
 
+// SnapshotResult is the raw result from the in-page screenshot JS eval.
+type SnapshotResult struct {
+	DataURL  string          `json:"data_url"`
+	Width    int             `json:"width"`
+	Height   int             `json:"height"`
+	Metadata SnapshotRawMeta `json:"metadata"`
+}
+
+// SnapshotRawMeta is the metadata envelope from api._chartWidgetCollection.images().
+type SnapshotRawMeta struct {
+	Layout string              `json:"layout,omitempty"`
+	Theme  string              `json:"theme,omitempty"`
+	Charts []SnapshotChartInfo `json:"charts,omitempty"`
+}
+
+// SnapshotChartInfo describes one chart pane inside the snapshot metadata.
+type SnapshotChartInfo struct {
+	Meta   SnapshotSymbolMeta `json:"meta"`
+	OHLC   []string           `json:"ohlc,omitempty"`
+	Quotes map[string]string  `json:"quotes,omitempty"`
+}
+
+// SnapshotSymbolMeta describes the symbol metadata for a chart pane.
+type SnapshotSymbolMeta struct {
+	Symbol      string `json:"symbol,omitempty"`
+	Exchange    string `json:"exchange,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
+	Description string `json:"description,omitempty"`
+}

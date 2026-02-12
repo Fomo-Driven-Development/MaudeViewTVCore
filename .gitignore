@@ -3,6 +3,7 @@
 chromium-profile*/
 logs/
 research_data/
+snapshots/
 bin/
 
 /controller
