@@ -86,6 +86,11 @@ func (e *Env) POST(t *testing.T, path string, body any) *http.Response {
 	return e.do(t, http.MethodPost, path, body)
 }
 
+func (e *Env) DELETE(t *testing.T, path string) *http.Response {
+	t.Helper()
+	return e.do(t, http.MethodDelete, path, nil)
+}
+
 func (e *Env) do(t *testing.T, method, path string, body any) *http.Response {
 	t.Helper()
 	var r io.Reader
