@@ -269,6 +269,31 @@ var ShapeGroups = []ShapeGroup{
 		{Name: "curve", Label: "Curve", Points: 2},
 		{Name: "double_curve", Label: "Double Curve", Points: 2},
 	}},
+	{Category: "text_and_notes", Label: "Text & Notes", Shapes: []ShapeInfo{
+		{Name: "text", Label: "Text", Points: 1},
+		{Name: "anchored_text", Label: "Anchored Text", Points: 1},
+		{Name: "note", Label: "Note", Points: 1},
+		{Name: "text_note", Label: "Text Note", Points: 2},
+		{Name: "anchored_note", Label: "Anchored Note", Points: 1},
+		{Name: "price_note", Label: "Price Note", Points: 2},
+		{Name: "balloon", Label: "Pin", Points: 1},
+		{Name: "table", Label: "Table", Points: 1},
+		{Name: "callout", Label: "Callout", Points: 2},
+		{Name: "comment", Label: "Comment", Points: 1},
+		{Name: "price_label", Label: "Price Label", Points: 1},
+		{Name: "signpost", Label: "Signpost", Points: 1},
+		{Name: "flag", Label: "Flag Mark", Points: 1},
+	}},
+	{Category: "content", Label: "Content", Shapes: []ShapeInfo{
+		{Name: "image", Label: "Image", Points: 1},
+		{Name: "tweet", Label: "Tweet", Points: 1},
+		{Name: "idea", Label: "Idea", Points: 1},
+	}},
+	{Category: "icons", Label: "Icons", Shapes: []ShapeInfo{
+		{Name: "icon", Label: "Icon", Points: 1},
+		{Name: "emoji", Label: "Emoji", Points: 1},
+		{Name: "sticker", Label: "Sticker", Points: 1},
+	}},
 }
 
 // KnownShapes is a flat lookup built from ShapeGroups for validation.

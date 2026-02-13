@@ -520,6 +520,83 @@ func TestShapes(t *testing.T) {
 	}
 }
 
+// --- Text & Notes shape tests (13 shapes) ---
+
+func TestTextAndNotes(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	singlePoint := []string{
+		"text", "anchored_text", "note", "anchored_note",
+		"balloon", "table", "comment", "price_label", "signpost", "flag",
+	}
+	multiPoint := []struct {
+		shape  string
+		points int
+	}{
+		{"text_note", 2},
+		{"price_note", 2},
+		{"callout", 2},
+	}
+
+	for _, shape := range singlePoint {
+		t.Run(shape, func(t *testing.T) {
+			createSinglePoint(t, shape)
+		})
+	}
+	for _, tc := range multiPoint {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	wantCount := len(singlePoint) + len(multiPoint)
+	if count < wantCount {
+		t.Fatalf("drawing count = %d, want >= %d", count, wantCount)
+	}
+}
+
+// --- Content shape tests (3 shapes) ---
+
+func TestContent(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []string{"image", "tweet", "idea"}
+
+	for _, shape := range shapes {
+		t.Run(shape, func(t *testing.T) {
+			createSinglePoint(t, shape)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Icon shape tests (3 shapes) ---
+
+func TestIcons(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []string{"icon", "emoji", "sticker"}
+
+	for _, shape := range shapes {
+		t.Run(shape, func(t *testing.T) {
+			createSinglePoint(t, shape)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
 // --- Validation tests ---
 
 func TestDrawings_Validation(t *testing.T) {
@@ -597,8 +674,8 @@ func TestDrawings_DiscoveryEndpoint(t *testing.T) {
 		Groups []shapeGroup `json:"groups"`
 	}](t, resp)
 
-	if len(result.Groups) != 14 {
-		t.Fatalf("group count = %d, want 14", len(result.Groups))
+	if len(result.Groups) != 17 {
+		t.Fatalf("group count = %d, want 17", len(result.Groups))
 	}
 
 	wantGroups := []struct {
@@ -619,6 +696,9 @@ func TestDrawings_DiscoveryEndpoint(t *testing.T) {
 		{"brushes", 2},
 		{"arrows", 4},
 		{"shapes", 10},
+		{"text_and_notes", 13},
+		{"content", 3},
+		{"icons", 3},
 	}
 	for i, wg := range wantGroups {
 		g := result.Groups[i]
