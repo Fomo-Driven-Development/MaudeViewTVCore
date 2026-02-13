@@ -22,16 +22,16 @@ func getActiveStrategy(t *testing.T) map[string]any {
 	resp := env.GET(t, strategyPath("active"))
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		t.Skip("no active strategy on chart (non-200 response)")
+		skipOrFatal(t, "no active strategy on chart (non-200 response)")
 	}
 	result := decodeJSON[map[string]any](t, resp)
 	if len(result) == 0 {
-		t.Skip("no active strategy on chart (empty response)")
+		skipOrFatal(t, "no active strategy on chart (empty response)")
 	}
 	// The endpoint always returns the shape {strategy, inputs, meta, status} but
 	// values are null when no strategy is loaded.
 	if result["strategy"] == nil {
-		t.Skip("no active strategy on chart (strategy field is null)")
+		skipOrFatal(t, "no active strategy on chart (strategy field is null)")
 	}
 	return result
 }
@@ -99,7 +99,7 @@ func TestStrategyDateRange(t *testing.T) {
 	}](t, resp)
 
 	if result.DateRange == nil {
-		t.Skip("date_range is nil (strategy may not have backtest data)")
+		skipOrFatal(t, "date_range is nil (strategy may not have backtest data)")
 	}
 	t.Logf("date range: %v", result.DateRange)
 }
@@ -139,11 +139,11 @@ func TestStrategy_SetActiveAndRestore(t *testing.T) {
 	// Extract the strategy entity ID from the active response.
 	strategyData, ok := active["strategy"].(map[string]any)
 	if !ok {
-		t.Skip("active strategy response has no 'strategy' object")
+		skipOrFatal(t, "active strategy response has no 'strategy' object")
 	}
 	id, ok := strategyData["id"]
 	if !ok {
-		t.Skip("active strategy has no 'id' field")
+		skipOrFatal(t, "active strategy has no 'id' field")
 	}
 	var strategyID string
 	switch v := id.(type) {
@@ -152,10 +152,10 @@ func TestStrategy_SetActiveAndRestore(t *testing.T) {
 	case float64:
 		strategyID = fmt.Sprintf("%.0f", v)
 	default:
-		t.Skipf("unexpected strategy id type %T", id)
+		skipOrFatal(t, fmt.Sprintf("unexpected strategy id type %T", id))
 	}
 	if strategyID == "" {
-		t.Skip("active strategy id is empty")
+		skipOrFatal(t, "active strategy id is empty")
 	}
 	t.Logf("current active strategy id: %s", strategyID)
 
@@ -193,7 +193,7 @@ func TestStrategy_GotoDate(t *testing.T) {
 	}](t, resp)
 
 	if dateRangeResp.DateRange == nil {
-		t.Skip("no date range available")
+		skipOrFatal(t, "no date range available")
 	}
 
 	// Extract a timestamp from date_range. It may be a map with from/to or an array.
