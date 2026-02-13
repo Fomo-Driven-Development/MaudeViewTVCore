@@ -32,6 +32,37 @@ func newError(code, msg string, cause error) error {
 	return &CodedError{Code: code, Message: msg, Cause: cause}
 }
 
+// ChartTypeMap maps human-readable chart type names to TradingView ChartStyle enum values.
+var ChartTypeMap = map[string]int{
+	"bars":              0,
+	"candles":           1,
+	"line":              2,
+	"area":              3,
+	"renko":             4,
+	"kagi":              5,
+	"point_and_figure":  6,
+	"line_break":        7,
+	"heikin_ashi":       8,
+	"hollow_candles":    9,
+	"baseline":          10,
+	"high_low":          12,
+	"columns":           13,
+	"line_with_markers": 14,
+	"step_line":         15,
+	"hlc_area":          16,
+	"volume_candles":    19,
+	"hlc_bars":          21,
+}
+
+// ChartTypeReverseMap maps TradingView ChartStyle enum values back to human-readable names.
+var ChartTypeReverseMap = func() map[int]string {
+	m := make(map[int]string, len(ChartTypeMap))
+	for name, id := range ChartTypeMap {
+		m[id] = name
+	}
+	return m
+}()
+
 // ChartInfo describes a chart tab mapped from a browser target.
 type ChartInfo struct {
 	ChartID  string `json:"chart_id"`
@@ -483,4 +514,38 @@ type TimeFrameResult struct {
 type ReloadResult struct {
 	Status string `json:"status"`
 	Mode   string `json:"mode"`
+}
+
+// IndicatorResult describes a single indicator entry from the Indicators dialog.
+type IndicatorResult struct {
+	Name       string `json:"name"`
+	Author     string `json:"author,omitempty"`
+	Boosts     int    `json:"boosts,omitempty"`
+	IsFavorite bool   `json:"is_favorite"`
+	Index      int    `json:"index"`
+}
+
+// IndicatorSearchResult describes the result of an indicator search or category browse.
+type IndicatorSearchResult struct {
+	Status     string            `json:"status"`
+	Query      string            `json:"query,omitempty"`
+	Category   string            `json:"category,omitempty"`
+	Results    []IndicatorResult `json:"results"`
+	TotalCount int               `json:"total_count"`
+}
+
+// IndicatorAddResult describes the result of adding an indicator via search.
+type IndicatorAddResult struct {
+	Status string `json:"status"`
+	Query  string `json:"query"`
+	Index  int    `json:"index"`
+	Name   string `json:"name"`
+}
+
+// IndicatorFavoriteResult describes the result of toggling an indicator's favorite status.
+type IndicatorFavoriteResult struct {
+	Status     string `json:"status"`
+	Query      string `json:"query"`
+	Name       string `json:"name"`
+	IsFavorite bool   `json:"is_favorite"`
 }

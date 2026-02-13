@@ -249,6 +249,31 @@ func (c *Client) SetResolution(ctx context.Context, chartID, resolution string) 
 	return c.GetResolution(ctx, chartID)
 }
 
+func (c *Client) GetChartType(ctx context.Context, chartID string) (int, error) {
+	var out struct {
+		ChartType int `json:"chart_type"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGetChartType(), &out); err != nil {
+		return 0, err
+	}
+	return out.ChartType, nil
+}
+
+func (c *Client) SetChartType(ctx context.Context, chartID string, chartType int) (int, error) {
+	if err := c.evalOnChart(ctx, chartID, jsSetChartType(chartType), nil); err != nil {
+		return 0, err
+	}
+
+	// Give TradingView time to process the chart type change before verifying.
+	select {
+	case <-time.After(500 * time.Millisecond):
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+
+	return c.GetChartType(ctx, chartID)
+}
+
 func (c *Client) ExecuteAction(ctx context.Context, chartID, actionID string) error {
 	var out struct {
 		Status string `json:"status"`
@@ -1396,6 +1421,21 @@ func (c *Client) insertTextOnAnyChart(ctx context.Context, text string) error {
 	return cdp.insertText(ctx, sessionID, text)
 }
 
+// typeTextOnAnyChart types text character-by-character using CDP key events.
+// Unlike insertText, this triggers React/framework input handlers.
+func (c *Client) typeTextOnAnyChart(ctx context.Context, text string) error {
+	cdp, sessionID, err := c.resolveAnySession(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ch := range text {
+		if err := cdp.dispatchCharInput(ctx, sessionID, string(ch)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // pineKeyAction is a helper that focuses the Monaco editor, dispatches a key combo
 // (optionally repeated), then evaluates a wait/poll JS function.
 func (c *Client) pineKeyAction(ctx context.Context, key, code string, keyCode, modifiers, repeat int, waitJS string) (PineState, error) {
@@ -1412,6 +1452,234 @@ func (c *Client) pineKeyAction(ctx context.Context, key, code string, keyCode, m
 		return PineState{}, err
 	}
 	return out, nil
+}
+
+// --- Indicator Dialog methods (DOM-based) ---
+
+func (c *Client) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error) {
+	// Open the dialog first so there's something to probe.
+	_ = c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0)
+	_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), nil)
+
+	// Type search query character by character using CDP key events.
+	// jsWaitForIndicatorDialog already focuses the input.
+	_ = c.typeTextOnAnyChart(ctx, "RSI")
+
+	var out map[string]any
+	if err := c.evalOnAnyChart(ctx, jsProbeIndicatorDialogDOM(), &out); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return nil, err
+	}
+	c.dismissIndicatorDialog(ctx)
+	return out, nil
+}
+
+// dismissIndicatorDialog sends Escape to close the indicator dialog and waits.
+func (c *Client) dismissIndicatorDialog(ctx context.Context) {
+	_ = c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0)
+	_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil)
+}
+
+func (c *Client) SearchIndicators(ctx context.Context, chartID, query string) (IndicatorSearchResult, error) {
+	// Step 1: Open indicator dialog with "/" key
+	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+		return IndicatorSearchResult{}, newError(CodeEvalFailure, "failed to send / key", err)
+	}
+
+	// Step 2: Wait for dialog to appear (also focuses search input)
+	var dialogCheck struct {
+		DialogFound bool `json:"dialog_found"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+		return IndicatorSearchResult{}, err
+	}
+	if !dialogCheck.DialogFound {
+		return IndicatorSearchResult{}, newError(CodeAPIUnavailable, "indicator dialog did not open", nil)
+	}
+
+	// Step 3: Type search query character-by-character using CDP key events
+	if err := c.typeTextOnAnyChart(ctx, query); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorSearchResult{}, newError(CodeEvalFailure, "failed to type search query", err)
+	}
+
+	// Step 4: Scrape results
+	var scraped struct {
+		Results    []IndicatorResult `json:"results"`
+		TotalCount int               `json:"total_count"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsScrapeIndicatorResults(), &scraped); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorSearchResult{}, err
+	}
+
+	// Step 5: Dismiss dialog
+	c.dismissIndicatorDialog(ctx)
+
+	if scraped.Results == nil {
+		scraped.Results = []IndicatorResult{}
+	}
+	return IndicatorSearchResult{
+		Status:     "ok",
+		Query:      query,
+		Results:    scraped.Results,
+		TotalCount: scraped.TotalCount,
+	}, nil
+}
+
+func (c *Client) AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (IndicatorAddResult, error) {
+	// Step 1: Open indicator dialog with "/" key
+	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+		return IndicatorAddResult{}, newError(CodeEvalFailure, "failed to send / key", err)
+	}
+
+	// Step 2: Wait for dialog
+	var dialogCheck struct {
+		DialogFound bool `json:"dialog_found"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+		return IndicatorAddResult{}, err
+	}
+	if !dialogCheck.DialogFound {
+		return IndicatorAddResult{}, newError(CodeAPIUnavailable, "indicator dialog did not open", nil)
+	}
+
+	// Step 3: Type search query character-by-character using CDP key events
+	if err := c.typeTextOnAnyChart(ctx, query); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorAddResult{}, newError(CodeEvalFailure, "failed to type search query", err)
+	}
+
+	// Step 4: Click result at index
+	var clicked struct {
+		Status string `json:"status"`
+		Index  int    `json:"index"`
+		Name   string `json:"name"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsClickIndicatorResult(index), &clicked); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorAddResult{}, err
+	}
+
+	// Step 5: Dismiss dialog
+	c.dismissIndicatorDialog(ctx)
+
+	return IndicatorAddResult{
+		Status: "added",
+		Query:  query,
+		Index:  clicked.Index,
+		Name:   clicked.Name,
+	}, nil
+}
+
+func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (IndicatorSearchResult, error) {
+	// Step 1: Open indicator dialog with "/" key
+	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+		return IndicatorSearchResult{}, newError(CodeEvalFailure, "failed to send / key", err)
+	}
+
+	// Step 2: Wait for dialog
+	var dialogCheck struct {
+		DialogFound bool `json:"dialog_found"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+		return IndicatorSearchResult{}, err
+	}
+	if !dialogCheck.DialogFound {
+		return IndicatorSearchResult{}, newError(CodeAPIUnavailable, "indicator dialog did not open", nil)
+	}
+
+	// Step 3: Click "Favorites" category in sidebar
+	if err := c.evalOnAnyChart(ctx, jsClickIndicatorCategory("Favorites"), nil); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorSearchResult{}, err
+	}
+
+	// Step 4: Scrape results
+	var scraped struct {
+		Results    []IndicatorResult `json:"results"`
+		TotalCount int               `json:"total_count"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsScrapeIndicatorResults(), &scraped); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorSearchResult{}, err
+	}
+
+	// Step 5: Dismiss dialog
+	c.dismissIndicatorDialog(ctx)
+
+	if scraped.Results == nil {
+		scraped.Results = []IndicatorResult{}
+	}
+	return IndicatorSearchResult{
+		Status:     "ok",
+		Category:   "Favorites",
+		Results:    scraped.Results,
+		TotalCount: scraped.TotalCount,
+	}, nil
+}
+
+func (c *Client) ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (IndicatorFavoriteResult, error) {
+	// Step 1: Open indicator dialog with "/" key
+	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+		return IndicatorFavoriteResult{}, newError(CodeEvalFailure, "failed to send / key", err)
+	}
+
+	// Step 2: Wait for dialog
+	var dialogCheck struct {
+		DialogFound bool `json:"dialog_found"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+		return IndicatorFavoriteResult{}, err
+	}
+	if !dialogCheck.DialogFound {
+		return IndicatorFavoriteResult{}, newError(CodeAPIUnavailable, "indicator dialog did not open", nil)
+	}
+
+	// Step 3: Type search query character-by-character using CDP key events
+	if err := c.typeTextOnAnyChart(ctx, query); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorFavoriteResult{}, newError(CodeEvalFailure, "failed to type search query", err)
+	}
+
+	// Step 4: Locate the star button coordinates
+	var starLoc struct {
+		Name       string  `json:"name"`
+		Index      int     `json:"index"`
+		IsFavorite bool    `json:"is_favorite"`
+		X          float64 `json:"x"`
+		Y          float64 `json:"y"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsLocateIndicatorFavoriteStar(index), &starLoc); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorFavoriteResult{}, err
+	}
+
+	// Step 5: CDP trusted click on the star
+	if err := c.clickOnAnyChart(ctx, starLoc.X, starLoc.Y); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorFavoriteResult{}, newError(CodeEvalFailure, "failed to click favorite star", err)
+	}
+
+	// Step 6: Re-check the favorite state
+	var newState struct {
+		Name       string `json:"name"`
+		IsFavorite bool   `json:"is_favorite"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsCheckIndicatorFavoriteState(index), &newState); err != nil {
+		c.dismissIndicatorDialog(ctx)
+		return IndicatorFavoriteResult{}, err
+	}
+
+	// Step 7: Dismiss dialog
+	c.dismissIndicatorDialog(ctx)
+
+	return IndicatorFavoriteResult{
+		Status:     "toggled",
+		Query:      query,
+		Name:       newState.Name,
+		IsFavorite: newState.IsFavorite,
+	}, nil
 }
 
 func (c *Client) evalOnChart(ctx context.Context, chartID, js string, out any) error {

@@ -237,3 +237,78 @@ func TestResetView(t *testing.T) {
 	}
 	t.Fatalf("visible range did not advance toward realtime (before.To=%.0f)", before.To)
 }
+
+// --- ChartType tests ---
+
+func TestGetChartType(t *testing.T) {
+	resp := env.GET(t, env.chartPath("chart-type"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID     string `json:"chart_id"`
+		ChartType   string `json:"chart_type"`
+		ChartTypeID int    `json:"chart_type_id"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	if result.ChartType == "" {
+		t.Fatalf("chart_type is empty")
+	}
+}
+
+func TestSetChartType_AllStyles(t *testing.T) {
+	t.Cleanup(func() {
+		// Restore to candles.
+		resp := env.PUT(t, env.chartPath("chart-type")+"?type=candles", nil)
+		resp.Body.Close()
+		time.Sleep(500 * time.Millisecond)
+	})
+
+	styles := []struct {
+		name string
+		id   int
+	}{
+		{"bars", 0},
+		{"candles", 1},
+		{"line", 2},
+		{"area", 3},
+		{"heikin_ashi", 8},
+		{"hollow_candles", 9},
+		{"baseline", 10},
+		{"high_low", 12},
+		{"columns", 13},
+		{"line_with_markers", 14},
+		{"step_line", 15},
+		{"hlc_area", 16},
+		{"volume_candles", 19},
+	}
+
+	for _, tc := range styles {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := env.PUT(t, env.chartPath("chart-type")+"?type="+tc.name, nil)
+			requireStatus(t, resp, http.StatusOK)
+			result := decodeJSON[struct {
+				ChartType   string `json:"chart_type"`
+				ChartTypeID int    `json:"chart_type_id"`
+			}](t, resp)
+			requireField(t, result.ChartTypeID, tc.id, "chart_type_id")
+			requireField(t, result.ChartType, tc.name, "chart_type")
+
+			// Verify GET returns the same type.
+			getResp := env.GET(t, env.chartPath("chart-type"))
+			requireStatus(t, getResp, http.StatusOK)
+			getResult := decodeJSON[struct {
+				ChartTypeID int `json:"chart_type_id"`
+			}](t, getResp)
+			requireField(t, getResult.ChartTypeID, tc.id, "chart_type_id (GET)")
+		})
+	}
+}
+
+func TestSetChartType_InvalidType(t *testing.T) {
+	resp := env.PUT(t, env.chartPath("chart-type")+"?type=invalid_type", nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}

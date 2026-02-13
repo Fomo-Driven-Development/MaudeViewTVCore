@@ -87,6 +87,20 @@ func (s *Service) SetResolution(ctx context.Context, chartID, resolution string,
 	return s.cdp.SetResolution(ctx, strings.TrimSpace(chartID), strings.TrimSpace(resolution))
 }
 
+func (s *Service) GetChartType(ctx context.Context, chartID string, pane int) (int, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return 0, err
+	}
+	return s.cdp.GetChartType(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetChartType(ctx context.Context, chartID string, chartType int, pane int) (int, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return 0, err
+	}
+	return s.cdp.SetChartType(ctx, strings.TrimSpace(chartID), chartType)
+}
+
 func (s *Service) ExecuteAction(ctx context.Context, chartID, actionID string) error {
 	if strings.TrimSpace(actionID) == "" {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "action_id is required"}
@@ -1083,6 +1097,43 @@ func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) 
 	}
 
 	return detail, nil
+}
+
+// --- Indicator Dialog methods ---
+
+func (s *Service) SearchIndicators(ctx context.Context, chartID, query string) (cdpcontrol.IndicatorSearchResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return cdpcontrol.IndicatorSearchResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	}
+	return s.cdp.SearchIndicators(ctx, strings.TrimSpace(chartID), strings.TrimSpace(query))
+}
+
+func (s *Service) AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorAddResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return cdpcontrol.IndicatorAddResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	}
+	if index < 0 {
+		return cdpcontrol.IndicatorAddResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "index must be >= 0"}
+	}
+	return s.cdp.AddIndicatorBySearch(ctx, strings.TrimSpace(chartID), strings.TrimSpace(query), index)
+}
+
+func (s *Service) ListFavoriteIndicators(ctx context.Context, chartID string) (cdpcontrol.IndicatorSearchResult, error) {
+	return s.cdp.ListFavoriteIndicators(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorFavoriteResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return cdpcontrol.IndicatorFavoriteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	}
+	if index < 0 {
+		return cdpcontrol.IndicatorFavoriteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "index must be >= 0"}
+	}
+	return s.cdp.ToggleIndicatorFavorite(ctx, strings.TrimSpace(chartID), strings.TrimSpace(query), index)
+}
+
+func (s *Service) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error) {
+	return s.cdp.ProbeIndicatorDialogDOM(ctx)
 }
 
 func decodeDataURL(dataURL string) ([]byte, error) {

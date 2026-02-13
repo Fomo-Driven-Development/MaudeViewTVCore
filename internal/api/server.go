@@ -23,6 +23,8 @@ type Service interface {
 	SetSymbol(ctx context.Context, chartID, symbol string, pane int) (string, error)
 	GetResolution(ctx context.Context, chartID string, pane int) (string, error)
 	SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error)
+	GetChartType(ctx context.Context, chartID string, pane int) (int, error)
+	SetChartType(ctx context.Context, chartID string, chartType int, pane int) (int, error)
 	ExecuteAction(ctx context.Context, chartID, actionID string) error
 	ListStudies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error)
 	AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool, pane int) (cdpcontrol.Study, error)
@@ -150,6 +152,11 @@ type Service interface {
 	BatchDeleteLayouts(ctx context.Context, ids []int, skipActive bool) (cdpcontrol.BatchDeleteResult, error)
 	PreviewLayout(ctx context.Context, id int, takeSnapshot bool) (cdpcontrol.LayoutDetail, error)
 	DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error)
+	SearchIndicators(ctx context.Context, chartID, query string) (cdpcontrol.IndicatorSearchResult, error)
+	AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorAddResult, error)
+	ListFavoriteIndicators(ctx context.Context, chartID string) (cdpcontrol.IndicatorSearchResult, error)
+	ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorFavoriteResult, error)
+	ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -318,6 +325,59 @@ func NewServer(svc Service) http.Handler {
 			out.Body.ChartID = input.ChartID
 			out.Body.RequestedResolution = input.Resolution
 			out.Body.CurrentResolution = current
+			return out, nil
+		})
+
+	type chartTypeInput struct {
+		ChartID string `path:"chart_id"`
+		Type    string `query:"type" required:"true"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+	}
+	type chartTypeOutput struct {
+		Body struct {
+			ChartID       string `json:"chart_id"`
+			ChartType     string `json:"chart_type"`
+			ChartTypeID   int    `json:"chart_type_id"`
+			RequestedType string `json:"requested_type,omitempty"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-chart-type", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/chart-type", Summary: "Get chart type (bar style)", Tags: []string{"ChartType"}},
+		func(ctx context.Context, input *chartIDInput) (*chartTypeOutput, error) {
+			typeID, err := svc.GetChartType(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			name := cdpcontrol.ChartTypeReverseMap[typeID]
+			if name == "" {
+				name = fmt.Sprintf("unknown_%d", typeID)
+			}
+			out := &chartTypeOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.ChartType = name
+			out.Body.ChartTypeID = typeID
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-chart-type", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/chart-type", Summary: "Set chart type (bar style)", Tags: []string{"ChartType"}},
+		func(ctx context.Context, input *chartTypeInput) (*chartTypeOutput, error) {
+			typeID, ok := cdpcontrol.ChartTypeMap[strings.ToLower(strings.TrimSpace(input.Type))]
+			if !ok {
+				return nil, huma.Error400BadRequest(fmt.Sprintf("unknown chart type %q; valid types: bars, candles, line, area, renko, kagi, point_and_figure, line_break, heikin_ashi, hollow_candles, baseline, high_low, columns, line_with_markers, step_line, hlc_area, volume_candles, hlc_bars", input.Type))
+			}
+			current, err := svc.SetChartType(ctx, input.ChartID, typeID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			name := cdpcontrol.ChartTypeReverseMap[current]
+			if name == "" {
+				name = fmt.Sprintf("unknown_%d", current)
+			}
+			out := &chartTypeOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.RequestedType = input.Type
+			out.Body.ChartType = name
+			out.Body.ChartTypeID = current
 			return out, nil
 		})
 
@@ -2416,6 +2476,95 @@ func NewServer(svc Service) http.Handler {
 				return nil, mapErr(err)
 			}
 			out := &struct{ Body cdpcontrol.PanesResult }{}
+			out.Body = result
+			return out, nil
+		})
+
+	// --- Indicator dialog endpoints ---
+
+	type searchIndicatorsInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Query string `json:"query" required:"true"`
+		}
+	}
+	type indicatorSearchOutput struct {
+		Body cdpcontrol.IndicatorSearchResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "search-indicators", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/indicators/search", Summary: "Search indicators by query", Tags: []string{"Indicators"}},
+		func(ctx context.Context, input *searchIndicatorsInput) (*indicatorSearchOutput, error) {
+			result, err := svc.SearchIndicators(ctx, input.ChartID, input.Body.Query)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &indicatorSearchOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type addIndicatorInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Query string `json:"query" required:"true"`
+			Index int    `json:"index"`
+		}
+	}
+	type indicatorAddOutput struct {
+		Body cdpcontrol.IndicatorAddResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "add-indicator", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/indicators/add", Summary: "Search and add indicator by clicking Nth result", Tags: []string{"Indicators"}},
+		func(ctx context.Context, input *addIndicatorInput) (*indicatorAddOutput, error) {
+			result, err := svc.AddIndicatorBySearch(ctx, input.ChartID, input.Body.Query, input.Body.Index)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &indicatorAddOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "list-favorite-indicators", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/indicators/favorites", Summary: "List favorite indicators", Tags: []string{"Indicators"}},
+		func(ctx context.Context, input *chartIDInput) (*indicatorSearchOutput, error) {
+			result, err := svc.ListFavoriteIndicators(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &indicatorSearchOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type toggleFavoriteInput struct {
+		ChartID string `path:"chart_id"`
+		Body    struct {
+			Query string `json:"query" required:"true"`
+			Index int    `json:"index"`
+		}
+	}
+	type indicatorFavoriteOutput struct {
+		Body cdpcontrol.IndicatorFavoriteResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "toggle-indicator-favorite", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/indicators/favorite", Summary: "Toggle favorite on a search result", Tags: []string{"Indicators"}},
+		func(ctx context.Context, input *toggleFavoriteInput) (*indicatorFavoriteOutput, error) {
+			result, err := svc.ToggleIndicatorFavorite(ctx, input.ChartID, input.Body.Query, input.Body.Index)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &indicatorFavoriteOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type probeIndicatorDOMOutput struct {
+		Body map[string]any
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-indicator-dom", Method: http.MethodGet, Path: "/api/v1/indicators/probe-dom", Summary: "Probe indicator dialog DOM structure (debug)", Tags: []string{"Indicators"}},
+		func(ctx context.Context, input *struct{}) (*probeIndicatorDOMOutput, error) {
+			result, err := svc.ProbeIndicatorDialogDOM(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &probeIndicatorDOMOutput{}
 			out.Body = result
 			return out, nil
 		})

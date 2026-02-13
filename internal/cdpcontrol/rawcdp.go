@@ -419,6 +419,32 @@ func (r *rawCDP) dispatchKeyEvent(ctx context.Context, sessionID string, key str
 	return nil
 }
 
+// dispatchCharInput sends a single character as a keyDown (with text) + char + keyUp
+// sequence. This triggers React/Angular input handlers that insertText alone does not.
+func (r *rawCDP) dispatchCharInput(ctx context.Context, sessionID, ch string) error {
+	down := struct {
+		Type                  string `json:"type"`
+		Text                  string `json:"text"`
+		Key                   string `json:"key"`
+		WindowsVirtualKeyCode int    `json:"windowsVirtualKeyCode"`
+		UnmodifiedText        string `json:"unmodifiedText"`
+	}{Type: "keyDown", Text: ch, Key: ch, UnmodifiedText: ch}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", down); err != nil {
+		return fmt.Errorf("rawcdp: charDown: %w", err)
+	}
+
+	up := struct {
+		Type string `json:"type"`
+		Key  string `json:"key"`
+	}{Type: "keyUp", Key: ch}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", up); err != nil {
+		return fmt.Errorf("rawcdp: charUp: %w", err)
+	}
+	return nil
+}
+
 // registerEventHandler registers a handler for a CDP event method (e.g.
 // "Page.javascriptDialogOpening"). Returns an unregister function.
 func (r *rawCDP) registerEventHandler(method string, fn func(sessionID string, params json.RawMessage)) func() {

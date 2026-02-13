@@ -111,6 +111,27 @@ return JSON.stringify({ok:true,data:{}});
 `, jsString(resolution)))
 }
 
+func jsGetChartType() string {
+	return wrapJSEval(jsPreamble + `
+var ct = null;
+if (chart && typeof chart.chartType === "function") {
+  try { ct = chart.chartType(); } catch(_) {}
+}
+if (ct === null || ct === undefined) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chartType getter unavailable"});
+return JSON.stringify({ok:true,data:{chart_type:ct}});
+`)
+}
+
+func jsSetChartType(chartType int) string {
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var requested = %d;
+if (!chart || typeof chart.setChartType !== "function")
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setChartType unavailable"});
+chart.setChartType(requested);
+return JSON.stringify({ok:true,data:{}});
+`, chartType))
+}
+
 func jsExecuteAction(actionID string) string {
 	return wrapJSEval(fmt.Sprintf(jsPreamble+`
 var action = %s;
@@ -2728,4 +2749,371 @@ if (panes.length === 0 && chart) {
 }
 return JSON.stringify({ok:true,data:{grid_template:gridTemplate,chart_count:chartCount,active_index:activeIndex,panes:panes}});
 `)
+}
+
+// --- Indicator Dialog JS functions (DOM-based) ---
+// These drive the TradingView Indicators dialog via "/" shortcut, DOM scraping, and CDP events.
+
+func jsProbeIndicatorDialogDOM() string {
+	return wrapJSEvalAsync(`
+// Wait for search results to render — poll for content to appear
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+var contentArea = dlg ? dlg.querySelector('[data-role="dialog-content"]') : null;
+var pollDeadline = Date.now() + 3000;
+while (Date.now() < pollDeadline) {
+  if (contentArea && contentArea.children.length > 0) break;
+  if (contentArea && (contentArea.textContent || '').trim().length > 0) break;
+  await new Promise(function(r) { setTimeout(r, 300); });
+}
+var result = {search_input:null, search_value:null, dialog_container:null, result_items:[], content_children:[], deep_scan:[], sidebar:[], all_visible_data_names:[], close_buttons:[]};
+
+// Find the search input — the main landmark
+var inputs = document.querySelectorAll('input');
+for (var i = 0; i < inputs.length; i++) {
+  var inp = inputs[i];
+  if (inp.offsetParent !== null) {
+    var ph = (inp.placeholder || '').toLowerCase();
+    if (ph.indexOf('search') !== -1) {
+      result.search_input = {
+        placeholder: inp.placeholder,
+        value: inp.value || '',
+        class: (inp.className || '').substring(0, 200),
+        id: inp.id || '',
+        parent_class: (inp.parentElement ? inp.parentElement.className : '').substring(0, 200),
+        grandparent_class: (inp.parentElement && inp.parentElement.parentElement ? inp.parentElement.parentElement.className : '').substring(0, 200)
+      };
+    }
+  }
+}
+
+// Walk up from the search input to find the dialog container
+if (result.search_input) {
+  var el = null;
+  var allInputs = document.querySelectorAll('input');
+  for (var ii = 0; ii < allInputs.length; ii++) {
+    if (allInputs[ii].offsetParent && (allInputs[ii].placeholder || '').toLowerCase().indexOf('search') !== -1) {
+      el = allInputs[ii]; break;
+    }
+  }
+  if (el) {
+    for (var up = 0; up < 15 && el; up++) {
+      el = el.parentElement;
+      if (!el) break;
+      var cls = el.className || '';
+      var w = el.offsetWidth || 0;
+      var h = el.offsetHeight || 0;
+      if (w > 400 && h > 300) {
+        result.dialog_container = {
+          tag: el.tagName,
+          class: cls.substring(0, 300),
+          data_name: el.getAttribute('data-name') || '',
+          data_dialog_name: el.getAttribute('data-dialog-name') || '',
+          role: el.getAttribute('role') || '',
+          width: w, height: h, depth: up
+        };
+        // Scan children with data-role
+        var allChildren = el.querySelectorAll('*');
+        var resultCount = 0;
+        for (var ci = 0; ci < allChildren.length && resultCount < 10; ci++) {
+          var child = allChildren[ci];
+          if (!child.offsetParent) continue;
+          var ccls = child.className || '';
+          var dataRole = child.getAttribute('data-role') || '';
+          if (dataRole) {
+            result.result_items.push({tag: child.tagName, class: ccls.substring(0, 150), data_role: dataRole, text: (child.textContent || '').trim().substring(0, 80)});
+            resultCount++;
+          }
+        }
+        // Look for elements with "title" in class
+        var titleEls = el.querySelectorAll('[class*="title"]');
+        for (var ti = 0; ti < titleEls.length && ti < 5; ti++) {
+          var te = titleEls[ti];
+          if (te.offsetParent) {
+            result.result_items.push({tag: te.tagName, class: (te.className || '').substring(0, 150), text: (te.textContent || '').trim().substring(0, 80), type: 'title-class'});
+          }
+        }
+        // Look for tab/category elements
+        var tabs = el.querySelectorAll('[role="tab"], [data-value], [class*="tab"]');
+        for (var ti2 = 0; ti2 < tabs.length; ti2++) {
+          var tab = tabs[ti2];
+          if (tab.offsetParent) {
+            result.sidebar.push({tag: tab.tagName, class: (tab.className || '').substring(0, 150), text: (tab.textContent || '').trim().substring(0, 50), role: tab.getAttribute('role') || '', data_value: tab.getAttribute('data-value') || ''});
+          }
+        }
+        // Inspect dialog-content area children
+        var contentArea = el.querySelector('[data-role="dialog-content"]');
+        if (contentArea) {
+          var cc = contentArea.children;
+          for (var cci = 0; cci < cc.length && cci < 15; cci++) {
+            var cchild = cc[cci];
+            result.content_children.push({
+              tag: cchild.tagName,
+              class: (cchild.className || '').substring(0, 200),
+              child_count: cchild.children ? cchild.children.length : 0,
+              text: (cchild.textContent || '').trim().substring(0, 100),
+              data_name: cchild.getAttribute('data-name') || '',
+              visible: !!(cchild.offsetParent),
+              height: cchild.offsetHeight || 0
+            });
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+// Deep scan: list ALL visible elements inside the dialog that have text content
+if (dlg) {
+  var allDesc = dlg.querySelectorAll('*');
+  for (var di = 0; di < allDesc.length && result.deep_scan.length < 25; di++) {
+    var desc = allDesc[di];
+    if (!desc.offsetParent) continue;
+    // Only include leaf-ish elements (not containers with tons of nested text)
+    var ownText = '';
+    for (var ni = 0; ni < desc.childNodes.length; ni++) {
+      if (desc.childNodes[ni].nodeType === 3) ownText += desc.childNodes[ni].textContent;
+    }
+    ownText = ownText.trim();
+    if (ownText.length > 0 && ownText.length < 100) {
+      result.deep_scan.push({
+        tag: desc.tagName,
+        class: (desc.className || '').substring(0, 150),
+        text: ownText,
+        parent_class: (desc.parentElement ? desc.parentElement.className : '').substring(0, 100)
+      });
+    }
+  }
+}
+
+// Collect all visible data-name attributes (for reference)
+var dataNameEls = document.querySelectorAll('[data-name]');
+for (var i = 0; i < dataNameEls.length; i++) {
+  var dn = dataNameEls[i];
+  if (dn.offsetParent !== null) {
+    var name = dn.getAttribute('data-name');
+    if (name && result.all_visible_data_names.indexOf(name) === -1 && result.all_visible_data_names.length < 30) {
+      result.all_visible_data_names.push(name);
+    }
+  }
+}
+
+return JSON.stringify({ok:true,data:result});
+`)
+}
+
+func jsWaitForIndicatorDialog() string {
+	return wrapJSEvalAsync(`
+var deadline = Date.now() + 5000;
+var found = false;
+while (Date.now() < deadline) {
+  // Primary: look for the known search input by ID
+  var inp = document.getElementById('indicators-dialog-search-input');
+  if (inp && inp.offsetParent !== null) {
+    found = true;
+    inp.focus();
+    break;
+  }
+  // Also check for the dialog container by data-name
+  var dlg = document.querySelector('[data-name="indicators-dialog"]');
+  if (dlg && dlg.offsetParent !== null) {
+    var innerInp = dlg.querySelector('input');
+    if (innerInp) { found = true; innerInp.focus(); break; }
+  }
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+return JSON.stringify({ok:true,data:{dialog_found:found}});
+`)
+}
+
+func jsScrapeIndicatorResults() string {
+	return wrapJSEvalAsync(`
+// Wait for search results to render inside the dialog
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+if (!dlg) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"indicators dialog not found"});
+var contentArea = dlg.querySelector('[data-role="dialog-content"]');
+var pollEnd = Date.now() + 3000;
+while (Date.now() < pollEnd) {
+  if (contentArea && contentArea.querySelector('[data-role="list-item"]')) break;
+  await new Promise(function(r) { setTimeout(r, 300); });
+}
+var results = [];
+var rows = dlg.querySelectorAll('[data-role="list-item"]');
+for (var i = 0; i < rows.length && results.length < 50; i++) {
+  var row = rows[i];
+  if (!row.offsetParent) continue;
+  // Extract indicator name from the title element
+  var nameEl = row.querySelector('[class*="title-"]');
+  var name = nameEl ? (nameEl.textContent || '').trim() : '';
+  if (!name) name = (row.textContent || '').trim().split('\n')[0].trim();
+  if (!name) continue;
+  // Extract author
+  var authorEl = row.querySelector('[class*="author"], [class*="user-"]');
+  var author = authorEl ? (authorEl.textContent || '').replace(/^by\s*/i, '').trim() : '';
+  // Extract boosts count
+  var boostEl = row.querySelector('[class*="boosts"], [class*="likes"], [class*="count-"]');
+  var boosts = 0;
+  if (boostEl) {
+    var btext = (boostEl.textContent || '').replace(/[^0-9.kKmM]/g, '');
+    var num = parseFloat(btext);
+    if (!isNaN(num)) {
+      if (btext.indexOf('K') !== -1 || btext.indexOf('k') !== -1) num *= 1000;
+      else if (btext.indexOf('M') !== -1 || btext.indexOf('m') !== -1) num *= 1000000;
+      boosts = Math.round(num);
+    }
+  }
+  // Check favorite star state
+  var starEl = row.querySelector('[class*="star"], [class*="favorite"], [class*="fav"]');
+  var isFav = false;
+  if (starEl) {
+    var starCls = starEl.className || '';
+    isFav = starCls.indexOf('active') !== -1 || starCls.indexOf('filled') !== -1 || starCls.indexOf('checked') !== -1
+         || starEl.getAttribute('aria-checked') === 'true' || starEl.getAttribute('aria-pressed') === 'true'
+         || starEl.getAttribute('data-active') === 'true';
+  }
+  results.push({name: name, author: author, boosts: boosts, is_favorite: isFav, index: results.length});
+}
+return JSON.stringify({ok:true,data:{results:results,total_count:results.length}});
+`)
+}
+
+func jsClickIndicatorResult(index int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var targetIndex = %d;
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+if (!dlg) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"indicators dialog not found"});
+// Wait for results to load
+var pollEnd = Date.now() + 3000;
+while (Date.now() < pollEnd) {
+  if (dlg.querySelector('[data-role="list-item"]')) break;
+  await new Promise(function(r) { setTimeout(r, 300); });
+}
+var rows = dlg.querySelectorAll('[data-role="list-item"]');
+var visible = [];
+for (var i = 0; i < rows.length; i++) {
+  if (rows[i].offsetParent) visible.push(rows[i]);
+}
+if (targetIndex < 0 || targetIndex >= visible.length) {
+  return JSON.stringify({ok:false,error_code:"VALIDATION",error_message:"index " + targetIndex + " out of range, found " + visible.length + " results"});
+}
+var row = visible[targetIndex];
+var nameEl = row.querySelector('[class*="title-"]');
+var name = nameEl ? (nameEl.textContent || '').trim() : (row.textContent || '').trim().split('\n')[0].trim();
+row.click();
+await new Promise(function(r) { setTimeout(r, 500); });
+return JSON.stringify({ok:true,data:{status:"added",index:targetIndex,name:name}});
+`, index))
+}
+
+func jsClickIndicatorCategory(category string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var target = %s.toLowerCase();
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+if (!dlg) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"indicators dialog not found"});
+var found = false;
+// Sidebar items have class "sidebarItem-*" with "title-*" inside
+var items = dlg.querySelectorAll('[class*="sidebarItem-"]');
+for (var i = 0; i < items.length; i++) {
+  var item = items[i];
+  if (!item.offsetParent) continue;
+  var txt = (item.textContent || '').trim().toLowerCase();
+  if (txt === target || txt.indexOf(target) === 0) {
+    item.click();
+    found = true;
+    break;
+  }
+}
+if (!found) {
+  return JSON.stringify({ok:false,error_code:"VALIDATION",error_message:"category not found: " + target});
+}
+await new Promise(function(r) { setTimeout(r, 500); });
+return JSON.stringify({ok:true,data:{status:"navigated",category:target}});
+`, jsString(category)))
+}
+
+func jsLocateIndicatorFavoriteStar(index int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var targetIndex = %d;
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+if (!dlg) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"indicators dialog not found"});
+var pollEnd = Date.now() + 3000;
+while (Date.now() < pollEnd) {
+  if (dlg.querySelector('[data-role="list-item"]')) break;
+  await new Promise(function(r) { setTimeout(r, 300); });
+}
+var rows = dlg.querySelectorAll('[data-role="list-item"]');
+var visible = [];
+for (var i = 0; i < rows.length; i++) {
+  if (rows[i].offsetParent) visible.push(rows[i]);
+}
+if (targetIndex < 0 || targetIndex >= visible.length) {
+  return JSON.stringify({ok:false,error_code:"VALIDATION",error_message:"index " + targetIndex + " out of range, found " + visible.length + " results"});
+}
+var row = visible[targetIndex];
+var nameEl = row.querySelector('[class*="title-"]');
+var name = nameEl ? (nameEl.textContent || '').trim() : (row.textContent || '').trim().split('\n')[0].trim();
+// Find the star/favorite button — look for buttons with star/fav in class or aria-label
+var starEl = row.querySelector('[class*="star"], [class*="favorite"], [class*="fav"], button[class*="star"], button[class*="fav"]');
+if (!starEl) {
+  var btns = row.querySelectorAll('button, [role="button"]');
+  for (var bi = 0; bi < btns.length; bi++) {
+    var b = btns[bi];
+    var cls = (b.className || '').toLowerCase();
+    var ariaLabel = (b.getAttribute('aria-label') || '').toLowerCase();
+    if (cls.indexOf('star') !== -1 || cls.indexOf('fav') !== -1 || ariaLabel.indexOf('fav') !== -1 || ariaLabel.indexOf('star') !== -1) {
+      starEl = b; break;
+    }
+  }
+}
+if (!starEl) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"favorite star button not found on row " + targetIndex});
+}
+var rect = starEl.getBoundingClientRect();
+var x = rect.x + rect.width / 2;
+var y = rect.y + rect.height / 2;
+var starCls = starEl.className || '';
+var isFav = starCls.indexOf('active') !== -1 || starCls.indexOf('filled') !== -1 || starCls.indexOf('checked') !== -1
+         || starEl.getAttribute('aria-checked') === 'true' || starEl.getAttribute('aria-pressed') === 'true';
+return JSON.stringify({ok:true,data:{name:name,index:targetIndex,is_favorite:isFav,x:x,y:y}});
+`, index))
+}
+
+func jsWaitForIndicatorDialogClosed() string {
+	return wrapJSEvalAsync(`
+var deadline = Date.now() + 3000;
+while (Date.now() < deadline) {
+  var dlg = document.querySelector('[data-name="indicators-dialog"]');
+  if (!dlg || dlg.offsetParent === null) break;
+  await new Promise(function(r) { setTimeout(r, 200); });
+}
+return JSON.stringify({ok:true,data:{status:"dismissed"}});
+`)
+}
+
+func jsCheckIndicatorFavoriteState(index int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var targetIndex = %d;
+await new Promise(function(r) { setTimeout(r, 500); });
+var dlg = document.querySelector('[data-name="indicators-dialog"]');
+if (!dlg) return JSON.stringify({ok:true,data:{name:"",is_favorite:false}});
+var rows = dlg.querySelectorAll('[data-role="list-item"]');
+var visible = [];
+for (var i = 0; i < rows.length; i++) {
+  if (rows[i].offsetParent) visible.push(rows[i]);
+}
+if (targetIndex < 0 || targetIndex >= visible.length) {
+  return JSON.stringify({ok:true,data:{name:"",is_favorite:false}});
+}
+var row = visible[targetIndex];
+var nameEl = row.querySelector('[class*="title-"]');
+var name = nameEl ? (nameEl.textContent || '').trim() : (row.textContent || '').trim().split('\n')[0].trim();
+var starEl = row.querySelector('[class*="star"], [class*="favorite"], [class*="fav"]');
+var isFav = false;
+if (starEl) {
+  var starCls = starEl.className || '';
+  isFav = starCls.indexOf('active') !== -1 || starCls.indexOf('filled') !== -1 || starCls.indexOf('checked') !== -1
+       || starEl.getAttribute('aria-checked') === 'true' || starEl.getAttribute('aria-pressed') === 'true';
+}
+return JSON.stringify({ok:true,data:{name:name,is_favorite:isFav}});
+`, index))
 }

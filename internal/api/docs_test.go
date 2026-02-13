@@ -34,6 +34,12 @@ func (s *stubService) GetResolution(ctx context.Context, chartID string, pane in
 func (s *stubService) SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error) {
 	return resolution, nil
 }
+func (s *stubService) GetChartType(ctx context.Context, chartID string, pane int) (int, error) {
+	return 1, nil
+}
+func (s *stubService) SetChartType(ctx context.Context, chartID string, chartType int, pane int) (int, error) {
+	return chartType, nil
+}
 func (s *stubService) ExecuteAction(ctx context.Context, chartID, actionID string) error { return nil }
 func (s *stubService) ListStudies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error) {
 	return []cdpcontrol.Study{}, nil
@@ -365,6 +371,21 @@ func (s *stubService) PreviewLayout(ctx context.Context, id int, takeSnapshot bo
 }
 func (s *stubService) DeepHealthCheck(ctx context.Context) (cdpcontrol.DeepHealthResult, error) {
 	return cdpcontrol.DeepHealthResult{}, nil
+}
+func (s *stubService) SearchIndicators(ctx context.Context, chartID, query string) (cdpcontrol.IndicatorSearchResult, error) {
+	return cdpcontrol.IndicatorSearchResult{Results: []cdpcontrol.IndicatorResult{}}, nil
+}
+func (s *stubService) AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorAddResult, error) {
+	return cdpcontrol.IndicatorAddResult{}, nil
+}
+func (s *stubService) ListFavoriteIndicators(ctx context.Context, chartID string) (cdpcontrol.IndicatorSearchResult, error) {
+	return cdpcontrol.IndicatorSearchResult{Results: []cdpcontrol.IndicatorResult{}}, nil
+}
+func (s *stubService) ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorFavoriteResult, error) {
+	return cdpcontrol.IndicatorFavoriteResult{}, nil
+}
+func (s *stubService) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error) {
+	return map[string]any{}, nil
 }
 
 func TestDocsDarkMode(t *testing.T) {
