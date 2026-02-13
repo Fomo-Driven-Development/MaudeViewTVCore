@@ -165,8 +165,40 @@ func TestGetVisibleRange(t *testing.T) {
 	requireField(t, vr.ChartID, env.ChartID, "chart_id")
 }
 
-// --- ScrollToRealtime tests ---
+// --- ResetView tests ---
 
-func TestScrollToRealtime(t *testing.T) {
-	t.Skip("chartScrollToLast action no longer recognized by TradingView; scroll-to-realtime needs rework")
+func TestResetView(t *testing.T) {
+	t.Cleanup(func() { resetChart(t) })
+
+	// Navigate away from realtime so we can verify scroll-back.
+	goToDateAndVerify(t, 1704153600, 3) // Jan 2, 2024
+
+	// Record visible range before scroll.
+	resp := env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+
+	// Reset chart view.
+	resp = env.POST(t, env.chartPath("reset-view"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+
+	// Poll until visible range advances past the before snapshot.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(500 * time.Millisecond)
+		resp = env.GET(t, env.chartPath("visible-range"))
+		requireStatus(t, resp, http.StatusOK)
+		after := decodeJSON[struct {
+			From float64 `json:"from"`
+			To   float64 `json:"to"`
+		}](t, resp)
+		if after.To > before.To {
+			return // success
+		}
+	}
+	t.Fatalf("visible range did not advance toward realtime (before.To=%.0f)", before.To)
 }

@@ -78,7 +78,7 @@ func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, sym
 func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
 func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error { return nil }
 func (s *stubService) Scroll(ctx context.Context, chartID string, bars int) error { return nil }
-func (s *stubService) ScrollToRealtime(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) ResetView(ctx context.Context, chartID string) error { return nil }
 func (s *stubService) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
 	return nil
 }

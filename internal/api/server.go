@@ -41,7 +41,7 @@ type Service interface {
 	FlagSymbol(ctx context.Context, id, symbol string) error
 	Zoom(ctx context.Context, chartID, direction string) error
 	Scroll(ctx context.Context, chartID string, bars int) error
-	ScrollToRealtime(ctx context.Context, chartID string) error
+	ResetView(ctx context.Context, chartID string) error
 	GoToDate(ctx context.Context, chartID string, timestamp int64) error
 	GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error)
 	SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error)
@@ -681,9 +681,9 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "scroll-to-realtime", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/scroll/to-realtime", Summary: "Scroll to latest bar", Tags: []string{"Navigation"}},
+	huma.Register(api, huma.Operation{OperationID: "reset-view", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/reset-view", Summary: "Reset chart view", Tags: []string{"Navigation"}},
 		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
-			if err := svc.ScrollToRealtime(ctx, input.ChartID); err != nil {
+			if err := svc.ResetView(ctx, input.ChartID); err != nil {
 				return nil, mapErr(err)
 			}
 			out := &navStatusOutput{}

@@ -523,16 +523,6 @@ return JSON.stringify({ok:true,data:{status:"executed",bars:bars}});
 `, bars))
 }
 
-func jsScrollToRealtime() string {
-	return wrapJSEval(jsPreamble + jsExecAction + `
-if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
-var done = false;
-if (typeof chart.scrollToRealtime === "function") { try { chart.scrollToRealtime(); done = true; } catch(_) {} }
-if (!done) { done = _execAction("chartScrollToLast"); }
-if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"scrollToRealtime unavailable"});
-return JSON.stringify({ok:true,data:{status:"executed"}});
-`)
-}
 
 // jsResolutionToSeconds converts a TradingView resolution string to approximate
 // bar duration in seconds. Used by scroll-based navigation as a fallback.

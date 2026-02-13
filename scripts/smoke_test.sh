@@ -325,7 +325,7 @@ req "POST scroll +5" "POST" "/api/v1/chart/$CHART_ID/scroll" '{"bars":5}' >/dev/
 req "POST scroll -5" "POST" "/api/v1/chart/$CHART_ID/scroll" '{"bars":-5}' >/dev/null
 req "POST zoom in" "POST" "/api/v1/chart/$CHART_ID/zoom" '{"direction":"in"}' >/dev/null
 req "POST zoom out" "POST" "/api/v1/chart/$CHART_ID/zoom" '{"direction":"out"}' >/dev/null
-req "POST scroll to realtime" "POST" "/api/v1/chart/$CHART_ID/scroll/to-realtime" >/dev/null
+req "POST reset view" "POST" "/api/v1/chart/$CHART_ID/reset-view" >/dev/null
 req "POST reset scales" "POST" "/api/v1/chart/$CHART_ID/reset-scales" >/dev/null
 
 printf "\n"
@@ -497,7 +497,7 @@ if [ -n "$ORIG_TZ" ]; then
 fi
 
 # Scroll back to realtime after navigation
-req "POST scroll to realtime (nav)" "POST" "/api/v1/chart/$CHART_ID/scroll/to-realtime" >/dev/null
+req "POST reset view (nav)" "POST" "/api/v1/chart/$CHART_ID/reset-view" >/dev/null
 
 printf "\n"
 

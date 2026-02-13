@@ -340,8 +340,14 @@ func (c *Client) Scroll(ctx context.Context, chartID string, bars int) error {
 	return nil
 }
 
-func (c *Client) ScrollToRealtime(ctx context.Context, chartID string) error {
-	return c.doChartAction(ctx, chartID, jsScrollToRealtime())
+func (c *Client) ResetView(ctx context.Context, chartID string) error {
+	// Alt+R via CDP — trusted "Reset chart view" keyboard shortcut.
+	// modifiers: 1=Alt
+	if err := c.sendKeysOnAnyChart(ctx, "r", "KeyR", 82, 1); err != nil {
+		return newError(CodeEvalFailure, "failed to send Alt+R", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	return nil
 }
 
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {

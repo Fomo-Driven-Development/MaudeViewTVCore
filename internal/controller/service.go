@@ -159,8 +159,8 @@ func (s *Service) Scroll(ctx context.Context, chartID string, bars int) error {
 	return s.cdp.Scroll(ctx, strings.TrimSpace(chartID), bars)
 }
 
-func (s *Service) ScrollToRealtime(ctx context.Context, chartID string) error {
-	return s.cdp.ScrollToRealtime(ctx, strings.TrimSpace(chartID))
+func (s *Service) ResetView(ctx context.Context, chartID string) error {
+	return s.cdp.ResetView(ctx, strings.TrimSpace(chartID))
 }
 
 func (s *Service) GoToDate(ctx context.Context, chartID string, timestamp int64) error {

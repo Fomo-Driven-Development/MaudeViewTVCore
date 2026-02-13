@@ -86,7 +86,7 @@
 |---|--------|------|------|-----------|
 | 26 | POST | `/api/v1/chart/{id}/zoom` | JS API call | `api.executeActionById("chartZoomIn"/"chartZoomOut")` |
 | 27 | POST | `/api/v1/chart/{id}/scroll` | JS API call | `chart.scrollChartByBar()` / iterated `executeActionById` |
-| 28 | POST | `/api/v1/chart/{id}/scroll/to-realtime` | JS API call | `chart.scrollToRealtime()` |
+| 28 | POST | `/api/v1/chart/{id}/reset-view` | CDP keyboard | Alt+R (Reset chart view) |
 | 29 | POST | `/api/v1/chart/{id}/go-to-date` | JS API call | `chart.goToDate()` / `chart.setVisibleRange()` |
 | 30 | GET | `/api/v1/chart/{id}/visible-range` | JS API call | `chart.getVisibleRange()` |
 | 31 | PUT | `/api/v1/chart/{id}/visible-range` | JS API call | `await chart.setVisibleRange()` |
