@@ -150,6 +150,59 @@ type Shape struct {
 	Name string `json:"name"`
 }
 
+// ShapeInfo describes a known drawing shape and its required point count.
+type ShapeInfo struct {
+	Name   string `json:"name"`   // internal shape name (e.g. "trend_line")
+	Label  string `json:"label"`  // display name (e.g. "Trend Line")
+	Points int    `json:"points"` // required point count (1 = single-point endpoint, 2+ = multipoint)
+}
+
+// ShapeGroup groups related shapes under a UI category.
+type ShapeGroup struct {
+	Category string      `json:"category"` // e.g. "lines"
+	Label    string      `json:"label"`    // e.g. "Lines"
+	Shapes   []ShapeInfo `json:"shapes"`
+}
+
+// ShapeGroups defines all known drawing shapes, grouped by category.
+// Order matches the TradingView left toolbar.
+var ShapeGroups = []ShapeGroup{
+	{Category: "lines", Label: "Lines", Shapes: []ShapeInfo{
+		{Name: "trend_line", Label: "Trend Line", Points: 2},
+		{Name: "ray", Label: "Ray", Points: 2},
+		{Name: "info_line", Label: "Info Line", Points: 2},
+		{Name: "extended", Label: "Extended Line", Points: 2},
+		{Name: "trend_angle", Label: "Trend Angle", Points: 2},
+		{Name: "horizontal_line", Label: "Horizontal Line", Points: 1},
+		{Name: "horizontal_ray", Label: "Horizontal Ray", Points: 1},
+		{Name: "vertical_line", Label: "Vertical Line", Points: 1},
+		{Name: "cross_line", Label: "Cross Line", Points: 1},
+	}},
+	{Category: "channels", Label: "Channels", Shapes: []ShapeInfo{
+		{Name: "parallel_channel", Label: "Parallel Channel", Points: 3},
+		{Name: "regression_trend", Label: "Regression Trend", Points: 2},
+		{Name: "flat_bottom", Label: "Flat Top/Bottom", Points: 3},
+		{Name: "disjoint_angle", Label: "Disjoint Channel", Points: 3},
+	}},
+	{Category: "pitchforks", Label: "Pitchforks", Shapes: []ShapeInfo{
+		{Name: "pitchfork", Label: "Pitchfork", Points: 3},
+		{Name: "schiff_pitchfork", Label: "Schiff Pitchfork", Points: 3},
+		{Name: "schiff_pitchfork_modified", Label: "Modified Schiff Pitchfork", Points: 3},
+		{Name: "inside_pitchfork", Label: "Inside Pitchfork", Points: 3},
+	}},
+}
+
+// KnownShapes is a flat lookup built from ShapeGroups for validation.
+var KnownShapes = func() map[string]ShapeInfo {
+	m := make(map[string]ShapeInfo)
+	for _, g := range ShapeGroups {
+		for _, s := range g.Shapes {
+			m[s.Name] = s
+		}
+	}
+	return m
+}()
+
 // ShapePoint describes a point for drawing creation.
 type ShapePoint struct {
 	Time  float64 `json:"time"`

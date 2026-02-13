@@ -509,8 +509,12 @@ func (s *Service) GetDrawing(ctx context.Context, chartID, shapeID string, pane 
 }
 
 func (s *Service) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
-	if _, ok := options["shape"]; !ok {
-		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
+	shapeName, ok := options["shape"].(string)
+	if !ok || shapeName == "" {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key with a string value"}
+	}
+	if info, known := cdpcontrol.KnownShapes[shapeName]; known && info.Points != 1 {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fmt.Sprintf("%q requires %d points; use the multipoint endpoint", shapeName, info.Points)}
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return "", err
@@ -522,8 +526,12 @@ func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, p
 	if len(points) < 2 {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "points must have at least 2 entries"}
 	}
-	if _, ok := options["shape"]; !ok {
-		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
+	shapeName, ok := options["shape"].(string)
+	if !ok || shapeName == "" {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key with a string value"}
+	}
+	if info, known := cdpcontrol.KnownShapes[shapeName]; known && info.Points != len(points) {
+		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fmt.Sprintf("%q requires exactly %d points, got %d", shapeName, info.Points, len(points))}
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return "", err

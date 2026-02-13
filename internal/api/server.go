@@ -1411,6 +1411,18 @@ func NewServer(svc Service) http.Handler {
 
 	// --- Drawing/Shape endpoints ---
 
+	type shapeGroupsOutput struct {
+		Body struct {
+			Groups []cdpcontrol.ShapeGroup `json:"groups"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-drawing-shapes", Method: http.MethodGet, Path: "/api/v1/drawings/shapes", Summary: "List known drawing shapes grouped by category", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *struct{}) (*shapeGroupsOutput, error) {
+			out := &shapeGroupsOutput{}
+			out.Body.Groups = cdpcontrol.ShapeGroups
+			return out, nil
+		})
+
 	type drawingListOutput struct {
 		Body struct {
 			ChartID string             `json:"chart_id"`
