@@ -247,6 +247,28 @@ var ShapeGroups = []ShapeGroup{
 		{Name: "date_range", Label: "Date Range", Points: 2},
 		{Name: "date_and_price_range", Label: "Date and Price Range", Points: 2},
 	}},
+	{Category: "brushes", Label: "Brushes", Shapes: []ShapeInfo{
+		{Name: "brush", Label: "Brush", Points: -1},
+		{Name: "highlighter", Label: "Highlighter", Points: -1},
+	}},
+	{Category: "arrows", Label: "Arrows", Shapes: []ShapeInfo{
+		{Name: "arrow_marker", Label: "Arrow Marker", Points: 2},
+		{Name: "arrow", Label: "Arrow", Points: 2},
+		{Name: "arrow_up", Label: "Arrow Mark Up", Points: 1},
+		{Name: "arrow_down", Label: "Arrow Mark Down", Points: 1},
+	}},
+	{Category: "shapes", Label: "Shapes", Shapes: []ShapeInfo{
+		{Name: "rectangle", Label: "Rectangle", Points: 2},
+		{Name: "rotated_rectangle", Label: "Rotated Rectangle", Points: 3},
+		{Name: "path", Label: "Path", Points: -1},
+		{Name: "circle", Label: "Circle", Points: 2},
+		{Name: "ellipse", Label: "Ellipse", Points: 3},
+		{Name: "polyline", Label: "Polyline", Points: -1},
+		{Name: "triangle", Label: "Triangle", Points: 3},
+		{Name: "arc", Label: "Arc", Points: 3},
+		{Name: "curve", Label: "Curve", Points: 2},
+		{Name: "double_curve", Label: "Double Curve", Points: 2},
+	}},
 }
 
 // KnownShapes is a flat lookup built from ShapeGroups for validation.
