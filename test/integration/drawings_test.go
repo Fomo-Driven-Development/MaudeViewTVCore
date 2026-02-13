@@ -188,6 +188,244 @@ func TestPitchforks(t *testing.T) {
 	}
 }
 
+// --- Fibonacci shape tests (11 shapes) ---
+
+func TestFibonacci(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"fib_retracement", 2},
+		{"fib_trend_ext", 3},
+		{"fib_channel", 3},
+		{"fib_timezone", 2},
+		{"fib_speed_resist_fan", 2},
+		{"fib_trend_time", 3},
+		{"fib_circles", 2},
+		{"fib_spiral", 2},
+		{"fib_speed_resist_arcs", 2},
+		{"fib_wedge", 3},
+		{"pitchfan", 3},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Gann shape tests (4 shapes) ---
+
+func TestGann(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"gannbox_square", 2},
+		{"gannbox_fixed", 2},
+		{"gannbox", 2},
+		{"gannbox_fan", 2},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Pattern shape tests (6 shapes) ---
+
+func TestPatterns(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"xabcd_pattern", 5},
+		{"cypher_pattern", 5},
+		{"head_and_shoulders", 7},
+		{"abcd_pattern", 4},
+		{"triangle_pattern", 4},
+		{"3divers_pattern", 7},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Elliott Wave shape tests (5 shapes) ---
+
+func TestElliottWaves(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"elliott_impulse_wave", 6},
+		{"elliott_correction", 4},
+		{"elliott_triangle_wave", 6},
+		{"elliott_double_combo", 4},
+		{"elliott_triple_combo", 6},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Cycle shape tests (3 shapes) ---
+
+func TestCycles(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"cyclic_lines", 2},
+		{"time_cycles", 2},
+		{"sine_line", 2},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Projection shape tests (6 shapes) ---
+
+func TestProjection(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"long_position", 2},
+		{"short_position", 2},
+		{"forecast", 2},
+		{"bars_pattern", 2},
+		{"ghost_feed", 5},
+		{"projection", 3},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
+// --- Volume-based shape tests (3 shapes) ---
+
+func TestVolumeBased(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	singlePoint := []string{"anchored_vwap", "anchored_volume_profile"}
+	multiPoint := []struct {
+		shape  string
+		points int
+	}{
+		{"fixed_range_volume_profile", 2},
+	}
+
+	for _, shape := range singlePoint {
+		t.Run(shape, func(t *testing.T) {
+			createSinglePoint(t, shape)
+		})
+	}
+	for _, tc := range multiPoint {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	wantCount := len(singlePoint) + len(multiPoint)
+	if count < wantCount {
+		t.Fatalf("drawing count = %d, want >= %d", count, wantCount)
+	}
+}
+
+// --- Measurer shape tests (3 shapes) ---
+
+func TestMeasurer(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	shapes := []struct {
+		shape  string
+		points int
+	}{
+		{"price_range", 2},
+		{"date_range", 2},
+		{"date_and_price_range", 2},
+	}
+
+	for _, tc := range shapes {
+		t.Run(tc.shape, func(t *testing.T) {
+			createMultipoint(t, tc.shape, tc.points)
+		})
+	}
+
+	count := listDrawingCount(t)
+	if count < len(shapes) {
+		t.Fatalf("drawing count = %d, want >= %d", count, len(shapes))
+	}
+}
+
 // --- Validation tests ---
 
 func TestDrawings_Validation(t *testing.T) {
@@ -265,8 +503,8 @@ func TestDrawings_DiscoveryEndpoint(t *testing.T) {
 		Groups []shapeGroup `json:"groups"`
 	}](t, resp)
 
-	if len(result.Groups) != 3 {
-		t.Fatalf("group count = %d, want 3", len(result.Groups))
+	if len(result.Groups) != 11 {
+		t.Fatalf("group count = %d, want 11", len(result.Groups))
 	}
 
 	wantGroups := []struct {
@@ -276,6 +514,14 @@ func TestDrawings_DiscoveryEndpoint(t *testing.T) {
 		{"lines", 9},
 		{"channels", 4},
 		{"pitchforks", 4},
+		{"fibonacci", 11},
+		{"gann", 4},
+		{"patterns", 6},
+		{"elliott_waves", 5},
+		{"cycles", 3},
+		{"projection", 6},
+		{"volume_based", 3},
+		{"measurer", 3},
 	}
 	for i, wg := range wantGroups {
 		g := result.Groups[i]

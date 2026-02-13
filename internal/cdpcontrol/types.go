@@ -190,6 +190,63 @@ var ShapeGroups = []ShapeGroup{
 		{Name: "schiff_pitchfork_modified", Label: "Modified Schiff Pitchfork", Points: 3},
 		{Name: "inside_pitchfork", Label: "Inside Pitchfork", Points: 3},
 	}},
+	{Category: "fibonacci", Label: "Fibonacci", Shapes: []ShapeInfo{
+		{Name: "fib_retracement", Label: "Fib Retracement", Points: 2},
+		{Name: "fib_trend_ext", Label: "Trend-Based Fib Extension", Points: 3},
+		{Name: "fib_channel", Label: "Fib Channel", Points: 3},
+		{Name: "fib_timezone", Label: "Fib Time Zone", Points: 2},
+		{Name: "fib_speed_resist_fan", Label: "Fib Speed Resistance Fan", Points: 2},
+		{Name: "fib_trend_time", Label: "Trend-Based Fib Time", Points: 3},
+		{Name: "fib_circles", Label: "Fib Circles", Points: 2},
+		{Name: "fib_spiral", Label: "Fib Spiral", Points: 2},
+		{Name: "fib_speed_resist_arcs", Label: "Fib Speed Resistance Arcs", Points: 2},
+		{Name: "fib_wedge", Label: "Fib Wedge", Points: 3},
+		{Name: "pitchfan", Label: "Pitchfan", Points: 3},
+	}},
+	{Category: "gann", Label: "Gann", Shapes: []ShapeInfo{
+		{Name: "gannbox_square", Label: "Gann Box", Points: 2},
+		{Name: "gannbox_fixed", Label: "Gann Square Fixed", Points: 2},
+		{Name: "gannbox", Label: "Gann Square", Points: 2},
+		{Name: "gannbox_fan", Label: "Gann Fan", Points: 2},
+	}},
+	{Category: "patterns", Label: "Patterns", Shapes: []ShapeInfo{
+		{Name: "xabcd_pattern", Label: "XABCD Pattern", Points: 5},
+		{Name: "cypher_pattern", Label: "Cypher Pattern", Points: 5},
+		{Name: "head_and_shoulders", Label: "Head and Shoulders", Points: 7},
+		{Name: "abcd_pattern", Label: "ABCD Pattern", Points: 4},
+		{Name: "triangle_pattern", Label: "Triangle Pattern", Points: 4},
+		{Name: "3divers_pattern", Label: "Three Drives Pattern", Points: 7},
+	}},
+	{Category: "elliott_waves", Label: "Elliott Waves", Shapes: []ShapeInfo{
+		{Name: "elliott_impulse_wave", Label: "Elliott Impulse Wave (12345)", Points: 6},
+		{Name: "elliott_correction", Label: "Elliott Correction Wave (ABC)", Points: 4},
+		{Name: "elliott_triangle_wave", Label: "Elliott Triangle Wave (ABCDE)", Points: 6},
+		{Name: "elliott_double_combo", Label: "Elliott Double Combo Wave (WXY)", Points: 4},
+		{Name: "elliott_triple_combo", Label: "Elliott Triple Combo Wave (WXYXZ)", Points: 6},
+	}},
+	{Category: "cycles", Label: "Cycles", Shapes: []ShapeInfo{
+		{Name: "cyclic_lines", Label: "Cyclic Lines", Points: 2},
+		{Name: "time_cycles", Label: "Time Cycles", Points: 2},
+		{Name: "sine_line", Label: "Sine Line", Points: 2},
+	}},
+	{Category: "projection", Label: "Projection", Shapes: []ShapeInfo{
+		{Name: "long_position", Label: "Long Position", Points: 2},
+		{Name: "short_position", Label: "Short Position", Points: 2},
+		{Name: "forecast", Label: "Forecast", Points: 2},
+		{Name: "bars_pattern", Label: "Bars Pattern", Points: 2},
+		{Name: "ghost_feed", Label: "Ghost Feed", Points: 5},
+		{Name: "projection", Label: "Projection", Points: 3},
+	}},
+	{Category: "volume_based", Label: "Volume Based", Shapes: []ShapeInfo{
+		{Name: "anchored_vwap", Label: "Anchored VWAP", Points: 1},
+		{Name: "fixed_range_volume_profile", Label: "Fixed Range Volume Profile", Points: 2},
+		{Name: "anchored_volume_profile", Label: "Anchored Volume Profile", Points: 1},
+	}},
+	{Category: "measurer", Label: "Measurer", Shapes: []ShapeInfo{
+		{Name: "price_range", Label: "Price Range", Points: 2},
+		{Name: "date_range", Label: "Date Range", Points: 2},
+		{Name: "date_and_price_range", Label: "Date and Price Range", Points: 2},
+	}},
 }
 
 // KnownShapes is a flat lookup built from ShapeGroups for validation.
