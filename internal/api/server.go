@@ -1673,6 +1673,33 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
+	// --- Tool activation endpoints (thin wrappers around SetDrawingTool) ---
+
+	for _, tool := range []struct {
+		id, path, name, summary string
+	}{
+		{"activate-measure-tool", "measure", "measure", "Activate measure tool"},
+		{"activate-zoom-tool", "zoom", "zoom", "Activate zoom-in selection tool"},
+		{"activate-eraser-tool", "eraser", "eraser", "Activate eraser tool"},
+		{"activate-cursor-tool", "cursor", "cursor", "Return to default cursor"},
+	} {
+		huma.Register(api, huma.Operation{
+			OperationID: tool.id,
+			Method:      http.MethodPost,
+			Path:        "/api/v1/chart/{chart_id}/tools/" + tool.path,
+			Summary:     tool.summary,
+			Tags:        []string{"Tools"},
+		}, func(ctx context.Context, input *chartIDInput) (*drawingStatusOutput, error) {
+			if err := svc.SetDrawingTool(ctx, input.ChartID, tool.name); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &drawingStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "activated"
+			return out, nil
+		})
+	}
+
 	huma.Register(api, huma.Operation{OperationID: "set-drawing-z-order", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/z-order", Summary: "Change drawing z-order", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *struct {
 			ChartID string `path:"chart_id"`

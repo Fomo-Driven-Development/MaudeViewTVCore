@@ -597,6 +597,38 @@ func TestIcons(t *testing.T) {
 	}
 }
 
+// --- Tool activation tests ---
+
+func TestToolActivation(t *testing.T) {
+	// Ensure we return to cursor at the end.
+	t.Cleanup(func() {
+		resp := env.POST(t, env.chartPath("tools/cursor"), nil)
+		resp.Body.Close()
+	})
+
+	tools := []string{"measure", "zoom", "eraser", "cursor"}
+	for _, tool := range tools {
+		t.Run(tool, func(t *testing.T) {
+			// Activate the tool.
+			resp := env.POST(t, env.chartPath("tools/"+tool), nil)
+			requireStatus(t, resp, http.StatusOK)
+			result := decodeJSON[struct {
+				ChartID string `json:"chart_id"`
+				Status  string `json:"status"`
+			}](t, resp)
+			requireField(t, result.Status, "activated", "status")
+
+			// Verify via GET drawing tool.
+			resp = env.GET(t, env.chartPath("drawings/tool"))
+			requireStatus(t, resp, http.StatusOK)
+			toolResult := decodeJSON[struct {
+				Tool string `json:"tool"`
+			}](t, resp)
+			requireField(t, toolResult.Tool, tool, "tool")
+		})
+	}
+}
+
 // --- Validation tests ---
 
 func TestDrawings_Validation(t *testing.T) {
