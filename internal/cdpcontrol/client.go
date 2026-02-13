@@ -345,13 +345,38 @@ func (c *Client) ScrollToRealtime(ctx context.Context, chartID string) error {
 }
 
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
-	var out struct {
-		Status    string `json:"status"`
-		Timestamp int64  `json:"timestamp"`
+	// Convert Unix timestamp to YYYY-MM-DD string for the dialog textbox
+	t := time.Unix(timestamp, 0).UTC()
+	dateStr := t.Format("2006-01-02")
+
+	// Step 1: Alt+G to open the "Go to" dialog (trusted CDP key event)
+	// modifiers: 1=Alt
+	if err := c.sendKeysOnAnyChart(ctx, "g", "KeyG", 71, 1); err != nil {
+		return newError(CodeEvalFailure, "failed to send Alt+G", err)
 	}
-	if err := c.evalOnChart(ctx, chartID, jsGoToDate(timestamp), &out); err != nil {
+
+	// Step 2: Wait for dialog, fill date, focus textbox
+	var fill struct {
+		Status string `json:"status"`
+		Date   string `json:"date"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGoToFillDate(dateStr), &fill); err != nil {
 		return err
 	}
+
+	// Step 3: Enter to submit the form (trusted CDP key event)
+	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 0); err != nil {
+		return newError(CodeEvalFailure, "failed to send Enter", err)
+	}
+
+	// Step 4: Wait for dialog to close and data to load
+	var result struct {
+		Status string `json:"status"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGoToWaitClose(), &result); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -555,34 +555,68 @@ function _resToSec(res) {
 }
 `
 
-func jsGoToDate(timestamp int64) string {
-	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+jsResolutionToSeconds+`
-var ts = %d;
-if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
-var done = false;
-// Try native goToDate first
-if (typeof chart.goToDate === "function") { try { chart.goToDate(ts); done = true; } catch(_) {} }
-// Try native setVisibleRange
-if (!done && typeof chart.setVisibleRange === "function") {
-  try { await chart.setVisibleRange({from:ts, to:ts + 86400}); done = true; } catch(_) {}
+// jsGoToFillDate waits for the "Go to" dialog to appear and fills the date textbox.
+// The dialog must already be open (via Alt+G keyboard shortcut).
+func jsGoToFillDate(dateStr string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var dateStr = %s;
+// Wait for dialog to appear (up to 3s)
+var deadline = Date.now() + 3000;
+var dialog = null;
+var tb = null;
+while (Date.now() < deadline) {
+  tb = document.querySelector('input[placeholder*="YYYY"]');
+  if (tb) { dialog = tb.closest('[role="dialog"]') || tb.parentElement; break; }
+  dialog = document.querySelector('[role="dialog"]');
+  if (dialog) {
+    tb = dialog.querySelector('input[placeholder*="YYYY"]') || dialog.querySelector('input[type="text"]');
+    if (tb) break;
+  }
+  await new Promise(function(r){ setTimeout(r, 100); });
 }
-// Fallback: scroll-based navigation using resolution and visible range
-if (!done && typeof chart.getVisibleRange === "function" && typeof chart.scrollChartByBar === "function") {
-  try {
-    var r = chart.getVisibleRange();
-    if (r && r.from && r.to) {
-      var mid = (r.from + r.to) / 2;
-      var res = typeof chart.resolution === "function" ? chart.resolution() : "D";
-      var barSec = _resToSec(res);
-      var offset = Math.round((ts - mid) / barSec);
-      if (offset !== 0) { chart.scrollChartByBar(offset); done = true; }
-      else { done = true; }
-    }
-  } catch(_) {}
+if (!dialog || !tb) return JSON.stringify({ok:false, error_code:"EVAL_FAILURE", error_message:"Go to dialog did not appear"});
+
+// Ensure "Date" tab is selected (not "Custom range")
+var tabs = dialog.querySelectorAll('[role="tab"]');
+for (var i = 0; i < tabs.length; i++) {
+  if (tabs[i].textContent.trim() === 'Date' && tabs[i].getAttribute('aria-selected') !== 'true') {
+    tabs[i].click();
+    await new Promise(function(r){ setTimeout(r, 200); });
+  }
 }
-if (!done) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"goToDate unavailable"});
-return JSON.stringify({ok:true,data:{status:"executed",timestamp:ts}});
-`, timestamp))
+
+// Use native setter to bypass React controlled input
+var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+nativeSetter.call(tb, dateStr);
+tb.dispatchEvent(new Event('input', {bubbles: true}));
+tb.dispatchEvent(new Event('change', {bubbles: true}));
+await new Promise(function(r){ setTimeout(r, 300); });
+
+// Focus the textbox so Enter key submits the form
+tb.focus();
+return JSON.stringify({ok:true, data:{status:"filled", date:dateStr}});
+`, jsString(dateStr)))
+}
+
+// jsGoToWaitClose waits for the "Go to" dialog to close and reads the visible range.
+func jsGoToWaitClose() string {
+	return wrapJSEvalAsync(jsPreamble + `
+var deadline = Date.now() + 5000;
+while (Date.now() < deadline) {
+  var d = document.querySelector('[role="dialog"]');
+  var tb = document.querySelector('input[placeholder*="YYYY"]');
+  if (!d && !tb) break;
+  if (d && d.offsetParent === null && (!tb || tb.offsetParent === null)) break;
+  await new Promise(function(r){ setTimeout(r, 200); });
+}
+// Settle for data load
+await new Promise(function(r){ setTimeout(r, 500); });
+// Read visible range
+var r = chart && typeof chart.getVisibleRange === "function" ? chart.getVisibleRange() : null;
+var from = r ? Number(r.from || 0) : 0;
+var to = r ? Number(r.to || 0) : 0;
+return JSON.stringify({ok:true, data:{status:"navigated", from:from, to:to}});
+`)
 }
 
 func jsGetVisibleRange() string {
@@ -640,7 +674,7 @@ else if (p === "5Y") p = "60M";
 // Undo system (Zs) expects: {val: {type,value}, res: intervalString}
 // Oi wrapper extracts .val for areEqualTimeFrames; redo uses .val and .res
 // Default resolution per preset when none provided
-var defaultRes = {"1D":"5","5D":"15","1M":"30","3M":"1D","6M":"1D","YTD":"1D","12M":"1D","60M":"1W","ALL":"1M"};
+var defaultRes = {"1D":"1","5D":"5","1M":"30","3M":"60","6M":"120","YTD":"1D","12M":"1D","60M":"1W","ALL":"1M"};
 var curRes = res || defaultRes[p] || (typeof chart.resolution === "function" ? String(chart.resolution()||"D") : "D");
 var tf = {val: {type:"period-back", value:p}, res: curRes};
 try { chart.setTimeFrame(tf); } catch(e) {
