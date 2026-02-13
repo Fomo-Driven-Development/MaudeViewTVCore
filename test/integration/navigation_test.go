@@ -145,6 +145,41 @@ func TestSetTimeFrame_InvalidPreset(t *testing.T) {
 	}
 }
 
+// --- Resolution tests ---
+
+func TestSetResolution_AllToolbarValues(t *testing.T) {
+	t.Cleanup(func() { resetChart(t) })
+
+	resolutions := []struct {
+		value string // API value
+		label string // toolbar button label (for test naming)
+	}{
+		{"1", "1m"},
+		{"5", "5m"},
+		{"15", "15m"},
+		{"60", "1h"},
+		{"240", "4h"},
+		{"360", "6h"},
+		{"720", "12h"},
+		{"1D", "D"},
+		{"3D", "3D"},
+		{"1W", "W"},
+		{"2W", "2W"},
+		{"1M", "M"},
+	}
+
+	for _, tc := range resolutions {
+		t.Run(tc.label, func(t *testing.T) {
+			resp := env.PUT(t, env.chartPath("resolution")+"?resolution="+tc.value, nil)
+			requireStatus(t, resp, http.StatusOK)
+			result := decodeJSON[struct {
+				CurrentResolution string `json:"current_resolution"`
+			}](t, resp)
+			requireField(t, result.CurrentResolution, tc.value, "current_resolution")
+		})
+	}
+}
+
 // --- VisibleRange tests ---
 
 func TestGetVisibleRange(t *testing.T) {
