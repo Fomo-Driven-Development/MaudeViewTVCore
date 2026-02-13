@@ -298,6 +298,30 @@ type BatchDeleteError struct {
 	Error string `json:"error"`
 }
 
+// PaneInfo describes one chart pane in a multi-pane grid layout.
+type PaneInfo struct {
+	Index      int    `json:"index"`
+	Symbol     string `json:"symbol"`
+	Exchange   string `json:"exchange,omitempty"`
+	Resolution string `json:"resolution,omitempty"`
+}
+
+// PanesResult describes all panes in the current grid layout.
+type PanesResult struct {
+	GridTemplate string     `json:"grid_template"`
+	ChartCount   int        `json:"chart_count"`
+	ActiveIndex  int        `json:"active_index"`
+	Panes        []PaneInfo `json:"panes"`
+}
+
+// TimeFrameResult describes the result of setting a time frame preset.
+type TimeFrameResult struct {
+	Preset     string  `json:"preset"`
+	Resolution string  `json:"resolution"`
+	From       float64 `json:"from"`
+	To         float64 `json:"to"`
+}
+
 // ReloadResult describes the result of a page reload.
 type ReloadResult struct {
 	Status string `json:"status"`

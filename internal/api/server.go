@@ -18,17 +18,17 @@ import (
 type Service interface {
 	ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error)
 	GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error)
-	GetSymbolInfo(ctx context.Context, chartID string) (cdpcontrol.SymbolInfo, error)
-	GetSymbol(ctx context.Context, chartID string) (string, error)
-	SetSymbol(ctx context.Context, chartID, symbol string) (string, error)
-	GetResolution(ctx context.Context, chartID string) (string, error)
-	SetResolution(ctx context.Context, chartID, resolution string) (string, error)
+	GetSymbolInfo(ctx context.Context, chartID string, pane int) (cdpcontrol.SymbolInfo, error)
+	GetSymbol(ctx context.Context, chartID string, pane int) (string, error)
+	SetSymbol(ctx context.Context, chartID, symbol string, pane int) (string, error)
+	GetResolution(ctx context.Context, chartID string, pane int) (string, error)
+	SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error)
 	ExecuteAction(ctx context.Context, chartID, actionID string) error
-	ListStudies(ctx context.Context, chartID string) ([]cdpcontrol.Study, error)
-	AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error)
-	RemoveStudy(ctx context.Context, chartID, studyID string) error
-	GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error)
-	ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error)
+	ListStudies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error)
+	AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool, pane int) (cdpcontrol.Study, error)
+	RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error
+	GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error)
+	ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error)
 	ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error)
 	GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error)
 	SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error)
@@ -45,6 +45,7 @@ type Service interface {
 	GoToDate(ctx context.Context, chartID string, timestamp int64) error
 	GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error)
 	SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error)
+	SetTimeFrame(ctx context.Context, chartID, preset, resolution string, pane int) (cdpcontrol.TimeFrameResult, error)
 	ResetScales(ctx context.Context, chartID string) error
 	ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error)
 	ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error)
@@ -59,7 +60,7 @@ type Service interface {
 	GetReplayStatus(ctx context.Context, chartID string) (cdpcontrol.ReplayStatus, error)
 	StartReplay(ctx context.Context, chartID string, point float64) error
 	StopReplay(ctx context.Context, chartID string) error
-	ReplayStep(ctx context.Context, chartID string) error
+	ReplayStep(ctx context.Context, chartID string, count int) error
 	StartAutoplay(ctx context.Context, chartID string) error
 	StopAutoplay(ctx context.Context, chartID string) error
 	ResetReplay(ctx context.Context, chartID string) error
@@ -86,13 +87,13 @@ type Service interface {
 	ListFires(ctx context.Context) (any, error)
 	DeleteFires(ctx context.Context, ids []string) error
 	DeleteAllFires(ctx context.Context) error
-	ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error)
-	GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error)
-	CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error)
-	CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error)
-	CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error)
-	RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error
-	RemoveAllDrawings(ctx context.Context, chartID string) error
+	ListDrawings(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Shape, error)
+	GetDrawing(ctx context.Context, chartID, shapeID string, pane int) (map[string]any, error)
+	CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error)
+	CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error)
+	CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error)
+	RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool, pane int) error
+	RemoveAllDrawings(ctx context.Context, chartID string, pane int) error
 	GetDrawingToggles(ctx context.Context, chartID string) (cdpcontrol.DrawingToggles, error)
 	SetHideDrawings(ctx context.Context, chartID string, val bool) error
 	SetLockDrawings(ctx context.Context, chartID string, val bool) error
@@ -104,7 +105,8 @@ type Service interface {
 	ExportDrawingsState(ctx context.Context, chartID string) (any, error)
 	ImportDrawingsState(ctx context.Context, chartID string, state any) error
 	BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool, notes string) (snapshot.SnapshotMeta, error)
-	TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error)
+	TakeSnapshot(ctx context.Context, chartID, format, quality, notes string, pane int) (snapshot.SnapshotMeta, error)
+	GetPaneInfo(ctx context.Context) (cdpcontrol.PanesResult, error)
 	ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error)
 	GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error)
 	ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error)
@@ -223,10 +225,12 @@ func NewServer(svc Service) http.Handler {
 
 	type chartIDInput struct {
 		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 	type symbolInput struct {
 		ChartID string `path:"chart_id"`
 		Symbol  string `query:"symbol" required:"true"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 	type symbolOutput struct {
 		Body struct {
@@ -238,7 +242,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "get-symbol", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Get chart symbol", Tags: []string{"Symbol"}},
 		func(ctx context.Context, input *chartIDInput) (*symbolOutput, error) {
-			symbol, err := svc.GetSymbol(ctx, input.ChartID)
+			symbol, err := svc.GetSymbol(ctx, input.ChartID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -250,7 +254,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "set-symbol", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/symbol", Summary: "Set chart symbol", Tags: []string{"Symbol"}},
 		func(ctx context.Context, input *symbolInput) (*symbolOutput, error) {
-			current, err := svc.SetSymbol(ctx, input.ChartID, input.Symbol)
+			current, err := svc.SetSymbol(ctx, input.ChartID, input.Symbol, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -269,7 +273,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	huma.Register(api, huma.Operation{OperationID: "get-symbol-info", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/symbol/info", Summary: "Get extended symbol metadata", Tags: []string{"Symbol"}},
 		func(ctx context.Context, input *chartIDInput) (*symbolInfoOutput, error) {
-			info, err := svc.GetSymbolInfo(ctx, input.ChartID)
+			info, err := svc.GetSymbolInfo(ctx, input.ChartID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -282,6 +286,7 @@ func NewServer(svc Service) http.Handler {
 	type resolutionInput struct {
 		ChartID    string `path:"chart_id"`
 		Resolution string `query:"resolution" required:"true"`
+		Pane       int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 	type resolutionOutput struct {
 		Body struct {
@@ -293,7 +298,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "get-resolution", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Get chart resolution", Tags: []string{"Resolution"}},
 		func(ctx context.Context, input *chartIDInput) (*resolutionOutput, error) {
-			resolution, err := svc.GetResolution(ctx, input.ChartID)
+			resolution, err := svc.GetResolution(ctx, input.ChartID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -305,7 +310,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "set-resolution", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/resolution", Summary: "Set chart resolution", Tags: []string{"Resolution"}},
 		func(ctx context.Context, input *resolutionInput) (*resolutionOutput, error) {
-			current, err := svc.SetResolution(ctx, input.ChartID, input.Resolution)
+			current, err := svc.SetResolution(ctx, input.ChartID, input.Resolution, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -359,6 +364,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	type addStudyInput struct {
 		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 		Body    struct {
 			Name         string         `json:"name" required:"true"`
 			Inputs       map[string]any `json:"inputs,omitempty"`
@@ -375,11 +381,12 @@ func NewServer(svc Service) http.Handler {
 	type removeStudyInput struct {
 		ChartID string `path:"chart_id"`
 		StudyID string `path:"study_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 
 	huma.Register(api, huma.Operation{OperationID: "list-studies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies", Summary: "List studies", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *chartIDInput) (*studyListOutput, error) {
-			studies, err := svc.ListStudies(ctx, input.ChartID)
+			studies, err := svc.ListStudies(ctx, input.ChartID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -391,7 +398,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "add-study", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/studies", Summary: "Add study", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *addStudyInput) (*addStudyOutput, error) {
-			study, err := svc.AddStudy(ctx, input.ChartID, input.Body.Name, input.Body.Inputs, input.Body.ForceOverlay)
+			study, err := svc.AddStudy(ctx, input.ChartID, input.Body.Name, input.Body.Inputs, input.Body.ForceOverlay, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -404,7 +411,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "remove-study", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Remove study", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *removeStudyInput) (*struct{}, error) {
-			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID); err != nil {
+			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID, input.Pane); err != nil {
 				return nil, mapErr(err)
 			}
 			return &struct{}{}, nil
@@ -419,7 +426,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "get-study", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Get study detail with inputs", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *removeStudyInput) (*getStudyOutput, error) {
-			detail, err := svc.GetStudyInputs(ctx, input.ChartID, input.StudyID)
+			detail, err := svc.GetStudyInputs(ctx, input.ChartID, input.StudyID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -432,6 +439,7 @@ func NewServer(svc Service) http.Handler {
 	type modifyStudyInput struct {
 		ChartID string `path:"chart_id"`
 		StudyID string `path:"study_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 		Body    struct {
 			Inputs map[string]any `json:"inputs" required:"true"`
 		}
@@ -439,7 +447,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "modify-study", Method: http.MethodPatch, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Modify study input parameters", Tags: []string{"Studies"}},
 		func(ctx context.Context, input *modifyStudyInput) (*getStudyOutput, error) {
-			detail, err := svc.ModifyStudyInputs(ctx, input.ChartID, input.StudyID, input.Body.Inputs)
+			detail, err := svc.ModifyStudyInputs(ctx, input.ChartID, input.StudyID, input.Body.Inputs, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -753,6 +761,42 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
+	huma.Register(api, huma.Operation{OperationID: "set-timeframe", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/timeframe", Summary: "Set time frame preset (1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All)", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *struct {
+			ChartID    string `path:"chart_id"`
+			Preset     string `query:"preset" required:"true" doc:"Time frame preset: 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All"`
+			Resolution string `query:"resolution" doc:"Optional resolution override (e.g. 1, 5, 15, 60, 1D). Omit to let TradingView pick."`
+			Pane       int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+		}) (*struct {
+			Body struct {
+				ChartID    string  `json:"chart_id"`
+				Preset     string  `json:"preset"`
+				Resolution string  `json:"resolution"`
+				From       float64 `json:"from"`
+				To         float64 `json:"to"`
+			}
+		}, error) {
+			r, err := svc.SetTimeFrame(ctx, input.ChartID, input.Preset, input.Resolution, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					ChartID    string  `json:"chart_id"`
+					Preset     string  `json:"preset"`
+					Resolution string  `json:"resolution"`
+					From       float64 `json:"from"`
+					To         float64 `json:"to"`
+				}
+			}{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Preset = r.Preset
+			out.Body.Resolution = r.Resolution
+			out.Body.From = r.From
+			out.Body.To = r.To
+			return out, nil
+		})
+
 	huma.Register(api, huma.Operation{OperationID: "reset-scales", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/reset-scales", Summary: "Reset all chart scales", Tags: []string{"Navigation"}},
 		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
 			if err := svc.ResetScales(ctx, input.ChartID); err != nil {
@@ -949,14 +993,19 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "replay-step", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/replay/step", Summary: "Step one bar forward in replay", Tags: []string{"Replay"}},
-		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
-			if err := svc.ReplayStep(ctx, input.ChartID); err != nil {
+	huma.Register(api, huma.Operation{OperationID: "replay-step", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/replay/step", Summary: "Step forward N bars in replay (default 1)", Tags: []string{"Replay"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Body    struct {
+				Count int `json:"count,omitempty" default:"1" minimum:"1" maximum:"500" doc:"Number of bars to step forward"`
+			}
+		}) (*navStatusOutput, error) {
+			if err := svc.ReplayStep(ctx, input.ChartID, input.Body.Count); err != nil {
 				return nil, mapErr(err)
 			}
 			out := &navStatusOutput{}
 			out.Body.ChartID = input.ChartID
-			out.Body.Status = "stepped"
+			out.Body.Status = fmt.Sprintf("stepped %d", input.Body.Count)
 			return out, nil
 		})
 
@@ -1370,7 +1419,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	huma.Register(api, huma.Operation{OperationID: "list-drawings", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "List all drawings on chart", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *chartIDInput) (*drawingListOutput, error) {
-			shapes, err := svc.ListDrawings(ctx, input.ChartID)
+			shapes, err := svc.ListDrawings(ctx, input.ChartID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1383,13 +1432,14 @@ func NewServer(svc Service) http.Handler {
 	type shapeIDInput struct {
 		ChartID string `path:"chart_id"`
 		ShapeID string `path:"shape_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 	type drawingDetailOutput struct {
 		Body map[string]any
 	}
 	huma.Register(api, huma.Operation{OperationID: "get-drawing", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}", Summary: "Get drawing by ID", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *shapeIDInput) (*drawingDetailOutput, error) {
-			detail, err := svc.GetDrawing(ctx, input.ChartID, input.ShapeID)
+			detail, err := svc.GetDrawing(ctx, input.ChartID, input.ShapeID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1400,6 +1450,7 @@ func NewServer(svc Service) http.Handler {
 
 	type createDrawingInput struct {
 		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 		Body    struct {
 			Point   cdpcontrol.ShapePoint `json:"point" required:"true"`
 			Options map[string]any        `json:"options" required:"true"`
@@ -1414,7 +1465,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	huma.Register(api, huma.Operation{OperationID: "create-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "Create a single-point drawing", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *createDrawingInput) (*createDrawingOutput, error) {
-			id, err := svc.CreateDrawing(ctx, input.ChartID, input.Body.Point, input.Body.Options)
+			id, err := svc.CreateDrawing(ctx, input.ChartID, input.Body.Point, input.Body.Options, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1427,6 +1478,7 @@ func NewServer(svc Service) http.Handler {
 
 	type createMultipointInput struct {
 		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 		Body    struct {
 			Points  []cdpcontrol.ShapePoint `json:"points" required:"true"`
 			Options map[string]any          `json:"options" required:"true"`
@@ -1434,7 +1486,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	huma.Register(api, huma.Operation{OperationID: "create-multipoint-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/multipoint", Summary: "Create a multi-point drawing", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *createMultipointInput) (*createDrawingOutput, error) {
-			id, err := svc.CreateMultipointDrawing(ctx, input.ChartID, input.Body.Points, input.Body.Options)
+			id, err := svc.CreateMultipointDrawing(ctx, input.ChartID, input.Body.Points, input.Body.Options, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1447,7 +1499,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "clone-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/clone", Summary: "Clone a drawing", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *shapeIDInput) (*createDrawingOutput, error) {
-			id, err := svc.CloneDrawing(ctx, input.ChartID, input.ShapeID)
+			id, err := svc.CloneDrawing(ctx, input.ChartID, input.ShapeID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -1459,13 +1511,14 @@ func NewServer(svc Service) http.Handler {
 		})
 
 	type removeDrawingInput struct {
-		ChartID    string `path:"chart_id"`
-		ShapeID    string `path:"shape_id"`
-		DisableUndo bool  `query:"disable_undo"`
+		ChartID     string `path:"chart_id"`
+		ShapeID     string `path:"shape_id"`
+		DisableUndo bool   `query:"disable_undo"`
+		Pane        int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 	}
 	huma.Register(api, huma.Operation{OperationID: "remove-drawing", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}", Summary: "Remove a drawing", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *removeDrawingInput) (*struct{}, error) {
-			if err := svc.RemoveDrawing(ctx, input.ChartID, input.ShapeID, input.DisableUndo); err != nil {
+			if err := svc.RemoveDrawing(ctx, input.ChartID, input.ShapeID, input.DisableUndo, input.Pane); err != nil {
 				return nil, mapErr(err)
 			}
 			return &struct{}{}, nil
@@ -1473,7 +1526,7 @@ func NewServer(svc Service) http.Handler {
 
 	huma.Register(api, huma.Operation{OperationID: "remove-all-drawings", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/drawings", Summary: "Remove all drawings", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *chartIDInput) (*struct{}, error) {
-			if err := svc.RemoveAllDrawings(ctx, input.ChartID); err != nil {
+			if err := svc.RemoveAllDrawings(ctx, input.ChartID, input.Pane); err != nil {
 				return nil, mapErr(err)
 			}
 			return &struct{}{}, nil
@@ -1689,13 +1742,14 @@ func NewServer(svc Service) http.Handler {
 	huma.Register(api, huma.Operation{OperationID: "take-snapshot", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/snapshot", Summary: "Take chart snapshot", Tags: []string{"Snapshots"}},
 		func(ctx context.Context, input *struct {
 			ChartID string `path:"chart_id"`
+			Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
 			Body    struct {
 				Format  string `json:"format,omitempty"`
 				Quality string `json:"quality,omitempty"`
 				Notes   string `json:"notes,omitempty" doc:"Free-form annotation for the snapshot"`
 			}
 		}) (*takeSnapshotOutput, error) {
-			meta, err := svc.TakeSnapshot(ctx, input.ChartID, input.Body.Format, input.Body.Quality, input.Body.Notes)
+			meta, err := svc.TakeSnapshot(ctx, input.ChartID, input.Body.Format, input.Body.Quality, input.Body.Notes, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
 			}
@@ -2313,6 +2367,17 @@ func NewServer(svc Service) http.Handler {
 			}
 			out := &layoutStatusOutput{}
 			out.Body = status
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "get-panes", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/panes", Summary: "List all panes in the current grid layout", Tags: []string{"Chart Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body cdpcontrol.PanesResult }, error) {
+			result, err := svc.GetPaneInfo(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct{ Body cdpcontrol.PanesResult }{}
+			out.Body = result
 			return out, nil
 		})
 

@@ -22,11 +22,30 @@ func NewService(cdp *cdpcontrol.Client, snaps *snapshot.Store) *Service {
 	return &Service{cdp: cdp, snaps: snaps}
 }
 
+// ensurePane activates the given pane index before an operation.
+// If pane < 0 it is a no-op (use current active pane).
+func (s *Service) ensurePane(ctx context.Context, pane int) error {
+	if pane < 0 {
+		return nil
+	}
+	status, err := s.cdp.ActivateChart(ctx, pane)
+	if err != nil {
+		return err
+	}
+	if status.ActiveIndex != pane {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fmt.Sprintf("pane %d out of range (chart_count=%d)", pane, status.ChartCount)}
+	}
+	return nil
+}
+
 func (s *Service) ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, error) {
 	return s.cdp.ListCharts(ctx)
 }
 
-func (s *Service) GetSymbolInfo(ctx context.Context, chartID string) (cdpcontrol.SymbolInfo, error) {
+func (s *Service) GetSymbolInfo(ctx context.Context, chartID string, pane int) (cdpcontrol.SymbolInfo, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.SymbolInfo{}, err
+	}
 	return s.cdp.GetSymbolInfo(ctx, strings.TrimSpace(chartID))
 }
 
@@ -34,24 +53,36 @@ func (s *Service) GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInf
 	return s.cdp.GetActiveChart(ctx)
 }
 
-func (s *Service) GetSymbol(ctx context.Context, chartID string) (string, error) {
+func (s *Service) GetSymbol(ctx context.Context, chartID string, pane int) (string, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
+	}
 	return s.cdp.GetSymbol(ctx, strings.TrimSpace(chartID))
 }
 
-func (s *Service) SetSymbol(ctx context.Context, chartID, symbol string) (string, error) {
+func (s *Service) SetSymbol(ctx context.Context, chartID, symbol string, pane int) (string, error) {
 	if strings.TrimSpace(symbol) == "" {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
 	}
 	return s.cdp.SetSymbol(ctx, strings.TrimSpace(chartID), strings.TrimSpace(symbol))
 }
 
-func (s *Service) GetResolution(ctx context.Context, chartID string) (string, error) {
+func (s *Service) GetResolution(ctx context.Context, chartID string, pane int) (string, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
+	}
 	return s.cdp.GetResolution(ctx, strings.TrimSpace(chartID))
 }
 
-func (s *Service) SetResolution(ctx context.Context, chartID, resolution string) (string, error) {
+func (s *Service) SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error) {
 	if strings.TrimSpace(resolution) == "" {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "resolution is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
 	}
 	return s.cdp.SetResolution(ctx, strings.TrimSpace(chartID), strings.TrimSpace(resolution))
 }
@@ -63,37 +94,52 @@ func (s *Service) ExecuteAction(ctx context.Context, chartID, actionID string) e
 	return s.cdp.ExecuteAction(ctx, strings.TrimSpace(chartID), strings.TrimSpace(actionID))
 }
 
-func (s *Service) ListStudies(ctx context.Context, chartID string) ([]cdpcontrol.Study, error) {
+func (s *Service) ListStudies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
+	}
 	return s.cdp.ListStudies(ctx, strings.TrimSpace(chartID))
 }
 
-func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error) {
+func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool, pane int) (cdpcontrol.Study, error) {
 	if strings.TrimSpace(name) == "" {
 		return cdpcontrol.Study{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study name is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.Study{}, err
 	}
 	return s.cdp.AddStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name), inputs, forceOverlay)
 }
 
-func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error) {
+func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error) {
 	if strings.TrimSpace(studyID) == "" {
 		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.StudyDetail{}, err
 	}
 	return s.cdp.GetStudyInputs(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
 
-func (s *Service) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error) {
+func (s *Service) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error) {
 	if strings.TrimSpace(studyID) == "" {
 		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
 	}
 	if len(inputs) == 0 {
 		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "inputs must not be empty"}
 	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.StudyDetail{}, err
+	}
 	return s.cdp.ModifyStudyInputs(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID), inputs)
 }
 
-func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string) error {
+func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error {
 	if strings.TrimSpace(studyID) == "" {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return err
 	}
 	return s.cdp.RemoveStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
@@ -133,6 +179,17 @@ func (s *Service) SetVisibleRange(ctx context.Context, chartID string, from, to 
 		return cdpcontrol.VisibleRange{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "from must be less than to"}
 	}
 	return s.cdp.SetVisibleRange(ctx, strings.TrimSpace(chartID), from, to)
+}
+
+func (s *Service) SetTimeFrame(ctx context.Context, chartID, preset, resolution string, pane int) (cdpcontrol.TimeFrameResult, error) {
+	preset = strings.TrimSpace(preset)
+	if preset == "" {
+		return cdpcontrol.TimeFrameResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "preset is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.TimeFrameResult{}, err
+	}
+	return s.cdp.SetTimeFrame(ctx, strings.TrimSpace(chartID), preset, strings.TrimSpace(resolution))
 }
 
 func (s *Service) ResetScales(ctx context.Context, chartID string) error {
@@ -277,8 +334,8 @@ func (s *Service) StopReplay(ctx context.Context, chartID string) error {
 	return s.cdp.StopReplay(ctx, strings.TrimSpace(chartID))
 }
 
-func (s *Service) ReplayStep(ctx context.Context, chartID string) error {
-	return s.cdp.ReplayStep(ctx, strings.TrimSpace(chartID))
+func (s *Service) ReplayStep(ctx context.Context, chartID string, count int) error {
+	return s.cdp.ReplayStep(ctx, strings.TrimSpace(chartID), count)
 }
 
 func (s *Service) StartAutoplay(ctx context.Context, chartID string) error {
@@ -426,49 +483,70 @@ func (s *Service) DeleteAllFires(ctx context.Context) error {
 
 // --- Drawing/Shape methods ---
 
-func (s *Service) ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error) {
+func (s *Service) ListDrawings(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Shape, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
+	}
 	return s.cdp.ListDrawings(ctx, strings.TrimSpace(chartID))
 }
 
-func (s *Service) GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error) {
+func (s *Service) GetDrawing(ctx context.Context, chartID, shapeID string, pane int) (map[string]any, error) {
 	if strings.TrimSpace(shapeID) == "" {
 		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
 	}
 	return s.cdp.GetDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID))
 }
 
-func (s *Service) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+func (s *Service) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
 	if _, ok := options["shape"]; !ok {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
 	}
 	return s.cdp.CreateDrawing(ctx, strings.TrimSpace(chartID), point, options)
 }
 
-func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
 	if len(points) < 2 {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "points must have at least 2 entries"}
 	}
 	if _, ok := options["shape"]; !ok {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "options must contain \"shape\" key"}
 	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
+	}
 	return s.cdp.CreateMultipointDrawing(ctx, strings.TrimSpace(chartID), points, options)
 }
 
-func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
+func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error) {
 	if strings.TrimSpace(shapeID) == "" {
 		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return "", err
 	}
 	return s.cdp.CloneDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID))
 }
 
-func (s *Service) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
+func (s *Service) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool, pane int) error {
 	if strings.TrimSpace(shapeID) == "" {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return err
 	}
 	return s.cdp.RemoveDrawing(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID), disableUndo)
 }
 
-func (s *Service) RemoveAllDrawings(ctx context.Context, chartID string) error {
+func (s *Service) RemoveAllDrawings(ctx context.Context, chartID string, pane int) error {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return err
+	}
 	return s.cdp.RemoveAllDrawings(ctx, strings.TrimSpace(chartID))
 }
 
@@ -564,13 +642,20 @@ func (s *Service) BrowserScreenshot(ctx context.Context, format string, quality 
 	return meta, nil
 }
 
-func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error) {
+func (s *Service) GetPaneInfo(ctx context.Context) (cdpcontrol.PanesResult, error) {
+	return s.cdp.GetPaneInfo(ctx)
+}
+
+func (s *Service) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string, pane int) (snapshot.SnapshotMeta, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "png"
 	}
 	if format != "png" && format != "jpeg" {
 		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "format must be \"png\" or \"jpeg\""}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return snapshot.SnapshotMeta{}, err
 	}
 
 	result, err := s.cdp.TakeSnapshot(ctx, strings.TrimSpace(chartID), format, quality, false)
@@ -970,7 +1055,7 @@ func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) 
 	}
 
 	if takeSnapshot && chartID != "" {
-		snap, err := s.TakeSnapshot(ctx, chartID, "png", "", "")
+		snap, err := s.TakeSnapshot(ctx, chartID, "png", "", "", -1)
 		if err == nil {
 			detail.SnapshotURL = fmt.Sprintf("/api/v1/snapshots/%s/image", snap.ID)
 		}

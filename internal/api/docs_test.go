@@ -19,31 +19,35 @@ func (s *stubService) ListCharts(ctx context.Context) ([]cdpcontrol.ChartInfo, e
 func (s *stubService) GetActiveChart(ctx context.Context) (cdpcontrol.ActiveChartInfo, error) {
 	return cdpcontrol.ActiveChartInfo{}, nil
 }
-func (s *stubService) GetSymbolInfo(ctx context.Context, chartID string) (cdpcontrol.SymbolInfo, error) {
+func (s *stubService) GetSymbolInfo(ctx context.Context, chartID string, pane int) (cdpcontrol.SymbolInfo, error) {
 	return cdpcontrol.SymbolInfo{}, nil
 }
-func (s *stubService) GetSymbol(ctx context.Context, chartID string) (string, error) { return "", nil }
-func (s *stubService) SetSymbol(ctx context.Context, chartID, symbol string) (string, error) {
-	return symbol, nil
-}
-func (s *stubService) GetResolution(ctx context.Context, chartID string) (string, error) {
+func (s *stubService) GetSymbol(ctx context.Context, chartID string, pane int) (string, error) {
 	return "", nil
 }
-func (s *stubService) SetResolution(ctx context.Context, chartID, resolution string) (string, error) {
+func (s *stubService) SetSymbol(ctx context.Context, chartID, symbol string, pane int) (string, error) {
+	return symbol, nil
+}
+func (s *stubService) GetResolution(ctx context.Context, chartID string, pane int) (string, error) {
+	return "", nil
+}
+func (s *stubService) SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error) {
 	return resolution, nil
 }
 func (s *stubService) ExecuteAction(ctx context.Context, chartID, actionID string) error { return nil }
-func (s *stubService) ListStudies(ctx context.Context, chartID string) ([]cdpcontrol.Study, error) {
+func (s *stubService) ListStudies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error) {
 	return []cdpcontrol.Study{}, nil
 }
-func (s *stubService) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool) (cdpcontrol.Study, error) {
+func (s *stubService) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool, pane int) (cdpcontrol.Study, error) {
 	return cdpcontrol.Study{}, nil
 }
-func (s *stubService) RemoveStudy(ctx context.Context, chartID, studyID string) error { return nil }
-func (s *stubService) GetStudyInputs(ctx context.Context, chartID, studyID string) (cdpcontrol.StudyDetail, error) {
+func (s *stubService) RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error {
+	return nil
+}
+func (s *stubService) GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error) {
 	return cdpcontrol.StudyDetail{}, nil
 }
-func (s *stubService) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any) (cdpcontrol.StudyDetail, error) {
+func (s *stubService) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error) {
 	return cdpcontrol.StudyDetail{}, nil
 }
 func (s *stubService) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
@@ -84,6 +88,9 @@ func (s *stubService) GetVisibleRange(ctx context.Context, chartID string) (cdpc
 func (s *stubService) SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error) {
 	return cdpcontrol.VisibleRange{}, nil
 }
+func (s *stubService) SetTimeFrame(ctx context.Context, chartID, preset, resolution string, pane int) (cdpcontrol.TimeFrameResult, error) {
+	return cdpcontrol.TimeFrameResult{}, nil
+}
 func (s *stubService) ResetScales(ctx context.Context, chartID string) error { return nil }
 func (s *stubService) ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error) {
 	return cdpcontrol.ChartApiProbe{}, nil
@@ -118,7 +125,7 @@ func (s *stubService) StartReplay(ctx context.Context, chartID string, point flo
 	return nil
 }
 func (s *stubService) StopReplay(ctx context.Context, chartID string) error  { return nil }
-func (s *stubService) ReplayStep(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) ReplayStep(ctx context.Context, chartID string, count int) error { return nil }
 func (s *stubService) StartAutoplay(ctx context.Context, chartID string) error { return nil }
 func (s *stubService) StopAutoplay(ctx context.Context, chartID string) error  { return nil }
 func (s *stubService) ResetReplay(ctx context.Context, chartID string) error   { return nil }
@@ -173,25 +180,27 @@ func (s *stubService) CloneAlerts(ctx context.Context, ids []string) error   { r
 func (s *stubService) ListFires(ctx context.Context) (any, error)            { return nil, nil }
 func (s *stubService) DeleteFires(ctx context.Context, ids []string) error   { return nil }
 func (s *stubService) DeleteAllFires(ctx context.Context) error { return nil }
-func (s *stubService) ListDrawings(ctx context.Context, chartID string) ([]cdpcontrol.Shape, error) {
+func (s *stubService) ListDrawings(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Shape, error) {
 	return []cdpcontrol.Shape{}, nil
 }
-func (s *stubService) GetDrawing(ctx context.Context, chartID, shapeID string) (map[string]any, error) {
+func (s *stubService) GetDrawing(ctx context.Context, chartID, shapeID string, pane int) (map[string]any, error) {
 	return map[string]any{}, nil
 }
-func (s *stubService) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+func (s *stubService) CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
 	return "", nil
 }
-func (s *stubService) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any) (string, error) {
+func (s *stubService) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
 	return "", nil
 }
-func (s *stubService) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
+func (s *stubService) CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error) {
 	return "", nil
 }
-func (s *stubService) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool) error {
+func (s *stubService) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool, pane int) error {
 	return nil
 }
-func (s *stubService) RemoveAllDrawings(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) RemoveAllDrawings(ctx context.Context, chartID string, pane int) error {
+	return nil
+}
 func (s *stubService) GetDrawingToggles(ctx context.Context, chartID string) (cdpcontrol.DrawingToggles, error) {
 	return cdpcontrol.DrawingToggles{}, nil
 }
@@ -223,8 +232,11 @@ func (s *stubService) ImportDrawingsState(ctx context.Context, chartID string, s
 func (s *stubService) BrowserScreenshot(ctx context.Context, format string, quality int, fullPage bool, notes string) (snapshot.SnapshotMeta, error) {
 	return snapshot.SnapshotMeta{}, nil
 }
-func (s *stubService) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string) (snapshot.SnapshotMeta, error) {
+func (s *stubService) TakeSnapshot(ctx context.Context, chartID, format, quality, notes string, pane int) (snapshot.SnapshotMeta, error) {
 	return snapshot.SnapshotMeta{}, nil
+}
+func (s *stubService) GetPaneInfo(ctx context.Context) (cdpcontrol.PanesResult, error) {
+	return cdpcontrol.PanesResult{}, nil
 }
 func (s *stubService) ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, error) {
 	return []snapshot.SnapshotMeta{}, nil

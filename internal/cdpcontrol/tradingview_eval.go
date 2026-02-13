@@ -627,6 +627,33 @@ return JSON.stringify({ok:true,data:{from:from,to:to}});
 `, from, to))
 }
 
+func jsSetTimeFrame(preset, resolution string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+var preset = %s;
+var res = %s;
+if (!chart) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+if (typeof chart.setTimeFrame !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setTimeFrame unavailable"});
+var p = preset.toUpperCase();
+if (p === "1Y") p = "12M";
+else if (p === "5Y") p = "60M";
+// setTimeFrame -> _chartWidget.loadRange(e) -> model.loadRange(e)
+// Undo system (Zs) expects: {val: {type,value}, res: intervalString}
+// Oi wrapper extracts .val for areEqualTimeFrames; redo uses .val and .res
+var curRes = res || (typeof chart.resolution === "function" ? String(chart.resolution()||"D") : "D");
+var tf = {val: {type:"period-back", value:p}, res: curRes};
+try { chart.setTimeFrame(tf); } catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"setTimeFrame failed: "+String(e.message||e)});
+}
+// Brief settle for data load
+await new Promise(function(r){ setTimeout(r, 500); });
+var finalRes = typeof chart.resolution === "function" ? String(chart.resolution()||"") : "";
+var r = typeof chart.getVisibleRange === "function" ? chart.getVisibleRange() : null;
+var from = r ? Number(r.from||0) : 0;
+var to = r ? Number(r.to||0) : 0;
+return JSON.stringify({ok:true,data:{preset:preset,resolution:finalRes,from:from,to:to}});
+`, jsString(preset), jsString(resolution)))
+}
+
 func jsResetScales() string {
 	return wrapJSEval(jsPreamble + jsExecAction + `
 if (!chart && !api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
@@ -1164,13 +1191,14 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"stop
 `)
 }
 
-func jsReplayStep() string {
-	return wrapJSEval(jsReplayApiPreamble + `
+func jsReplayStep(count int) string {
+	return wrapJSEval(jsReplayApiPreamble + fmt.Sprintf(`
 if (!rapi) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"replay API unavailable"});
 if (typeof rapi.doStep !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"doStep unavailable"});
-rapi.doStep();
-return JSON.stringify({ok:true,data:{status:"stepped"}});
-`)
+var n = %d;
+for (var i = 0; i < n; i++) rapi.doStep();
+return JSON.stringify({ok:true,data:{status:"stepped",count:n}});
+`, count))
 }
 
 func jsStartAutoplay() string {
@@ -2642,5 +2670,36 @@ if (saveSvc) {
   hasChanges = Boolean(hc);
 }
 return JSON.stringify({ok:true,data:{layout_name:layoutName,layout_id:layoutId,grid_template:gridTemplate,chart_count:chartCount,active_index:activeIndex,is_maximized:isMaximized,is_fullscreen:isFullscreen,has_changes:hasChanges}});
+`)
+}
+
+func jsGetPaneInfo() string {
+	return wrapJSEval(jsPreamble + `
+if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingViewApi unavailable"});
+var gridTemplate = typeof api.layout === "function" ? String(api.layout() || "s") : "s";
+var chartCount = typeof api.chartsCount === "function" ? Number(api.chartsCount() || 1) : 1;
+var activeIndex = typeof api.activeChartIndex === "function" ? Number(api.activeChartIndex() || 0) : 0;
+var panes = [];
+if (api._chartWidgetCollection && typeof api._chartWidgetCollection.images === "function") {
+  var imgs = api._chartWidgetCollection.images();
+  if (imgs && Array.isArray(imgs.charts)) {
+    for (var i = 0; i < imgs.charts.length; i++) {
+      var c = imgs.charts[i] || {};
+      var cm = c.meta || {};
+      panes.push({
+        index: i,
+        symbol: String(cm.symbol || ""),
+        exchange: String(cm.exchange || ""),
+        resolution: String(cm.resolution || "")
+      });
+    }
+  }
+}
+if (panes.length === 0 && chart) {
+  var sym = typeof chart.symbol === "function" ? String(chart.symbol() || "") : "";
+  var res = typeof chart.resolution === "function" ? String(chart.resolution() || "") : "";
+  panes.push({index: 0, symbol: sym, exchange: "", resolution: res});
+}
+return JSON.stringify({ok:true,data:{grid_template:gridTemplate,chart_count:chartCount,active_index:activeIndex,panes:panes}});
 `)
 }

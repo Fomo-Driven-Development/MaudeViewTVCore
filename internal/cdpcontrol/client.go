@@ -371,6 +371,14 @@ func (c *Client) SetVisibleRange(ctx context.Context, chartID string, from, to f
 	return out, nil
 }
 
+func (c *Client) SetTimeFrame(ctx context.Context, chartID, preset, resolution string) (TimeFrameResult, error) {
+	var out TimeFrameResult
+	if err := c.evalOnChart(ctx, chartID, jsSetTimeFrame(preset, resolution), &out); err != nil {
+		return TimeFrameResult{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) ResetScales(ctx context.Context, chartID string) error {
 	return c.doChartAction(ctx, chartID, jsResetScales())
 }
@@ -561,8 +569,11 @@ func (c *Client) StopReplay(ctx context.Context, chartID string) error {
 	return c.doChartAction(ctx, chartID, jsStopReplay())
 }
 
-func (c *Client) ReplayStep(ctx context.Context, chartID string) error {
-	return c.doChartAction(ctx, chartID, jsReplayStep())
+func (c *Client) ReplayStep(ctx context.Context, chartID string, count int) error {
+	if count < 1 {
+		count = 1
+	}
+	return c.doChartAction(ctx, chartID, jsReplayStep(count))
 }
 
 func (c *Client) StartAutoplay(ctx context.Context, chartID string) error {
@@ -1847,6 +1858,17 @@ func (c *Client) ActivateChart(ctx context.Context, index int) (LayoutStatus, er
 	var out LayoutStatus
 	if err := c.evalOnAnyChart(ctx, jsActivateChart(index), &out); err != nil {
 		return LayoutStatus{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPaneInfo(ctx context.Context) (PanesResult, error) {
+	var out PanesResult
+	if err := c.evalOnAnyChart(ctx, jsGetPaneInfo(), &out); err != nil {
+		return PanesResult{}, err
+	}
+	if out.Panes == nil {
+		out.Panes = []PaneInfo{}
 	}
 	return out, nil
 }
