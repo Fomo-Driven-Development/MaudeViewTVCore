@@ -20,6 +20,7 @@ help:
 	@echo "  just mapper-validate     Validate mapper artifacts"
 	@echo "  just mapper-smoke        Run smoke sequence + docs report"
 	@echo "  just mapper-full         Run full mapper pipeline"
+	@echo "  just test-integration    Run integration tests (live server)"
 	@echo ""
 
 # Start Chrome with debugging and console logs
@@ -65,3 +66,7 @@ mapper-smoke:
 # Mapper pipeline: all stages
 mapper-full:
     ./scripts/mapper-full.sh
+
+# Run integration tests (requires running browser + tv_controller)
+test-integration:
+    go test -tags integration -v -count=1 ./test/integration/...

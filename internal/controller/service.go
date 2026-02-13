@@ -181,10 +181,18 @@ func (s *Service) SetVisibleRange(ctx context.Context, chartID string, from, to 
 	return s.cdp.SetVisibleRange(ctx, strings.TrimSpace(chartID), from, to)
 }
 
+var validPresets = map[string]bool{
+	"1D": true, "5D": true, "1M": true, "3M": true, "6M": true,
+	"YTD": true, "1Y": true, "5Y": true, "All": true,
+}
+
 func (s *Service) SetTimeFrame(ctx context.Context, chartID, preset, resolution string, pane int) (cdpcontrol.TimeFrameResult, error) {
 	preset = strings.TrimSpace(preset)
 	if preset == "" {
 		return cdpcontrol.TimeFrameResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "preset is required"}
+	}
+	if !validPresets[preset] {
+		return cdpcontrol.TimeFrameResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fmt.Sprintf("invalid preset %q; valid values: 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All", preset)}
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return cdpcontrol.TimeFrameResult{}, err
