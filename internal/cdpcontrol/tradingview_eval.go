@@ -2906,24 +2906,44 @@ func jsWaitForIndicatorDialog() string {
 	return wrapJSEvalAsync(`
 var deadline = Date.now() + 5000;
 var found = false;
+var ix = 0, iy = 0;
 while (Date.now() < deadline) {
-  // Primary: look for the known search input by ID
   var inp = document.getElementById('indicators-dialog-search-input');
+  if (!inp) {
+    var dlg = document.querySelector('[data-name="indicators-dialog"]');
+    if (dlg && dlg.offsetParent !== null) inp = dlg.querySelector('input');
+  }
   if (inp && inp.offsetParent !== null) {
     found = true;
-    inp.focus();
+    var rect = inp.getBoundingClientRect();
+    ix = rect.x + rect.width / 2;
+    iy = rect.y + rect.height / 2;
     break;
-  }
-  // Also check for the dialog container by data-name
-  var dlg = document.querySelector('[data-name="indicators-dialog"]');
-  if (dlg && dlg.offsetParent !== null) {
-    var innerInp = dlg.querySelector('input');
-    if (innerInp) { found = true; innerInp.focus(); break; }
   }
   await new Promise(function(r) { setTimeout(r, 200); });
 }
-return JSON.stringify({ok:true,data:{dialog_found:found}});
+return JSON.stringify({ok:true,data:{dialog_found:found,input_x:ix,input_y:iy}});
 `)
+}
+
+// jsSetIndicatorSearchValue types the search query using document.execCommand
+// which creates a trusted text insertion that fires all native events (beforeinput,
+// input) and is handled correctly by React's controlled components.
+func jsSetIndicatorSearchValue(query string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(`
+var query = %s;
+var inp = document.getElementById('indicators-dialog-search-input');
+if (!inp) {
+  var dlg = document.querySelector('[data-name="indicators-dialog"]');
+  if (dlg) inp = dlg.querySelector('input');
+}
+if (!inp) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"search input not found"});
+inp.focus();
+inp.select();
+document.execCommand('insertText', false, query);
+await new Promise(function(r) { setTimeout(r, 800); });
+return JSON.stringify({ok:true,data:{status:"typed",value:inp.value}});
+`, jsString(query)))
 }
 
 func jsScrapeIndicatorResults() string {

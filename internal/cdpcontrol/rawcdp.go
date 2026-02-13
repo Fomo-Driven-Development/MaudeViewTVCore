@@ -419,21 +419,35 @@ func (r *rawCDP) dispatchKeyEvent(ctx context.Context, sessionID string, key str
 	return nil
 }
 
-// dispatchCharInput sends a single character as a keyDown (with text) + char + keyUp
-// sequence. This triggers React/Angular input handlers that insertText alone does not.
+// dispatchCharInput sends a single character using the rawKeyDown + char + keyUp
+// pattern (same as Puppeteer). rawKeyDown fires without text insertion, then the
+// "char" event inserts the character and fires native input events that React's
+// controlled components respond to.
 func (r *rawCDP) dispatchCharInput(ctx context.Context, sessionID, ch string) error {
+	// Step 1: rawKeyDown — fires keydown event without inserting text.
 	down := struct {
 		Type                  string `json:"type"`
-		Text                  string `json:"text"`
 		Key                   string `json:"key"`
 		WindowsVirtualKeyCode int    `json:"windowsVirtualKeyCode"`
-		UnmodifiedText        string `json:"unmodifiedText"`
-	}{Type: "keyDown", Text: ch, Key: ch, UnmodifiedText: ch}
+	}{Type: "rawKeyDown", Key: ch}
 
 	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", down); err != nil {
-		return fmt.Errorf("rawcdp: charDown: %w", err)
+		return fmt.Errorf("rawcdp: rawKeyDown: %w", err)
 	}
 
+	// Step 2: char — inserts the character and fires native input event.
+	charEvt := struct {
+		Type           string `json:"type"`
+		Text           string `json:"text"`
+		Key            string `json:"key"`
+		UnmodifiedText string `json:"unmodifiedText"`
+	}{Type: "char", Text: ch, Key: ch, UnmodifiedText: ch}
+
+	if _, err := r.sendFlat(ctx, sessionID, "Input.dispatchKeyEvent", charEvt); err != nil {
+		return fmt.Errorf("rawcdp: char: %w", err)
+	}
+
+	// Step 3: keyUp — completes the key sequence.
 	up := struct {
 		Type string `json:"type"`
 		Key  string `json:"key"`
