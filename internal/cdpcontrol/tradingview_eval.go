@@ -639,7 +639,9 @@ else if (p === "5Y") p = "60M";
 // setTimeFrame -> _chartWidget.loadRange(e) -> model.loadRange(e)
 // Undo system (Zs) expects: {val: {type,value}, res: intervalString}
 // Oi wrapper extracts .val for areEqualTimeFrames; redo uses .val and .res
-var curRes = res || (typeof chart.resolution === "function" ? String(chart.resolution()||"D") : "D");
+// Default resolution per preset when none provided
+var defaultRes = {"1D":"5","5D":"15","1M":"30","3M":"1D","6M":"1D","YTD":"1D","12M":"1D","60M":"1W","ALL":"1M"};
+var curRes = res || defaultRes[p] || (typeof chart.resolution === "function" ? String(chart.resolution()||"D") : "D");
 var tf = {val: {type:"period-back", value:p}, res: curRes};
 try { chart.setTimeFrame(tf); } catch(e) {
   return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"setTimeFrame failed: "+String(e.message||e)});
