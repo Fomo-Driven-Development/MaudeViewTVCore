@@ -375,6 +375,26 @@ func (c *Client) ResetView(ctx context.Context, chartID string) error {
 	return nil
 }
 
+func (c *Client) UndoChart(ctx context.Context, chartID string) error {
+	// Ctrl+Z — chart-level undo for drawings, studies, etc.
+	// modifiers: 2=Ctrl
+	if err := c.sendKeysOnAnyChart(ctx, "z", "KeyZ", 90, 2); err != nil {
+		return newError(CodeEvalFailure, "failed to send Ctrl+Z", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	return nil
+}
+
+func (c *Client) RedoChart(ctx context.Context, chartID string) error {
+	// Ctrl+Y — chart-level redo for drawings, studies, etc.
+	// modifiers: 2=Ctrl
+	if err := c.sendKeysOnAnyChart(ctx, "y", "KeyY", 89, 2); err != nil {
+		return newError(CodeEvalFailure, "failed to send Ctrl+Y", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	return nil
+}
+
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
 	// Convert Unix timestamp to YYYY-MM-DD string for the dialog textbox
 	t := time.Unix(timestamp, 0).UTC()
@@ -437,6 +457,43 @@ func (c *Client) SetTimeFrame(ctx context.Context, chartID, preset, resolution s
 
 func (c *Client) ResetScales(ctx context.Context, chartID string) error {
 	return c.doChartAction(ctx, chartID, jsResetScales())
+}
+
+// --- Chart Toggles methods ---
+
+func (c *Client) GetChartToggles(ctx context.Context, chartID string) (ChartToggles, error) {
+	var out ChartToggles
+	if err := c.evalOnChart(ctx, chartID, jsGetChartToggles(), &out); err != nil {
+		return ChartToggles{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ToggleLogScale(ctx context.Context, chartID string) error {
+	// Alt+L via CDP — trusted keyboard shortcut. modifiers: 1=Alt
+	if err := c.sendKeysOnAnyChart(ctx, "l", "KeyL", 76, 1); err != nil {
+		return newError(CodeEvalFailure, "failed to send Alt+L", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	return nil
+}
+
+func (c *Client) ToggleAutoScale(ctx context.Context, chartID string) error {
+	// Alt+A via CDP — trusted keyboard shortcut. modifiers: 1=Alt
+	if err := c.sendKeysOnAnyChart(ctx, "a", "KeyA", 65, 1); err != nil {
+		return newError(CodeEvalFailure, "failed to send Alt+A", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	return nil
+}
+
+func (c *Client) ToggleExtendedHours(ctx context.Context, chartID string) error {
+	// Alt+E via CDP — trusted keyboard shortcut. modifiers: 1=Alt
+	if err := c.sendKeysOnAnyChart(ctx, "e", "KeyE", 69, 1); err != nil {
+		return newError(CodeEvalFailure, "failed to send Alt+E", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	return nil
 }
 
 func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
@@ -1976,6 +2033,22 @@ func (c *Client) ListLayouts(ctx context.Context) ([]LayoutInfo, error) {
 		return []LayoutInfo{}, nil
 	}
 	return out.Layouts, nil
+}
+
+func (c *Client) GetLayoutFavorite(ctx context.Context) (LayoutFavoriteResult, error) {
+	var out LayoutFavoriteResult
+	if err := c.evalOnAnyChart(ctx, jsGetLayoutFavorite(), &out); err != nil {
+		return LayoutFavoriteResult{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ToggleLayoutFavorite(ctx context.Context) (LayoutFavoriteResult, error) {
+	var out LayoutFavoriteResult
+	if err := c.evalOnAnyChart(ctx, jsToggleLayoutFavorite(), &out); err != nil {
+		return LayoutFavoriteResult{}, err
+	}
+	return out, nil
 }
 
 func (c *Client) GetLayoutStatus(ctx context.Context) (LayoutStatus, error) {

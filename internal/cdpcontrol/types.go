@@ -344,6 +344,13 @@ type ShapePoint struct {
 	Price float64 `json:"price"`
 }
 
+// ChartToggles describes the state of chart toolbar toggles (log scale, auto scale, extended hours).
+type ChartToggles struct {
+	LogScale      *bool `json:"log_scale,omitempty"`
+	AutoScale     *bool `json:"auto_scale,omitempty"`
+	ExtendedHours *bool `json:"extended_hours,omitempty"`
+}
+
 // DrawingToggles describes the toggle states for drawing tools.
 type DrawingToggles struct {
 	HideAll       *bool `json:"hide_all,omitempty"`
@@ -445,6 +452,14 @@ type LayoutActionResult struct {
 	Status     string `json:"status"`
 	LayoutName string `json:"layout_name,omitempty"`
 	LayoutID   string `json:"layout_id,omitempty"`
+}
+
+// LayoutFavoriteResult describes the favorite state of a layout.
+type LayoutFavoriteResult struct {
+	LayoutID   string `json:"layout_id"`
+	LayoutName string `json:"layout_name"`
+	IsFavorite bool   `json:"is_favorite"`
+	WasFavorite bool  `json:"was_favorite,omitempty"`
 }
 
 // DeepHealthResult describes the availability of every implementation mechanism.

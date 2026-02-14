@@ -712,6 +712,36 @@ return JSON.stringify({ok:true,data:{status:"executed"}});
 `)
 }
 
+// jsGetChartToggles reads the active state of the Log Scale, Auto Scale, and
+// Extended Hours toolbar buttons via DOM inspection.
+func jsGetChartToggles() string {
+	return wrapJSEval(`
+var result = {};
+function readBtn(names) {
+  for (var i = 0; i < names.length; i++) {
+    var btns = document.querySelectorAll('button[data-name="' + names[i] + '"]');
+    for (var j = 0; j < btns.length; j++) {
+      var b = btns[j];
+      if (b.offsetParent === null) continue;
+      var pressed = b.getAttribute("aria-pressed");
+      if (pressed !== null) return pressed === "true";
+      var cls = b.className || "";
+      if (cls.indexOf("isActive") !== -1 || cls.indexOf("active") !== -1) return true;
+      if (cls.indexOf("isChecked") !== -1 || cls.indexOf("checked") !== -1) return true;
+      var active = b.getAttribute("data-active");
+      if (active !== null) return active === "true";
+      return false;
+    }
+  }
+  return null;
+}
+result.log_scale = readBtn(["logarithm", "log-scale", "logScale"]);
+result.auto_scale = readBtn(["auto", "auto-scale", "autoScale"]);
+result.extended_hours = readBtn(["extended-hours", "extendedHours", "sessions"]);
+return JSON.stringify({ok:true,data:result});
+`)
+}
+
 // --- ChartAPI JS functions ---
 // jsChartApiPreamble extends jsPreamble with chartApi() resolution.
 // Tries multiple access paths and sets `capi` to the chartApi() singleton.
@@ -2488,6 +2518,89 @@ for (var i = 0; i < list.length; i++) {
   });
 }
 return JSON.stringify({ok:true,data:{layouts:layouts}});
+`)
+}
+
+// jsLayoutMatchHelper provides _findCurrentLayout(list, currentId) to match by url, short_url, or id.
+// Also provides _readFavorite(svc, entry) which checks the live favorites map first, then falls back
+// to the static entry.favorite boolean. The favorites map is the source of truth because
+// _handleFavorite() updates the map but doesn't mutate the chartList entry snapshots.
+const jsLayoutMatchHelper = `
+function _findCurrentLayout(list, currentId) {
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    var url = String(c.url || c.short_url || "");
+    if (url === currentId || String(c.short_url || "") === currentId || String(c.id || "") === currentId) return c;
+  }
+  // Fallback: match by active() flag
+  for (var j = 0; j < list.length; j++) {
+    var c2 = list[j];
+    if (typeof c2.active === "function" && c2.active()) return c2;
+  }
+  return null;
+}
+function _readFavorite(svc, entry) {
+  // The live favorites map in state is the source of truth after toggling.
+  try {
+    var raw = svc._state && svc._state._value ? svc._state._value : null;
+    if (!raw) {
+      var obs = typeof svc.state === "function" ? svc.state() : null;
+      raw = obs && typeof obs.value === "function" ? obs.value() : null;
+    }
+    if (raw && raw.favorites && typeof raw.favorites === "object") {
+      return Boolean(raw.favorites[entry.id]);
+    }
+  } catch(_) {}
+  // Fallback to snapshot on the entry itself.
+  return Boolean(entry.favorite || false);
+}
+`
+
+func jsGetLayoutFavorite() string {
+	return wrapJSEvalAsync(jsPreamble + jsLayoutMatchHelper + `
+if (!api || !api._loadChartService) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_loadChartService unavailable"});
+var svc = api._loadChartService;
+if (typeof svc.refreshChartList === "function") {
+  try { var r = svc.refreshChartList(); if (r && typeof r.then === "function") await r; } catch(_) {}
+}
+var st = typeof svc.state === "function" ? svc.state() : null;
+var stVal = st && typeof st.value === "function" ? st.value() : st;
+if (!stVal || !stVal.chartList) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chartList not available"});
+var currentId = typeof api.layoutId === "function" ? String(api.layoutId() || "") : "";
+if (!currentId) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"cannot determine current layout"});
+var found = _findCurrentLayout(stVal.chartList, currentId);
+if (!found) return JSON.stringify({ok:false,error_code:"NOT_FOUND",error_message:"current layout not found in chartList (id=" + currentId + ")"});
+var isFav = _readFavorite(svc, found);
+return JSON.stringify({ok:true,data:{layout_id:currentId,layout_name:String(found.name||""),is_favorite:isFav}});
+`)
+}
+
+func jsToggleLayoutFavorite() string {
+	return wrapJSEvalAsync(jsPreamble + jsLayoutMatchHelper + `
+if (!api || !api._loadChartService) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_loadChartService unavailable"});
+var svc = api._loadChartService;
+if (typeof svc.refreshChartList === "function") {
+  try { var r = svc.refreshChartList(); if (r && typeof r.then === "function") await r; } catch(_) {}
+}
+var st = typeof svc.state === "function" ? svc.state() : null;
+var stVal = st && typeof st.value === "function" ? st.value() : st;
+if (!stVal || !stVal.chartList) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chartList not available"});
+var currentId = typeof api.layoutId === "function" ? String(api.layoutId() || "") : "";
+if (!currentId) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"cannot determine current layout"});
+var found = _findCurrentLayout(stVal.chartList, currentId);
+if (!found) return JSON.stringify({ok:false,error_code:"NOT_FOUND",error_message:"current layout not found in chartList (id=" + currentId + ")"});
+var beforeFav = _readFavorite(svc, found);
+if (typeof found.favoriteAction !== "function") {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"favoriteAction not available on chart entry"});
+}
+try {
+  var result = found.favoriteAction();
+  if (result && typeof result.then === "function") await result;
+} catch(e) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"favoriteAction failed: " + String(e && e.message || e)});
+}
+var afterFav = _readFavorite(svc, found);
+return JSON.stringify({ok:true,data:{layout_id:currentId,layout_name:String(found.name||""),is_favorite:afterFav,was_favorite:beforeFav}});
 `)
 }
 

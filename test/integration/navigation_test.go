@@ -632,3 +632,171 @@ func TestCompareOverlay_MissingSymbol(t *testing.T) {
 		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
 	}
 }
+
+// --- Chart Undo/Redo tests ---
+
+func TestUndoChart(t *testing.T) {
+	resp := env.POST(t, env.chartPath("undo"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Status  string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "executed", "status")
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+}
+
+func TestRedoChart(t *testing.T) {
+	resp := env.POST(t, env.chartPath("redo"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Status  string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "executed", "status")
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+}
+
+// --- Layout Favorite tests ---
+
+func TestGetLayoutFavorite(t *testing.T) {
+	resp := env.GET(t, "/api/v1/layout/favorite")
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		LayoutID   string `json:"layout_id"`
+		LayoutName string `json:"layout_name"`
+		IsFavorite bool   `json:"is_favorite"`
+	}](t, resp)
+	if result.LayoutID == "" {
+		t.Fatal("expected non-empty layout_id")
+	}
+	t.Logf("layout favorite: id=%s name=%s is_favorite=%v", result.LayoutID, result.LayoutName, result.IsFavorite)
+}
+
+func TestToggleLayoutFavorite(t *testing.T) {
+	// Read initial state.
+	resp := env.GET(t, "/api/v1/layout/favorite")
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		IsFavorite bool `json:"is_favorite"`
+	}](t, resp)
+
+	// Toggle.
+	resp = env.POST(t, "/api/v1/layout/favorite/toggle", nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		LayoutID   string `json:"layout_id"`
+		IsFavorite bool   `json:"is_favorite"`
+	}](t, resp)
+	if result.LayoutID == "" {
+		t.Fatal("expected non-empty layout_id")
+	}
+	t.Logf("toggle: was_favorite=%v is_favorite=%v", before.IsFavorite, result.IsFavorite)
+
+	// Toggle back to restore.
+	resp = env.POST(t, "/api/v1/layout/favorite/toggle", nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}
+
+// --- Chart Toggles tests ---
+
+func TestChartToggles_GetState(t *testing.T) {
+	resp := env.GET(t, env.chartPath("toggles"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID       string `json:"chart_id"`
+		LogScale      *bool  `json:"log_scale"`
+		AutoScale     *bool  `json:"auto_scale"`
+		ExtendedHours *bool  `json:"extended_hours"`
+	}](t, resp)
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+}
+
+func TestChartToggles_LogScale(t *testing.T) {
+	// Read initial state.
+	resp := env.GET(t, env.chartPath("toggles"))
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		LogScale *bool `json:"log_scale"`
+	}](t, resp)
+
+	// Toggle log scale.
+	resp = env.POST(t, env.chartPath("toggles/log-scale"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	if result.Status != "toggled" {
+		t.Fatalf("status = %q, want \"toggled\"", result.Status)
+	}
+
+	// Read new state — should differ if the button was detected.
+	resp = env.GET(t, env.chartPath("toggles"))
+	requireStatus(t, resp, http.StatusOK)
+	after := decodeJSON[struct {
+		LogScale *bool `json:"log_scale"`
+	}](t, resp)
+
+	if before.LogScale != nil && after.LogScale != nil && *before.LogScale == *after.LogScale {
+		t.Logf("warning: log_scale did not change (before=%v, after=%v) — button may not be detectable", *before.LogScale, *after.LogScale)
+	}
+
+	// Toggle back to restore original state.
+	resp = env.POST(t, env.chartPath("toggles/log-scale"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}
+
+func TestChartToggles_AutoScale(t *testing.T) {
+	// Read initial state.
+	resp := env.GET(t, env.chartPath("toggles"))
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		AutoScale *bool `json:"auto_scale"`
+	}](t, resp)
+
+	// Toggle auto scale.
+	resp = env.POST(t, env.chartPath("toggles/auto-scale"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	if result.Status != "toggled" {
+		t.Fatalf("status = %q, want \"toggled\"", result.Status)
+	}
+
+	// Read new state.
+	resp = env.GET(t, env.chartPath("toggles"))
+	requireStatus(t, resp, http.StatusOK)
+	after := decodeJSON[struct {
+		AutoScale *bool `json:"auto_scale"`
+	}](t, resp)
+
+	if before.AutoScale != nil && after.AutoScale != nil && *before.AutoScale == *after.AutoScale {
+		t.Logf("warning: auto_scale did not change (before=%v, after=%v) — button may not be detectable", *before.AutoScale, *after.AutoScale)
+	}
+
+	// Toggle back to restore original state.
+	resp = env.POST(t, env.chartPath("toggles/auto-scale"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}
+
+func TestChartToggles_ExtendedHours(t *testing.T) {
+	// Extended hours may not be available for all symbols (e.g. crypto).
+	// Toggle and verify the endpoint works; state change is best-effort.
+	resp := env.POST(t, env.chartPath("toggles/extended-hours"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	if result.Status != "toggled" {
+		t.Fatalf("status = %q, want \"toggled\"", result.Status)
+	}
+
+	// Toggle back to restore.
+	resp = env.POST(t, env.chartPath("toggles/extended-hours"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}

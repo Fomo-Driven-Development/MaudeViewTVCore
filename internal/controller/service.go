@@ -232,6 +232,14 @@ func (s *Service) ResetView(ctx context.Context, chartID string) error {
 	return s.cdp.ResetView(ctx, strings.TrimSpace(chartID))
 }
 
+func (s *Service) UndoChart(ctx context.Context, chartID string) error {
+	return s.cdp.UndoChart(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) RedoChart(ctx context.Context, chartID string) error {
+	return s.cdp.RedoChart(ctx, strings.TrimSpace(chartID))
+}
+
 func (s *Service) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
 	if timestamp <= 0 {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "timestamp must be positive"}
@@ -271,6 +279,27 @@ func (s *Service) SetTimeFrame(ctx context.Context, chartID, preset, resolution 
 
 func (s *Service) ResetScales(ctx context.Context, chartID string) error {
 	return s.cdp.ResetScales(ctx, strings.TrimSpace(chartID))
+}
+
+// --- Chart Toggles methods ---
+
+func (s *Service) GetChartToggles(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartToggles, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.ChartToggles{}, err
+	}
+	return s.cdp.GetChartToggles(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ToggleLogScale(ctx context.Context, chartID string) error {
+	return s.cdp.ToggleLogScale(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ToggleAutoScale(ctx context.Context, chartID string) error {
+	return s.cdp.ToggleAutoScale(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) ToggleExtendedHours(ctx context.Context, chartID string) error {
+	return s.cdp.ToggleExtendedHours(ctx, strings.TrimSpace(chartID))
 }
 
 func (s *Service) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
@@ -946,6 +975,14 @@ func (s *Service) PineCommandPalette(ctx context.Context) (cdpcontrol.PineState,
 
 func (s *Service) ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error) {
 	return s.cdp.ListLayouts(ctx)
+}
+
+func (s *Service) GetLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error) {
+	return s.cdp.GetLayoutFavorite(ctx)
+}
+
+func (s *Service) ToggleLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error) {
+	return s.cdp.ToggleLayoutFavorite(ctx)
 }
 
 func (s *Service) GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error) {

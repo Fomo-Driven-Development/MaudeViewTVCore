@@ -17,7 +17,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | **Compare/Overlay** | `POST /chart/{id}/compare`, `GET /chart/{id}/compare`, `DELETE /chart/{id}/compare/{study_id}` | Add overlay/compare symbols, list active comparisons, remove |
 | **Alert** | Full CRUD on `/alerts/*` + stop/restart/clone/fires | Create, modify, delete, stop, restart, clone alerts; manage fired alerts |
 | **Replay** | `/chart/{id}/replay/*` (activate, deactivate, step, autoplay, delay, status) | Enter replay mode, step bars, autoplay with configurable speed |
-| **Layout** | `/layouts`, `/layout/*` (switch, save, clone, rename, delete, grid, batch-delete, preview) | Full layout management including multi-chart grid templates |
+| **Layout** | `/layouts`, `/layout/*` (switch, save, clone, rename, delete, grid, batch-delete, preview, favorite) | Full layout management including multi-chart grid templates, favorite/star |
 
 ### Left Sidebar
 
@@ -29,7 +29,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 
 | Region | Endpoints | What It Does |
 |--------|-----------|--------------|
-| **Viewport** | `POST zoom`, `POST scroll`, `PUT visible-range`, `GET visible-range`, `POST go-to-date`, `POST reset-view` | Zoom in/out, scroll bars, set exact visible range, jump to date, reset view |
+| **Viewport** | `POST zoom`, `POST scroll`, `PUT visible-range`, `GET visible-range`, `POST go-to-date`, `POST reset-view`, `POST undo`, `POST redo` | Zoom in/out, scroll bars, set exact visible range, jump to date, reset view, undo/redo |
 | **Snapshot** | `POST /chart/{id}/snapshot`, `POST /browser_screenshot`, `GET/DELETE /snapshots/*` | Capture chart or full browser, list/download/delete snapshots |
 | **OHLC Data** | `GET /chart/{id}/symbol/info` | Read current OHLCV values displayed in the header bar |
 | **Multi-Pane** | `POST /chart/next`, `POST /chart/prev`, `POST /chart/maximize`, `POST /chart/activate`, `GET /chart/{id}/panes` | Tab between chart panes, maximize, activate by index |
@@ -39,6 +39,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | Region | Endpoints | What It Does |
 |--------|-----------|--------------|
 | **Price Axis** | `PUT /chart/{id}/visible-range`, `POST /chart/{id}/reset-scales` | Control vertical range via visible-range; reset scales |
+| **Chart Toggles** | `GET /chart/{id}/toggles`, `POST /chart/{id}/toggles/log-scale`, `POST /chart/{id}/toggles/auto-scale`, `POST /chart/{id}/toggles/extended-hours` | Read/toggle log scale (Alt+L), auto scale (Alt+A), extended hours (Alt+E) |
 | **Time Axis** | `PUT /chart/{id}/visible-range`, `POST /chart/{id}/scroll` | Control horizontal range via scroll and visible-range |
 | **Timeframe Presets** | `PUT /chart/{id}/timeframe?preset=...` | Set 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All presets |
 
@@ -70,21 +71,21 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 
 ### Toolbar buttons visible in screenshot — no API
 
-| UI Element             | Location                          | Difficulty | Notes                                                                                                                         |
-| ---------------------- | --------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Templates**          | Top bar (grid icon)               | Medium     | Save/load chart appearance presets (colors, indicators, etc.). Dialog-driven, would need DOM interaction.                     |
-| **Log Scale (L)**      | Top bar                           | Low        | Toggle logarithmic price scale. Likely a simple chart property toggle.                                                        |
-| **Auto Scale (A)**     | Top bar                           | Low        | Toggle auto-fitting price scale. Same as log scale — chart property.                                                          |
-| **Extend Hours (E)**   | Top bar                           | Low        | Show pre/post market data. Chart property toggle.                                                                             |
-| **Undo / Redo**        | Top bar (↶ ↷ arrows)              | Low        | Chart-level undo/redo. `chart.undo()` / `chart.redo()` if the methods exist.                                                  |
-| **Save Chart**         | Top bar (disk icon)               | Low        | Probably same as `POST /layout/save` but via the toolbar button. Already covered functionally.                                |
-| **Screenshot / Share** | Top bar (camera icon)             | Low        | We have `POST /chart/{id}/snapshot` — functionally covered, just a different entry point.                                     |
-| **Settings Gear**      | Top bar (far right)               | Hard       | Opens the full chart properties dialog (colors, grid, scales, trading, events). Complex multi-tab dialog.                     |
-| **Publish**            | Top bar (green button)            | N/A        | Publishes trading ideas to TradingView social. Out of scope for automation.                                                   |
-| **Trade**              | Top bar (right of layout)         | Hard       | Opens broker integration / order panel. Requires connected broker account.                                                    |
-| **USD Selector**       | Top right corner                  | Low        | Change price denomination currency. Likely a simple property.                                                                 |
-| **Star / Bookmark**    | Bottom left corner                | Low        | Favorite the current chart layout.                                                                                            |
-| **Calendar Icon**      | Bottom bar                        | Low        | Toggle economic calendar view.                                                                                                |
+| UI Element               | Location                  | Difficulty | Notes                                                                                                     |
+| ------------------------ | ------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- |
+| **Templates**            | Top bar (grid icon)       | Medium     | Save/load chart appearance presets (colors, indicators, etc.). Dialog-driven, would need DOM interaction. |
+| ~~**Log Scale (L)**~~    | Top bar                   | ~~Low~~    | **COVERED** — `POST /chart/{id}/toggles/log-scale` (Alt+L via CDP)                                        |
+| ~~**Auto Scale (A)**~~   | Top bar                   | ~~Low~~    | **COVERED** — `POST /chart/{id}/toggles/auto-scale` (Alt+A via CDP)                                       |
+| ~~**Extend Hours (E)**~~ | Top bar                   | ~~Low~~    | **COVERED** — `POST /chart/{id}/toggles/extended-hours` (Alt+E via CDP)                                   |
+| ~~**Undo / Redo**~~      | Top bar (↶ ↷ arrows)      | ~~Low~~    | **COVERED** — `POST /chart/{id}/undo` (Ctrl+Z), `POST /chart/{id}/redo` (Ctrl+Y) via CDP                  |
+| **Save Chart**           | Top bar (disk icon)       | Low        | Probably same as `POST /layout/save` but via the toolbar button. Already covered functionally.            |
+| **Screenshot / Share**   | Top bar (camera icon)     | Low        | We have `POST /chart/{id}/snapshot` — functionally covered, just a different entry point.                 |
+| **Settings Gear**        | Top bar (far right)       | Hard       | Opens the full chart properties dialog (colors, grid, scales, trading, events). Complex multi-tab dialog. |
+| **Publish**              | Top bar (green button)    | N/A        | Publishes trading ideas to TradingView social. Out of scope for automation.                               |
+| **Trade**                | Top bar (right of layout) | Hard       | Opens broker integration / order panel. Requires connected broker account.                                |
+| **USD Selector**         | Top right corner          | Low        | Change price denomination currency. Likely a simple property.                                             |
+| ~~**Star / Bookmark**~~  | Bottom left corner        | ~~Low~~    | **COVERED** — `GET /layout/favorite`, `POST /layout/favorite/toggle` via `_loadChartService` JS API       |
+| **Calendar Icon**        | Bottom bar                | Low        | Toggle economic calendar view.                                                                            |
 
 ### Hidden panels — no API
 
@@ -116,11 +117,11 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 ## Coverage Summary
 
 ```
-Covered:          170+ endpoints across 16 major categories
-Not covered:       ~19 features (see tables above)
+Covered:          174+ endpoints across 17 major categories
+Not covered:       ~16 features (see tables above)
 
 Breakdown of gaps:
-  Low difficulty:   7  (log scale, auto scale, extend hours, undo/redo, USD, star, calendar)
+  Low difficulty:   4  (undo/redo, USD, star, calendar)
   Medium difficulty: 4  (templates, object tree, data window, hotlists)
   Hard difficulty:   5  (settings dialog, chart properties, news, screener, trading panel)
   Out of scope:      3  (publish, ideas/community, multi-monitor)

@@ -46,11 +46,17 @@ type Service interface {
 	Zoom(ctx context.Context, chartID, direction string) error
 	Scroll(ctx context.Context, chartID string, bars int) error
 	ResetView(ctx context.Context, chartID string) error
+	UndoChart(ctx context.Context, chartID string) error
+	RedoChart(ctx context.Context, chartID string) error
 	GoToDate(ctx context.Context, chartID string, timestamp int64) error
 	GetVisibleRange(ctx context.Context, chartID string) (cdpcontrol.VisibleRange, error)
 	SetVisibleRange(ctx context.Context, chartID string, from, to float64) (cdpcontrol.VisibleRange, error)
 	SetTimeFrame(ctx context.Context, chartID, preset, resolution string, pane int) (cdpcontrol.TimeFrameResult, error)
 	ResetScales(ctx context.Context, chartID string) error
+	GetChartToggles(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartToggles, error)
+	ToggleLogScale(ctx context.Context, chartID string) error
+	ToggleAutoScale(ctx context.Context, chartID string) error
+	ToggleExtendedHours(ctx context.Context, chartID string) error
 	ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error)
 	ProbeChartApiDeep(ctx context.Context, chartID string) (map[string]any, error)
 	ResolveSymbol(ctx context.Context, chartID, symbol string) (cdpcontrol.ResolvedSymbolInfo, error)
@@ -138,6 +144,8 @@ type Service interface {
 	PineNewTab(ctx context.Context) (cdpcontrol.PineState, error)
 	PineCommandPalette(ctx context.Context) (cdpcontrol.PineState, error)
 	ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error)
+	GetLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error)
+	ToggleLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error)
 	GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error)
 	SwitchLayout(ctx context.Context, id int) (cdpcontrol.LayoutActionResult, error)
 	SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult, error)
@@ -817,6 +825,28 @@ func NewServer(svc Service) http.Handler {
 			return out, nil
 		})
 
+	huma.Register(api, huma.Operation{OperationID: "chart-undo", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/undo", Summary: "Chart Undo (Ctrl+Z)", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
+			if err := svc.UndoChart(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &navStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "chart-redo", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/redo", Summary: "Chart Redo (Ctrl+Y)", Tags: []string{"Navigation"}},
+		func(ctx context.Context, input *chartIDInput) (*navStatusOutput, error) {
+			if err := svc.RedoChart(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &navStatusOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "executed"
+			return out, nil
+		})
+
 	huma.Register(api, huma.Operation{OperationID: "go-to-date", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/go-to-date", Summary: "Navigate chart to a specific date", Tags: []string{"Navigation"}},
 		func(ctx context.Context, input *struct {
 			ChartID string `path:"chart_id"`
@@ -930,6 +960,88 @@ func NewServer(svc Service) http.Handler {
 			out := &navStatusOutput{}
 			out.Body.ChartID = input.ChartID
 			out.Body.Status = "executed"
+			return out, nil
+		})
+
+	// --- Chart Toggles endpoints ---
+
+	type chartTogglesOutput struct {
+		Body struct {
+			ChartID       string `json:"chart_id"`
+			LogScale      *bool  `json:"log_scale,omitempty"`
+			AutoScale     *bool  `json:"auto_scale,omitempty"`
+			ExtendedHours *bool  `json:"extended_hours,omitempty"`
+		}
+	}
+
+	type toggleResultOutput struct {
+		Body struct {
+			ChartID string            `json:"chart_id"`
+			Status  string            `json:"status"`
+			Before  cdpcontrol.ChartToggles `json:"before"`
+			After   cdpcontrol.ChartToggles `json:"after"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-chart-toggles", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/toggles", Summary: "Get log scale, auto scale, and extended hours state", Tags: []string{"Chart Toggles"}},
+		func(ctx context.Context, input *struct {
+			ChartID string `path:"chart_id"`
+			Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+		}) (*chartTogglesOutput, error) {
+			toggles, err := svc.GetChartToggles(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &chartTogglesOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.LogScale = toggles.LogScale
+			out.Body.AutoScale = toggles.AutoScale
+			out.Body.ExtendedHours = toggles.ExtendedHours
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "toggle-log-scale", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/toggles/log-scale", Summary: "Toggle logarithmic price scale (Alt+L)", Tags: []string{"Chart Toggles"}},
+		func(ctx context.Context, input *chartIDInput) (*toggleResultOutput, error) {
+			before, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			if err := svc.ToggleLogScale(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			after, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			out := &toggleResultOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "toggled"
+			out.Body.Before = before
+			out.Body.After = after
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "toggle-auto-scale", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/toggles/auto-scale", Summary: "Toggle auto-fitting price scale (Alt+A)", Tags: []string{"Chart Toggles"}},
+		func(ctx context.Context, input *chartIDInput) (*toggleResultOutput, error) {
+			before, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			if err := svc.ToggleAutoScale(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			after, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			out := &toggleResultOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "toggled"
+			out.Body.Before = before
+			out.Body.After = after
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "toggle-extended-hours", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/toggles/extended-hours", Summary: "Toggle extended trading hours (Alt+E)", Tags: []string{"Chart Toggles"}},
+		func(ctx context.Context, input *chartIDInput) (*toggleResultOutput, error) {
+			before, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			if err := svc.ToggleExtendedHours(ctx, input.ChartID); err != nil {
+				return nil, mapErr(err)
+			}
+			after, _ := svc.GetChartToggles(ctx, input.ChartID, -1)
+			out := &toggleResultOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Status = "toggled"
+			out.Body.Before = before
+			out.Body.After = after
 			return out, nil
 		})
 
@@ -2480,6 +2592,32 @@ func NewServer(svc Service) http.Handler {
 				return nil, mapErr(err)
 			}
 			out := &layoutDetailOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	type layoutFavoriteOutput struct {
+		Body cdpcontrol.LayoutFavoriteResult
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-layout-favorite", Method: http.MethodGet, Path: "/api/v1/layout/favorite", Summary: "Get current layout's favorite state", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutFavoriteOutput, error) {
+			result, err := svc.GetLayoutFavorite(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutFavoriteOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "toggle-layout-favorite", Method: http.MethodPost, Path: "/api/v1/layout/favorite/toggle", Summary: "Toggle star/bookmark on current layout", Tags: []string{"Layout"}},
+		func(ctx context.Context, input *struct{}) (*layoutFavoriteOutput, error) {
+			result, err := svc.ToggleLayoutFavorite(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &layoutFavoriteOutput{}
 			out.Body = result
 			return out, nil
 		})

@@ -90,7 +90,9 @@ func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, sym
 func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
 func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error { return nil }
 func (s *stubService) Scroll(ctx context.Context, chartID string, bars int) error { return nil }
-func (s *stubService) ResetView(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) ResetView(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) UndoChart(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) RedoChart(ctx context.Context, chartID string) error { return nil }
 func (s *stubService) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
 	return nil
 }
@@ -104,6 +106,12 @@ func (s *stubService) SetTimeFrame(ctx context.Context, chartID, preset, resolut
 	return cdpcontrol.TimeFrameResult{}, nil
 }
 func (s *stubService) ResetScales(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) GetChartToggles(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartToggles, error) {
+	return cdpcontrol.ChartToggles{}, nil
+}
+func (s *stubService) ToggleLogScale(ctx context.Context, chartID string) error      { return nil }
+func (s *stubService) ToggleAutoScale(ctx context.Context, chartID string) error     { return nil }
+func (s *stubService) ToggleExtendedHours(ctx context.Context, chartID string) error { return nil }
 func (s *stubService) ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol.ChartApiProbe, error) {
 	return cdpcontrol.ChartApiProbe{}, nil
 }
@@ -329,6 +337,12 @@ func (s *stubService) PineCommandPalette(ctx context.Context) (cdpcontrol.PineSt
 }
 func (s *stubService) ListLayouts(ctx context.Context) ([]cdpcontrol.LayoutInfo, error) {
 	return []cdpcontrol.LayoutInfo{}, nil
+}
+func (s *stubService) GetLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error) {
+	return cdpcontrol.LayoutFavoriteResult{}, nil
+}
+func (s *stubService) ToggleLayoutFavorite(ctx context.Context) (cdpcontrol.LayoutFavoriteResult, error) {
+	return cdpcontrol.LayoutFavoriteResult{}, nil
 }
 func (s *stubService) GetLayoutStatus(ctx context.Context) (cdpcontrol.LayoutStatus, error) {
 	return cdpcontrol.LayoutStatus{}, nil
