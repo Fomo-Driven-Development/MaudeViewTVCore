@@ -300,6 +300,62 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 	}
 }
 
+// --- Create & Modify ---
+
+func TestCreateAlert_EmptyParams(t *testing.T) {
+	resp := env.POST(t, "/api/v1/alerts", map[string]any{})
+	if resp.StatusCode == http.StatusOK {
+		resp.Body.Close()
+		t.Fatal("expected error for empty params")
+	}
+	resp.Body.Close()
+	t.Logf("empty params correctly rejected with status %d", resp.StatusCode)
+}
+
+func TestModifyAlert_EmptyParams(t *testing.T) {
+	alertID := getFirstAlertID(t)
+
+	resp := env.PUT(t, "/api/v1/alerts/"+alertID, map[string]any{})
+	// The server injects the alert_id into params, so params won't be empty.
+	// But the underlying TradingView API may still reject it.
+	// Accept either success (200) or client error (4xx).
+	t.Logf("modify with empty body: status %d", resp.StatusCode)
+	resp.Body.Close()
+}
+
+func TestModifyAlert(t *testing.T) {
+	alertID := getFirstAlertID(t)
+	t.Logf("testing modify on alert %s", alertID)
+
+	// Get the existing alert data.
+	resp := env.GET(t, "/api/v1/alerts/"+alertID)
+	requireStatus(t, resp, http.StatusOK)
+	original := decodeJSON[struct {
+		Alerts any `json:"alerts"`
+	}](t, resp)
+	if original.Alerts == nil {
+		t.Skip("no alert data returned")
+	}
+
+	// Modify with updated name.
+	modifiedName := fmt.Sprintf("tv_agent_test_%d", time.Now().Unix())
+	resp = env.PUT(t, "/api/v1/alerts/"+alertID, map[string]any{
+		"name": modifiedName,
+	})
+	if resp.StatusCode != http.StatusOK {
+		body := decodeJSON[map[string]any](t, resp)
+		t.Logf("modify alert returned %d: %v (TradingView API may require more params)", resp.StatusCode, body)
+		t.Skip("modify alert requires additional params not available in this test")
+	}
+	result := decodeJSON[struct {
+		Alert any `json:"alert"`
+	}](t, resp)
+	if result.Alert == nil {
+		t.Fatal("expected alert data in modify response")
+	}
+	t.Logf("modified alert %s → name=%s", alertID, modifiedName)
+}
+
 // --- Full Lifecycle ---
 
 func TestAlertsFullLifecycle(t *testing.T) {

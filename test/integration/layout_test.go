@@ -390,6 +390,114 @@ func TestSetGrid_EmptyTemplate(t *testing.T) {
 	t.Logf("empty grid template rejected with status %d", resp.StatusCode)
 }
 
+// --- Batch Delete (happy path) ---
+
+func TestBatchDeleteLayouts(t *testing.T) {
+	// Clone two layouts to delete. Each clone triggers a page reload.
+	// We identify clone IDs by comparing the layout list before/after.
+	var cloneIDs []int
+
+	for i := range 2 {
+		name := fmt.Sprintf("integration-batch-del-%d-%d", time.Now().Unix(), i)
+
+		// Snapshot layout list before clone.
+		beforeLayouts, err := env.listLayouts()
+		if err != nil {
+			t.Fatalf("list layouts before clone %d: %v", i, err)
+		}
+		beforeSet := make(map[int]bool, len(beforeLayouts))
+		for _, l := range beforeLayouts {
+			beforeSet[l.ID] = true
+		}
+
+		resp := env.POST(t, "/api/v1/layout/clone", map[string]any{"name": name})
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Skipf("clone layout failed for batch-delete test (status %d)", resp.StatusCode)
+		}
+		resp.Body.Close()
+
+		// Poll until the clone appears in the layout list.
+		var cloneID int
+		for attempt := range 5 {
+			wait := time.Duration(3+attempt*2) * time.Second
+			time.Sleep(wait)
+
+			if err := env.discoverChartID(); err != nil {
+				t.Logf("clone %d attempt %d: discover: %v", i, attempt+1, err)
+				continue
+			}
+
+			// Save so the clone persists in TradingView's layout list.
+			sr := env.POST(t, "/api/v1/layout/save", nil)
+			sr.Body.Close()
+			time.Sleep(1 * time.Second)
+
+			// Compare layout lists to find the new ID.
+			afterLayouts, err := env.listLayouts()
+			if err != nil {
+				t.Logf("clone %d attempt %d: list: %v", i, attempt+1, err)
+				continue
+			}
+			for _, l := range afterLayouts {
+				if !beforeSet[l.ID] {
+					cloneID = l.ID
+					break
+				}
+			}
+			if cloneID != 0 {
+				break
+			}
+			t.Logf("clone %d attempt %d: no new layout in list (before=%d, after=%d)", i, attempt+1, len(beforeLayouts), len(afterLayouts))
+		}
+		if cloneID == 0 {
+			t.Skipf("could not identify clone %q in layout list after retries", name)
+		}
+		cloneIDs = append(cloneIDs, cloneID)
+		t.Logf("cloned layout %q → id=%d", name, cloneID)
+	}
+
+	// Switch back to original layout before deleting clones.
+	resp := env.POST(t, "/api/v1/layout/switch", map[string]any{"id": env.OriginalLayoutID})
+	resp.Body.Close()
+	time.Sleep(5 * time.Second)
+	env.discoverChartID()
+
+	// Register cleanup in case batch-delete fails.
+	t.Cleanup(func() {
+		for _, cid := range cloneIDs {
+			r := env.do(t, http.MethodDelete, fmt.Sprintf("/api/v1/layout/%d", cid), nil)
+			r.Body.Close()
+		}
+	})
+
+	// Batch delete both clones.
+	resp = env.POST(t, "/api/v1/layouts/batch-delete", map[string]any{"ids": cloneIDs})
+	requireStatus(t, resp, http.StatusOK)
+	batchResult := decodeJSON[struct {
+		Deleted []int `json:"deleted"`
+		Skipped []int `json:"skipped"`
+	}](t, resp)
+	if len(batchResult.Deleted) != len(cloneIDs) {
+		t.Fatalf("expected %d deleted, got %d (deleted=%v skipped=%v)",
+			len(cloneIDs), len(batchResult.Deleted), batchResult.Deleted, batchResult.Skipped)
+	}
+	t.Logf("batch-deleted %d layouts: %v", len(batchResult.Deleted), batchResult.Deleted)
+
+	// Verify they're gone.
+	layouts, err := env.listLayouts()
+	if err != nil {
+		t.Fatalf("list layouts after batch delete: %v", err)
+	}
+	for _, cid := range cloneIDs {
+		for _, l := range layouts {
+			if l.ID == cid {
+				t.Fatalf("layout %d should not exist after batch-delete", cid)
+			}
+		}
+	}
+}
+
 // --- Group 5: Lifecycle Test (slow — page reloads) ---
 
 func TestLayoutLifecycle(t *testing.T) {

@@ -267,6 +267,85 @@ func TestStrategy_GotoDate(t *testing.T) {
 	t.Logf("goto date → status=%s", gotoResult.Status)
 }
 
+// --- Set Input (happy path) ---
+
+func TestStrategy_SetInput(t *testing.T) {
+	active := getActiveStrategy(t)
+
+	// Extract inputs from the active strategy response.
+	// Inputs may be an array or a map depending on the strategy.
+	var inputName string
+	var originalValue any
+
+	switch inputs := active["inputs"].(type) {
+	case []any:
+		for _, inp := range inputs {
+			m, ok := inp.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := m["name"].(string)
+			typ, _ := m["type"].(string)
+			if name == "" || (typ != "integer" && typ != "float" && typ != "int") {
+				continue
+			}
+			inputName = name
+			originalValue = m["value"]
+			break
+		}
+	case map[string]any:
+		// Inputs may be a map of name→value or name→{type,value,...}.
+		for k, v := range inputs {
+			switch val := v.(type) {
+			case float64:
+				inputName = k
+				originalValue = val
+			case map[string]any:
+				typ, _ := val["type"].(string)
+				if typ == "integer" || typ == "float" || typ == "int" {
+					inputName = k
+					originalValue = val["value"]
+				}
+			}
+			if inputName != "" {
+				break
+			}
+		}
+	}
+
+	if inputName == "" {
+		// The test strategy may have no configurable inputs — skip gracefully.
+		t.Logf("active response inputs field: %T = %v", active["inputs"], active["inputs"])
+		t.Skip("no numeric strategy input found to test with (strategy has no inputs)")
+	}
+	t.Logf("testing set-input on %q (original value: %v)", inputName, originalValue)
+
+	// Set the input to a new value.
+	newValue := 42
+	resp := env.PUT(t, strategyPath("input"), map[string]any{
+		"name":  inputName,
+		"value": newValue,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	setResult := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, setResult.Status, "set", "status")
+	t.Logf("set input %q = %d → status=%s", inputName, newValue, setResult.Status)
+
+	time.Sleep(1 * time.Second)
+
+	// Restore original value.
+	t.Cleanup(func() {
+		r := env.PUT(t, strategyPath("input"), map[string]any{
+			"name":  inputName,
+			"value": originalValue,
+		})
+		r.Body.Close()
+		time.Sleep(1 * time.Second)
+	})
+}
+
 // --- Full Lifecycle ---
 
 func TestStrategyFullLifecycle(t *testing.T) {

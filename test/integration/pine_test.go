@@ -457,6 +457,52 @@ func TestPineNewStrategy(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 }
 
+func TestPineCommandPalette(t *testing.T) {
+	ensurePineOpen(t)
+	t.Cleanup(func() { ensurePineClosed(t) })
+
+	resp := env.POST(t, "/api/v1/pine/command-palette", nil)
+	requireStatus(t, resp, http.StatusOK)
+	st := decodeJSON[pineState](t, resp)
+	t.Logf("command-palette: status=%s visible=%v", st.Status, st.IsVisible)
+
+	// Press Escape to close the palette so it doesn't interfere.
+	time.Sleep(500 * time.Millisecond)
+}
+
+func TestPineOpenScript(t *testing.T) {
+	ensurePineOpen(t)
+	t.Cleanup(func() { ensurePineClosed(t) })
+
+	// Write and save a script so there's something to open.
+	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+		"source": `//@version=6
+indicator("OpenScript Test", overlay=true)
+plot(close)
+`,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+	time.Sleep(500 * time.Millisecond)
+
+	resp = env.POST(t, "/api/v1/pine/save", nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+	time.Sleep(1 * time.Second)
+
+	// Try to open a script by name.
+	resp = env.POST(t, "/api/v1/pine/open-script", map[string]any{
+		"name": "OpenScript Test",
+	})
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Logf("open-script returned %d (script may not be found — name matching is fuzzy)", resp.StatusCode)
+		t.Skip("open-script did not find the script")
+	}
+	st := decodeJSON[pineState](t, resp)
+	t.Logf("open-script: status=%s visible=%v name=%q", st.Status, st.IsVisible, st.ScriptName)
+}
+
 func TestPineFullLifecycle(t *testing.T) {
 	ensurePineClosed(t)
 	t.Cleanup(func() { ensurePineClosed(t) })

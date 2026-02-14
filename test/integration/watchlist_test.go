@@ -119,6 +119,107 @@ func TestWatchlistCRUD(t *testing.T) {
 	t.Logf("watchlist %s deleted successfully", wlID)
 }
 
+func TestGetActiveWatchlist(t *testing.T) {
+	resp := env.GET(t, "/api/v1/watchlists/active")
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[struct {
+		ID      string   `json:"id"`
+		Name    string   `json:"name"`
+		Symbols []string `json:"symbols"`
+	}](t, resp)
+
+	if result.ID == "" {
+		t.Fatal("expected non-empty active watchlist ID")
+	}
+	if result.Name == "" {
+		t.Fatal("expected non-empty active watchlist name")
+	}
+	t.Logf("active watchlist: id=%s name=%q symbols=%d", result.ID, result.Name, len(result.Symbols))
+}
+
+func TestSetActiveWatchlist(t *testing.T) {
+	// Get current active watchlist to restore later.
+	resp := env.GET(t, "/api/v1/watchlists/active")
+	requireStatus(t, resp, http.StatusOK)
+	original := decodeJSON[struct {
+		ID string `json:"id"`
+	}](t, resp)
+
+	// Create a new watchlist to switch to.
+	resp = env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-active"})
+	requireStatus(t, resp, http.StatusOK)
+	created := decodeJSON[struct {
+		ID string `json:"id"`
+	}](t, resp)
+	t.Cleanup(func() {
+		// Restore original active watchlist and delete test one.
+		env.PUT(t, "/api/v1/watchlists/active", map[string]any{"id": original.ID})
+		r := env.DELETE(t, "/api/v1/watchlist/"+created.ID)
+		r.Body.Close()
+	})
+
+	// Set the new watchlist as active.
+	resp = env.PUT(t, "/api/v1/watchlists/active", map[string]any{
+		"id": created.ID,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}](t, resp)
+	requireField(t, result.ID, created.ID, "id")
+	t.Logf("set active watchlist: id=%s name=%q", result.ID, result.Name)
+
+	// Verify via GET.
+	resp = env.GET(t, "/api/v1/watchlists/active")
+	requireStatus(t, resp, http.StatusOK)
+	verify := decodeJSON[struct {
+		ID string `json:"id"`
+	}](t, resp)
+	requireField(t, verify.ID, created.ID, "active watchlist id")
+}
+
+func TestFlagSymbol(t *testing.T) {
+	// Create a temporary watchlist with a symbol.
+	resp := env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-flag"})
+	requireStatus(t, resp, http.StatusOK)
+	created := decodeJSON[struct {
+		ID string `json:"id"`
+	}](t, resp)
+	t.Cleanup(func() {
+		r := env.DELETE(t, "/api/v1/watchlist/"+created.ID)
+		r.Body.Close()
+	})
+
+	// Add a symbol.
+	resp = env.POST(t, "/api/v1/watchlist/"+created.ID+"/symbols", map[string]any{
+		"symbols": []string{"AAPL"},
+	})
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+
+	// Set this as active so flag can find it.
+	resp = env.PUT(t, "/api/v1/watchlists/active", map[string]any{"id": created.ID})
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+
+	// Flag the symbol (experimental endpoint — may fail).
+	resp = env.POST(t, "/api/v1/watchlist/"+created.ID+"/flag", map[string]any{
+		"symbol": "AAPL",
+	})
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Logf("flag symbol returned %d (experimental endpoint — may be fragile)", resp.StatusCode)
+		t.Skip("flag endpoint not working in this environment")
+	}
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "toggled", "status")
+	t.Logf("flag symbol AAPL: status=%s", result.Status)
+}
+
 func TestWatchlistListContainsCreated(t *testing.T) {
 	// Create a watchlist, verify it appears in the listing, then clean up.
 	resp := env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-list"})

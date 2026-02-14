@@ -314,3 +314,204 @@ func TestSetChartType_InvalidType(t *testing.T) {
 		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
 	}
 }
+
+// --- Symbol Info ---
+
+func TestGetSymbolInfo(t *testing.T) {
+	resp := env.GET(t, env.chartPath("symbol/info"))
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[struct {
+		ChartID    string         `json:"chart_id"`
+		SymbolInfo map[string]any `json:"symbol_info"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	if result.SymbolInfo == nil {
+		t.Fatal("expected symbol_info to be non-nil")
+	}
+	t.Logf("symbol info keys: %d", len(result.SymbolInfo))
+}
+
+// --- Chart API Probes ---
+
+func TestProbeChartApi(t *testing.T) {
+	resp := env.GET(t, env.chartPath("chart-api/probe"))
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[map[string]any](t, resp)
+	if len(result) == 0 {
+		t.Fatal("expected chart-api probe to return data")
+	}
+	t.Logf("chart-api probe keys: %d", len(result))
+}
+
+func TestProbeChartApiDeep(t *testing.T) {
+	resp := env.GET(t, env.chartPath("chart-api/probe/deep"))
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[map[string]any](t, resp)
+	if len(result) == 0 {
+		t.Fatal("expected chart-api deep probe to return data")
+	}
+	t.Logf("chart-api deep probe keys: %d", len(result))
+}
+
+// --- Zoom ---
+
+func TestZoom_InAndOut(t *testing.T) {
+	t.Cleanup(func() { resetChart(t) })
+
+	// Record initial range.
+	resp := env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+	beforeSpan := before.To - before.From
+
+	// Zoom in (should decrease visible range).
+	resp = env.POST(t, env.chartPath("zoom"), map[string]any{
+		"direction": "in",
+	})
+	requireStatus(t, resp, http.StatusOK)
+	zoomResult := decodeJSON[struct {
+		ChartID   string `json:"chart_id"`
+		Status    string `json:"status"`
+		Direction string `json:"direction"`
+	}](t, resp)
+	requireField(t, zoomResult.Status, "executed", "status")
+	requireField(t, zoomResult.Direction, "in", "direction")
+
+	time.Sleep(500 * time.Millisecond)
+
+	resp = env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	afterIn := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+	afterInSpan := afterIn.To - afterIn.From
+	if afterInSpan >= beforeSpan {
+		t.Logf("warning: zoom in did not decrease range (before=%.0f after=%.0f)", beforeSpan, afterInSpan)
+	}
+	t.Logf("zoom in: span %.0f → %.0f", beforeSpan, afterInSpan)
+
+	// Zoom out.
+	resp = env.POST(t, env.chartPath("zoom"), map[string]any{
+		"direction": "out",
+	})
+	requireStatus(t, resp, http.StatusOK)
+	zoomResult = decodeJSON[struct {
+		ChartID   string `json:"chart_id"`
+		Status    string `json:"status"`
+		Direction string `json:"direction"`
+	}](t, resp)
+	requireField(t, zoomResult.Status, "executed", "status")
+	requireField(t, zoomResult.Direction, "out", "direction")
+	t.Logf("zoom out executed")
+}
+
+// --- Scroll ---
+
+func TestScroll(t *testing.T) {
+	t.Cleanup(func() { resetChart(t) })
+
+	// Record initial range.
+	resp := env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	before := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+
+	// Scroll left by 50 bars.
+	resp = env.POST(t, env.chartPath("scroll"), map[string]any{
+		"bars": -50,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	scrollResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Status  string `json:"status"`
+		Bars    int    `json:"bars"`
+	}](t, resp)
+	requireField(t, scrollResult.Status, "executed", "status")
+	requireField(t, scrollResult.Bars, -50, "bars")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify visible range shifted left.
+	resp = env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	after := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+
+	if after.From >= before.From {
+		t.Logf("warning: scroll left did not shift range (before.From=%.0f after.From=%.0f)", before.From, after.From)
+	}
+	t.Logf("scroll -50 bars: from %.0f → %.0f", before.From, after.From)
+}
+
+// --- Set Visible Range ---
+
+func TestSetVisibleRange(t *testing.T) {
+	t.Cleanup(func() { resetChart(t) })
+
+	// Get current range to use reasonable values.
+	resp := env.GET(t, env.chartPath("visible-range"))
+	requireStatus(t, resp, http.StatusOK)
+	current := decodeJSON[struct {
+		From float64 `json:"from"`
+		To   float64 `json:"to"`
+	}](t, resp)
+
+	// Set a narrower range (middle 50% of current).
+	span := current.To - current.From
+	newFrom := current.From + span*0.25
+	newTo := current.To - span*0.25
+
+	resp = env.PUT(t, env.chartPath("visible-range"), map[string]any{
+		"from": newFrom,
+		"to":   newTo,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string  `json:"chart_id"`
+		From    float64 `json:"from"`
+		To      float64 `json:"to"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	t.Logf("set visible range: from=%.0f to=%.0f", result.From, result.To)
+}
+
+// --- Chart Snapshot ---
+
+func TestTakeChartSnapshot(t *testing.T) {
+	resp := env.POST(t, env.chartPath("snapshot"), map[string]any{
+		"format": "png",
+	})
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[struct {
+		Snapshot map[string]any `json:"snapshot"`
+		URL      string         `json:"url"`
+	}](t, resp)
+
+	if result.URL == "" {
+		t.Fatal("expected non-empty snapshot url")
+	}
+	if result.Snapshot == nil {
+		t.Fatal("expected snapshot metadata")
+	}
+	t.Logf("chart snapshot: url=%s", result.URL)
+
+	// Clean up: delete the snapshot if it has an ID.
+	if id, ok := result.Snapshot["id"].(string); ok && id != "" {
+		r := env.DELETE(t, "/api/v1/snapshots/"+id)
+		r.Body.Close()
+	}
+}

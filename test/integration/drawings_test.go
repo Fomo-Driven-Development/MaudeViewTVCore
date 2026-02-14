@@ -686,6 +686,325 @@ func TestDrawings_Validation(t *testing.T) {
 	})
 }
 
+// --- List, Get, Delete, Clone, Z-Order ---
+
+func TestDrawings_ListAndGetByID(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Create a drawing to list and get.
+	createSinglePoint(t, "horizontal_line")
+
+	// List drawings.
+	resp := env.GET(t, env.chartPath("drawings"))
+	requireStatus(t, resp, http.StatusOK)
+	listing := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Shapes  []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"shapes"`
+	}](t, resp)
+
+	requireField(t, listing.ChartID, env.ChartID, "chart_id")
+	if len(listing.Shapes) == 0 {
+		t.Fatal("expected at least 1 drawing in list")
+	}
+	shapeID := listing.Shapes[0].ID
+	t.Logf("listed %d drawings, first id=%s", len(listing.Shapes), shapeID)
+
+	// Get drawing by ID.
+	resp = env.GET(t, env.chartPath("drawings/"+shapeID))
+	requireStatus(t, resp, http.StatusOK)
+	detail := decodeJSON[map[string]any](t, resp)
+	if len(detail) == 0 {
+		t.Fatal("expected drawing detail data")
+	}
+	t.Logf("get drawing %s: %d keys", shapeID, len(detail))
+}
+
+func TestDrawings_DeleteByID(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Create two drawings.
+	createSinglePoint(t, "horizontal_line")
+	createSinglePoint(t, "arrow_up")
+
+	// Get the IDs.
+	resp := env.GET(t, env.chartPath("drawings"))
+	requireStatus(t, resp, http.StatusOK)
+	listing := decodeJSON[struct {
+		Shapes []struct {
+			ID string `json:"id"`
+		} `json:"shapes"`
+	}](t, resp)
+	if len(listing.Shapes) < 2 {
+		t.Fatalf("expected at least 2 drawings, got %d", len(listing.Shapes))
+	}
+	targetID := listing.Shapes[0].ID
+
+	// Delete one by ID.
+	resp = env.DELETE(t, env.chartPath("drawings/"+targetID))
+	requireStatus(t, resp, http.StatusNoContent)
+	resp.Body.Close()
+
+	// Verify count decreased.
+	afterCount := listDrawingCount(t)
+	if afterCount >= len(listing.Shapes) {
+		t.Fatalf("expected drawing count to decrease, before=%d after=%d", len(listing.Shapes), afterCount)
+	}
+	t.Logf("deleted drawing %s, count %d → %d", targetID, len(listing.Shapes), afterCount)
+}
+
+func TestDrawings_Clone(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Create a drawing to clone.
+	createSinglePoint(t, "flag")
+
+	// Get its ID.
+	resp := env.GET(t, env.chartPath("drawings"))
+	requireStatus(t, resp, http.StatusOK)
+	listing := decodeJSON[struct {
+		Shapes []struct {
+			ID string `json:"id"`
+		} `json:"shapes"`
+	}](t, resp)
+	if len(listing.Shapes) == 0 {
+		t.Fatal("expected at least 1 drawing")
+	}
+	originalID := listing.Shapes[0].ID
+	beforeCount := len(listing.Shapes)
+
+	// Clone it.
+	resp = env.POST(t, env.chartPath("drawings/"+originalID+"/clone"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	cloneResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		ID      string `json:"id"`
+		Status  string `json:"status"`
+	}](t, resp)
+	requireField(t, cloneResult.Status, "cloned", "status")
+	if cloneResult.ID == "" {
+		t.Fatal("expected cloned drawing ID")
+	}
+	t.Logf("cloned %s → %s", originalID, cloneResult.ID)
+
+	// Verify count increased.
+	afterCount := listDrawingCount(t)
+	if afterCount <= beforeCount {
+		t.Fatalf("expected drawing count to increase, before=%d after=%d", beforeCount, afterCount)
+	}
+}
+
+func TestDrawings_ZOrder(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Create a drawing.
+	createSinglePoint(t, "horizontal_line")
+
+	resp := env.GET(t, env.chartPath("drawings"))
+	requireStatus(t, resp, http.StatusOK)
+	listing := decodeJSON[struct {
+		Shapes []struct {
+			ID string `json:"id"`
+		} `json:"shapes"`
+	}](t, resp)
+	if len(listing.Shapes) == 0 {
+		t.Fatal("expected at least 1 drawing")
+	}
+	shapeID := listing.Shapes[0].ID
+
+	actions := []string{"bring_to_front", "send_to_back", "bring_forward", "send_backward"}
+	for _, action := range actions {
+		t.Run(action, func(t *testing.T) {
+			resp := env.POST(t, env.chartPath("drawings/"+shapeID+"/z-order"), map[string]any{
+				"action": action,
+			})
+			requireStatus(t, resp, http.StatusOK)
+			result := decodeJSON[struct {
+				ChartID string `json:"chart_id"`
+				Status  string `json:"status"`
+			}](t, resp)
+			requireField(t, result.Status, "executed", "status")
+		})
+	}
+}
+
+// --- Toggles ---
+
+func TestDrawings_GetToggles(t *testing.T) {
+	resp := env.GET(t, env.chartPath("drawings/toggles"))
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[struct {
+		ChartID string         `json:"chart_id"`
+		Toggles map[string]any `json:"toggles"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	if result.Toggles == nil {
+		t.Fatal("expected toggles data")
+	}
+	t.Logf("drawing toggles: %v", result.Toggles)
+}
+
+func TestDrawings_HideShow(t *testing.T) {
+	// Hide all drawings.
+	resp := env.PUT(t, env.chartPath("drawings/toggles/hide"), map[string]any{
+		"value": true,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+
+	// Show all drawings.
+	resp = env.PUT(t, env.chartPath("drawings/toggles/hide"), map[string]any{
+		"value": false,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result = decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+	t.Log("hide/show toggle: OK")
+}
+
+func TestDrawings_LockUnlock(t *testing.T) {
+	// Lock all drawings.
+	resp := env.PUT(t, env.chartPath("drawings/toggles/lock"), map[string]any{
+		"value": true,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+
+	// Unlock all drawings.
+	resp = env.PUT(t, env.chartPath("drawings/toggles/lock"), map[string]any{
+		"value": false,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result = decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+	t.Log("lock/unlock toggle: OK")
+}
+
+func TestDrawings_Magnet(t *testing.T) {
+	// Enable magnet.
+	resp := env.PUT(t, env.chartPath("drawings/toggles/magnet"), map[string]any{
+		"enabled": true,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+
+	// Disable magnet.
+	resp = env.PUT(t, env.chartPath("drawings/toggles/magnet"), map[string]any{
+		"enabled": false,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result = decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+	t.Log("magnet toggle: OK")
+}
+
+// --- Drawing Visibility ---
+
+func TestDrawings_Visibility(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	createSinglePoint(t, "horizontal_line")
+
+	resp := env.GET(t, env.chartPath("drawings"))
+	requireStatus(t, resp, http.StatusOK)
+	listing := decodeJSON[struct {
+		Shapes []struct {
+			ID string `json:"id"`
+		} `json:"shapes"`
+	}](t, resp)
+	if len(listing.Shapes) == 0 {
+		t.Fatal("expected at least 1 drawing")
+	}
+	shapeID := listing.Shapes[0].ID
+
+	// Hide individual drawing.
+	resp = env.PUT(t, env.chartPath("drawings/"+shapeID+"/visibility"), map[string]any{
+		"visible": false,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+
+	// Show it again.
+	resp = env.PUT(t, env.chartPath("drawings/"+shapeID+"/visibility"), map[string]any{
+		"visible": true,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result = decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "set", "status")
+	t.Logf("visibility toggle on %s: OK", shapeID)
+}
+
+// --- State Export/Import ---
+
+func TestDrawings_StateExportImport(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Create some drawings.
+	createSinglePoint(t, "horizontal_line")
+	createSinglePoint(t, "arrow_up")
+
+	// Export state.
+	resp := env.GET(t, env.chartPath("drawings/state"))
+	requireStatus(t, resp, http.StatusOK)
+	exported := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		State   any    `json:"state"`
+	}](t, resp)
+	requireField(t, exported.ChartID, env.ChartID, "chart_id")
+	if exported.State == nil {
+		t.Fatal("expected state data from export")
+	}
+	t.Logf("exported drawings state")
+
+	// Clear drawings.
+	clearDrawings(t)
+	if listDrawingCount(t) != 0 {
+		t.Fatal("expected 0 drawings after clear")
+	}
+
+	// Import state.
+	resp = env.PUT(t, env.chartPath("drawings/state"), map[string]any{
+		"state": exported.State,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	importResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Status  string `json:"status"`
+	}](t, resp)
+	requireField(t, importResult.Status, "imported", "status")
+	t.Logf("imported drawings state → %s", importResult.Status)
+}
+
 // --- Discovery endpoint test ---
 
 func TestDrawings_DiscoveryEndpoint(t *testing.T) {
