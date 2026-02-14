@@ -173,6 +173,13 @@ type Service interface {
 	GetUnit(ctx context.Context, chartID string, pane int) (cdpcontrol.UnitInfo, error)
 	SetUnit(ctx context.Context, chartID, unit string, pane int) (cdpcontrol.UnitInfo, error)
 	GetAvailableUnits(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableUnit, error)
+	ListColoredWatchlists(ctx context.Context) ([]cdpcontrol.ColoredWatchlist, error)
+	ReplaceColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error)
+	AppendColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error)
+	RemoveColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error)
+	BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error
+	ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyTemplateList, error)
+	GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -750,6 +757,122 @@ func NewServer(svc Service) http.Handler {
 				}
 			}{}
 			out.Body.Status = "toggled"
+			return out, nil
+		})
+
+	// --- Colored Watchlist endpoints ---
+
+	type coloredWatchlistsOutput struct {
+		Body struct {
+			ColoredWatchlists []cdpcontrol.ColoredWatchlist `json:"colored_watchlists"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-colored-watchlists", Method: http.MethodGet, Path: "/api/v1/watchlists/colored", Summary: "List all colored watchlists", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *struct{}) (*coloredWatchlistsOutput, error) {
+			wls, err := svc.ListColoredWatchlists(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &coloredWatchlistsOutput{}
+			out.Body.ColoredWatchlists = wls
+			return out, nil
+		})
+
+	type coloredWatchlistOutput struct {
+		Body cdpcontrol.ColoredWatchlist
+	}
+	type coloredWatchlistColorInput struct {
+		Color string `path:"color"`
+		Body  struct {
+			Symbols []string `json:"symbols" required:"true"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "replace-colored-watchlist", Method: http.MethodPut, Path: "/api/v1/watchlists/colored/{color}", Summary: "Replace entire colored watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *coloredWatchlistColorInput) (*coloredWatchlistOutput, error) {
+			wl, err := svc.ReplaceColoredWatchlist(ctx, input.Color, input.Body.Symbols)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &coloredWatchlistOutput{}
+			out.Body = wl
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "append-colored-watchlist", Method: http.MethodPost, Path: "/api/v1/watchlists/colored/{color}/append", Summary: "Add symbols to colored watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *coloredWatchlistColorInput) (*coloredWatchlistOutput, error) {
+			wl, err := svc.AppendColoredWatchlist(ctx, input.Color, input.Body.Symbols)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &coloredWatchlistOutput{}
+			out.Body = wl
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "remove-colored-watchlist", Method: http.MethodPost, Path: "/api/v1/watchlists/colored/{color}/remove", Summary: "Remove symbols from colored watchlist", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *coloredWatchlistColorInput) (*coloredWatchlistOutput, error) {
+			wl, err := svc.RemoveColoredWatchlist(ctx, input.Color, input.Body.Symbols)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &coloredWatchlistOutput{}
+			out.Body = wl
+			return out, nil
+		})
+
+	type bulkRemoveColoredInput struct {
+		Body struct {
+			Symbols []string `json:"symbols" required:"true"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "bulk-remove-colored-watchlist", Method: http.MethodPost, Path: "/api/v1/watchlists/colored/bulk-remove", Summary: "Remove symbols from all colored watchlists", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *bulkRemoveColoredInput) (*struct {
+			Body struct {
+				Status string `json:"status"`
+			}
+		}, error) {
+			if err := svc.BulkRemoveColoredWatchlist(ctx, input.Body.Symbols); err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct {
+				Body struct {
+					Status string `json:"status"`
+				}
+			}{}
+			out.Body.Status = "ok"
+			return out, nil
+		})
+
+	// --- Study Template endpoints ---
+
+	type studyTemplateListOutput struct {
+		Body cdpcontrol.StudyTemplateList
+	}
+	huma.Register(api, huma.Operation{OperationID: "list-study-templates", Method: http.MethodGet, Path: "/api/v1/study-templates", Summary: "List all study templates", Tags: []string{"Studies"}},
+		func(ctx context.Context, input *struct{}) (*studyTemplateListOutput, error) {
+			list, err := svc.ListStudyTemplates(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &studyTemplateListOutput{}
+			out.Body = list
+			return out, nil
+		})
+
+	type studyTemplateOutput struct {
+		Body cdpcontrol.StudyTemplateEntry
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-study-template", Method: http.MethodGet, Path: "/api/v1/study-templates/{template_id}", Summary: "Get study template detail", Tags: []string{"Studies"}},
+		func(ctx context.Context, input *struct {
+			TemplateID int `path:"template_id"`
+		}) (*studyTemplateOutput, error) {
+			entry, err := svc.GetStudyTemplate(ctx, input.TemplateID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &studyTemplateOutput{}
+			out.Body = entry
 			return out, nil
 		})
 

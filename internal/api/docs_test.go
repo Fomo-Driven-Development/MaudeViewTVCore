@@ -425,6 +425,27 @@ func (s *stubService) SetUnit(ctx context.Context, chartID, unit string, pane in
 func (s *stubService) GetAvailableUnits(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableUnit, error) {
 	return []cdpcontrol.AvailableUnit{}, nil
 }
+func (s *stubService) ListColoredWatchlists(ctx context.Context) ([]cdpcontrol.ColoredWatchlist, error) {
+	return []cdpcontrol.ColoredWatchlist{}, nil
+}
+func (s *stubService) ReplaceColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	return cdpcontrol.ColoredWatchlist{}, nil
+}
+func (s *stubService) AppendColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	return cdpcontrol.ColoredWatchlist{}, nil
+}
+func (s *stubService) RemoveColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	return cdpcontrol.ColoredWatchlist{}, nil
+}
+func (s *stubService) BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error {
+	return nil
+}
+func (s *stubService) ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyTemplateList, error) {
+	return cdpcontrol.StudyTemplateList{}, nil
+}
+func (s *stubService) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error) {
+	return cdpcontrol.StudyTemplateEntry{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

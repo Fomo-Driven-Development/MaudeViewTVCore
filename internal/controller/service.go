@@ -1280,6 +1280,66 @@ func (s *Service) GetAvailableUnits(ctx context.Context, chartID string, pane in
 	return s.cdp.GetAvailableUnits(ctx, strings.TrimSpace(chartID))
 }
 
+// --- Colored Watchlist methods ---
+
+var validColors = map[string]bool{
+	"red": true, "orange": true, "green": true, "purple": true, "blue": true,
+}
+
+func (s *Service) ListColoredWatchlists(ctx context.Context) ([]cdpcontrol.ColoredWatchlist, error) {
+	return s.cdp.ListColoredWatchlists(ctx)
+}
+
+func (s *Service) ReplaceColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	if !validColors[color] {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "color must be one of: red, orange, green, purple, blue"}
+	}
+	if len(symbols) == 0 {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.ReplaceColoredWatchlist(ctx, color, symbols)
+}
+
+func (s *Service) AppendColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	if !validColors[color] {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "color must be one of: red, orange, green, purple, blue"}
+	}
+	if len(symbols) == 0 {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.AppendColoredWatchlist(ctx, color, symbols)
+}
+
+func (s *Service) RemoveColoredWatchlist(ctx context.Context, color string, symbols []string) (cdpcontrol.ColoredWatchlist, error) {
+	if !validColors[color] {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "color must be one of: red, orange, green, purple, blue"}
+	}
+	if len(symbols) == 0 {
+		return cdpcontrol.ColoredWatchlist{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.RemoveColoredWatchlist(ctx, color, symbols)
+}
+
+func (s *Service) BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error {
+	if len(symbols) == 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
+	}
+	return s.cdp.BulkRemoveColoredWatchlist(ctx, symbols)
+}
+
+// --- Study Template methods ---
+
+func (s *Service) ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyTemplateList, error) {
+	return s.cdp.ListStudyTemplates(ctx)
+}
+
+func (s *Service) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error) {
+	if id <= 0 {
+		return cdpcontrol.StudyTemplateEntry{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "template_id must be > 0"}
+	}
+	return s.cdp.GetStudyTemplate(ctx, id)
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

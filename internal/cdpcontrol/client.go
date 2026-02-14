@@ -2304,6 +2304,67 @@ func (c *Client) GetAvailableUnits(ctx context.Context, chartID string) ([]Avail
 	return out.Units, nil
 }
 
+// --- Colored Watchlist methods ---
+
+func (c *Client) ListColoredWatchlists(ctx context.Context) ([]ColoredWatchlist, error) {
+	var out struct {
+		ColoredWatchlists []ColoredWatchlist `json:"colored_watchlists"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListColoredWatchlists(), &out); err != nil {
+		return nil, err
+	}
+	if out.ColoredWatchlists == nil {
+		return []ColoredWatchlist{}, nil
+	}
+	return out.ColoredWatchlists, nil
+}
+
+func (c *Client) ReplaceColoredWatchlist(ctx context.Context, color string, symbols []string) (ColoredWatchlist, error) {
+	var out ColoredWatchlist
+	if err := c.evalOnAnyChart(ctx, jsReplaceColoredWatchlist(color, symbols), &out); err != nil {
+		return ColoredWatchlist{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) AppendColoredWatchlist(ctx context.Context, color string, symbols []string) (ColoredWatchlist, error) {
+	var out ColoredWatchlist
+	if err := c.evalOnAnyChart(ctx, jsAppendColoredWatchlist(color, symbols), &out); err != nil {
+		return ColoredWatchlist{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) RemoveColoredWatchlist(ctx context.Context, color string, symbols []string) (ColoredWatchlist, error) {
+	var out ColoredWatchlist
+	if err := c.evalOnAnyChart(ctx, jsRemoveColoredWatchlist(color, symbols), &out); err != nil {
+		return ColoredWatchlist{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error {
+	return c.doSessionAction(ctx, jsBulkRemoveColoredWatchlist(symbols))
+}
+
+// --- Study Template methods ---
+
+func (c *Client) ListStudyTemplates(ctx context.Context) (StudyTemplateList, error) {
+	var out StudyTemplateList
+	if err := c.evalOnAnyChart(ctx, jsListStudyTemplates(), &out); err != nil {
+		return StudyTemplateList{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetStudyTemplate(ctx context.Context, id int) (StudyTemplateEntry, error) {
+	var out StudyTemplateEntry
+	if err := c.evalOnAnyChart(ctx, jsGetStudyTemplate(id), &out); err != nil {
+		return StudyTemplateEntry{}, err
+	}
+	return out, nil
+}
+
 func jsString(v string) string {
 	b, _ := json.Marshal(v)
 	return string(b)

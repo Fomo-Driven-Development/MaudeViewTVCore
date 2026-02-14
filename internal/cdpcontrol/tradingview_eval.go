@@ -3338,3 +3338,138 @@ for (var i = 0; i < keys.length; i++) {
 return JSON.stringify({ok:true,data:{units:result}});
 `)
 }
+
+// --- Colored Watchlist JS functions ---
+
+func jsListColoredWatchlists() string {
+	return wrapJSEvalAsync(jsWatchlistFetch + `
+var raw = await _wlFetch("/api/v1/symbols_list/colored/");
+if (!Array.isArray(raw)) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"colored watchlists returned non-array"});
+var lists = [];
+for (var i = 0; i < raw.length; i++) {
+  var it = raw[i] || {};
+  var syms = [];
+  if (it.symbols && Array.isArray(it.symbols)) {
+    for (var j = 0; j < it.symbols.length; j++) {
+      syms.push(typeof it.symbols[j] === "string" ? it.symbols[j] : String(it.symbols[j]));
+    }
+  }
+  lists.push({
+    id: String(it.id || ""),
+    name: String(it.name || ""),
+    color: String(it.color || ""),
+    symbols: syms,
+    modified: String(it.modified || "")
+  });
+}
+return JSON.stringify({ok:true,data:{colored_watchlists:lists}});
+`)
+}
+
+// _jsColoredMutationHelper extracts symbols from a colored watchlist mutation response.
+// TV may return a bare array of symbols or an object with a .symbols array.
+const jsColoredMutationHelper = `
+function _coloredResult(raw, color) {
+  var result = [];
+  var src = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.symbols) ? raw.symbols : []);
+  for (var i = 0; i < src.length; i++) {
+    result.push(typeof src[i] === "string" ? src[i] : String(src[i]));
+  }
+  return {
+    id: String((raw && raw.id) || ""),
+    name: String((raw && raw.name) || ""),
+    color: String((raw && raw.color) || color),
+    symbols: result,
+    modified: String((raw && raw.modified) || "")
+  };
+}
+`
+
+func jsReplaceColoredWatchlist(color string, symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+jsColoredMutationHelper+`
+var color = %s;
+var syms = %s;
+var raw = await _wlFetch("/api/v1/symbols_list/colored/" + encodeURIComponent(color) + "/replace/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
+return JSON.stringify({ok:true,data:_coloredResult(raw, color)});
+`, jsString(color), jsJSON(symbols)))
+}
+
+func jsAppendColoredWatchlist(color string, symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+jsColoredMutationHelper+`
+var color = %s;
+var syms = %s;
+var raw = await _wlFetch("/api/v1/symbols_list/colored/" + encodeURIComponent(color) + "/append/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
+return JSON.stringify({ok:true,data:_coloredResult(raw, color)});
+`, jsString(color), jsJSON(symbols)))
+}
+
+func jsRemoveColoredWatchlist(color string, symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+jsColoredMutationHelper+`
+var color = %s;
+var syms = %s;
+var raw = await _wlFetch("/api/v1/symbols_list/colored/" + encodeURIComponent(color) + "/remove/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
+return JSON.stringify({ok:true,data:_coloredResult(raw, color)});
+`, jsString(color), jsJSON(symbols)))
+}
+
+func jsBulkRemoveColoredWatchlist(symbols []string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
+var syms = %s;
+await _wlFetch("/api/v1/symbols_list/colored/bulk_remove/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(syms)
+});
+return JSON.stringify({ok:true,data:{status:"ok"}});
+`, jsJSON(symbols)))
+}
+
+// --- Study Template JS functions ---
+
+func jsListStudyTemplates() string {
+	return wrapJSEvalAsync(jsWatchlistFetch + `
+var raw = await _wlFetch("/api/v1/study-templates");
+var custom = [];
+var standard = [];
+var fundamentals = [];
+if (raw.custom && Array.isArray(raw.custom)) {
+  for (var i = 0; i < raw.custom.length; i++) {
+    var c = raw.custom[i];
+    custom.push({id:Number(c.id||0),name:String(c.name||""),meta_info:c.meta_info||null,favorite_date:String(c.favorite_date||"")});
+  }
+}
+if (raw.standard && Array.isArray(raw.standard)) {
+  for (var i = 0; i < raw.standard.length; i++) {
+    var s = raw.standard[i];
+    standard.push({id:Number(s.id||0),name:String(s.name||""),meta_info:s.meta_info||null,favorite_date:String(s.favorite_date||"")});
+  }
+}
+if (raw.fundamentals && Array.isArray(raw.fundamentals)) {
+  for (var i = 0; i < raw.fundamentals.length; i++) {
+    var f = raw.fundamentals[i];
+    fundamentals.push({id:Number(f.id||0),name:String(f.name||""),meta_info:f.meta_info||null,favorite_date:String(f.favorite_date||"")});
+  }
+}
+return JSON.stringify({ok:true,data:{custom:custom,standard:standard,fundamentals:fundamentals}});
+`)
+}
+
+func jsGetStudyTemplate(id int) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+`
+var tid = %d;
+var raw = await _wlFetch("/api/v1/study-templates/" + tid);
+return JSON.stringify({ok:true,data:{id:Number(raw.id||tid),name:String(raw.name||""),meta_info:raw.meta_info||null,favorite_date:String(raw.favorite_date||"")}});
+`, id))
+}

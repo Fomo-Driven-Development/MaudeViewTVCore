@@ -4,7 +4,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 
 ![Coverage Map](chart_coverage.png)
 
-## Covered Regions (170+ endpoints)
+## Covered Regions (181+ endpoints)
 
 ### Top Toolbar
 
@@ -14,7 +14,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | **Currency / Unit** | `GET/PUT /chart/{id}/currency`, `GET /chart/{id}/currency/available`, `GET/PUT /chart/{id}/unit`, `GET /chart/{id}/unit/available` | Get/set price denomination currency and unit; list available options |
 | **Resolution** | `GET/PUT /chart/{id}/resolution` | Change bar interval (1m, 5m, 1h, D, W, M, etc.) |
 | **Chart Type** | `GET/PUT /chart/{id}/chart-type` | Switch between candles, bars, line, area, Heikin Ashi, etc. |
-| **Indicators** | `GET/POST/PATCH/DELETE /chart/{id}/studies/*`, `POST /chart/{id}/indicators/search`, `POST /chart/{id}/indicators/add` | Add, modify, remove studies; search indicator library; manage favorites |
+| **Indicators** | `GET/POST/PATCH/DELETE /chart/{id}/studies/*`, `POST /chart/{id}/indicators/search`, `POST /chart/{id}/indicators/add`, `GET /study-templates`, `GET /study-templates/{id}` | Add, modify, remove studies; search indicator library; manage favorites; list and inspect saved study templates |
 | **Compare/Overlay** | `POST /chart/{id}/compare`, `GET /chart/{id}/compare`, `DELETE /chart/{id}/compare/{study_id}` | Add overlay/compare symbols, list active comparisons, remove |
 | **Alert** | Full CRUD on `/alerts/*` + stop/restart/clone/fires | Create, modify, delete, stop, restart, clone alerts; manage fired alerts |
 | **Replay** | `/chart/{id}/replay/*` (activate, deactivate, step, autoplay, delay, status) | Enter replay mode, step bars, autoplay with configurable speed |
@@ -48,7 +48,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 
 | Region | Endpoints | What It Does |
 |--------|-----------|--------------|
-| **Watchlists** | Full CRUD on `/watchlists/*`, active get/set, add/remove symbols, flag | Create, rename, delete watchlists; manage symbols; switch active list |
+| **Watchlists** | Full CRUD on `/watchlists/*`, active get/set, add/remove symbols, flag, colored lists (list, replace, append, remove, bulk-remove) | Create, rename, delete watchlists; manage symbols; switch active list; manage colored watchlists (red, orange, green, purple, blue) |
 | **Pine Editor** | `/pine/*` (toggle, status, source get/set, save, add-to-chart, console, undo, redo, new-indicator, new-strategy, open-script, command-palette, and 10+ keyboard shortcuts) | Full Pine Script editing — read/write code, compile, add to chart, console output |
 | **Alerts Panel** | Same as Alert above | Alerts accessible from both toolbar and sidebar |
 
@@ -118,7 +118,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 ## Coverage Summary
 
 ```
-Covered:          174+ endpoints across 17 major categories
+Covered:          181+ endpoints across 17 major categories
 Not covered:       ~16 features (see tables above)
 
 Breakdown of gaps:

@@ -593,3 +593,27 @@ type AvailableUnit struct {
 	Description string `json:"description"`
 	Type        string `json:"type"`
 }
+
+// ColoredWatchlist describes a colored watchlist (red, orange, green, purple, blue).
+type ColoredWatchlist struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Color    string   `json:"color"`
+	Symbols  []string `json:"symbols"`
+	Modified string   `json:"modified,omitempty"`
+}
+
+// StudyTemplateEntry describes a single study (indicator) template.
+type StudyTemplateEntry struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	MetaInfo     any    `json:"meta_info"`
+	FavoriteDate string `json:"favorite_date,omitempty"`
+}
+
+// StudyTemplateList describes study templates grouped by category.
+type StudyTemplateList struct {
+	Custom       []StudyTemplateEntry `json:"custom"`
+	Standard     []StudyTemplateEntry `json:"standard"`
+	Fundamentals []StudyTemplateEntry `json:"fundamentals"`
+}
