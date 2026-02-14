@@ -3,6 +3,16 @@
         "chromium": {
             "command": "./scripts/start-chromium-mcp.sh",
             "args": []
+        },
+        "codex": {
+            "command": "codex",
+            "args": [
+                "mcp-server"
+            ]
+        },
+        "obs": {
+            "command": "npx",
+            "args": ["-y", "obs-mcp@latest"]
         }
     }
 }

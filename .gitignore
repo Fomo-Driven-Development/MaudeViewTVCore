@@ -13,3 +13,6 @@ bin/
 
 .ralphy
 .gocache
+
+# music video pipeline outputs
+scripts/music_video/output/
