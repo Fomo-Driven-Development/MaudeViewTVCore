@@ -21,55 +21,75 @@ type pineState struct {
 	MatchCount   int    `json:"match_count"`
 }
 
-// ensurePineOpen makes sure the Pine editor is visible and Monaco is ready.
-// Retries the toggle once if it times out (first open can be slow).
-func ensurePineOpen(t *testing.T) {
+// getPineStatus fetches the current Pine editor status.
+func getPineStatus(t *testing.T) pineState {
 	t.Helper()
 	resp := env.GET(t, "/api/v1/pine/status")
 	requireStatus(t, resp, http.StatusOK)
-	st := decodeJSON[pineState](t, resp)
-	if st.IsVisible && st.MonacoReady {
-		return
-	}
+	return decodeJSON[pineState](t, resp)
+}
+
+// ensurePineOpen makes sure the Pine editor is visible and Monaco is ready.
+// Uses a two-phase approach: toggle only when closed, then poll for readiness.
+// This avoids the double-toggle race where a retry closes an already-open editor.
+func ensurePineOpen(t *testing.T) {
+	t.Helper()
+	const pollInterval = 500 * time.Millisecond
+	const pollTimeout = 10 * time.Second
 
 	for attempt := range 2 {
-		resp = env.POST(t, "/api/v1/pine/toggle", nil)
-		if resp.StatusCode == http.StatusOK {
-			toggled := decodeJSON[pineState](t, resp)
-			if toggled.IsVisible {
-				time.Sleep(1 * time.Second)
+		// Phase 1: Check state, toggle only if closed.
+		st := getPineStatus(t)
+		if st.IsVisible && st.MonacoReady {
+			return
+		}
+		if !st.IsVisible {
+			resp := env.POST(t, "/api/v1/pine/toggle", nil)
+			resp.Body.Close()
+			time.Sleep(1 * time.Second) // let DOM settle after click
+		}
+
+		// Phase 2: Poll until ready.
+		deadline := time.Now().Add(pollTimeout)
+		for time.Now().Before(deadline) {
+			st = getPineStatus(t)
+			if st.IsVisible && st.MonacoReady {
 				return
 			}
+			if !st.IsVisible {
+				break // toggle didn't take effect, retry outer loop
+			}
+			// IsVisible but not MonacoReady — keep waiting
+			time.Sleep(pollInterval)
 		}
-		resp.Body.Close()
+
 		if attempt == 0 {
-			t.Logf("pine toggle attempt %d failed (status=%d), retrying...", attempt+1, resp.StatusCode)
-			time.Sleep(2 * time.Second)
+			t.Log("pine editor not ready after poll, retrying toggle...")
 		}
 	}
 	t.Fatal("failed to open Pine editor after retries")
 }
 
 // ensurePineClosed makes sure the Pine editor is closed.
+// Checks status before toggling and polls to confirm closure.
 func ensurePineClosed(t *testing.T) {
 	t.Helper()
-	resp := env.GET(t, "/api/v1/pine/status")
-	requireStatus(t, resp, http.StatusOK)
-	st := decodeJSON[pineState](t, resp)
+	st := getPineStatus(t)
 	if !st.IsVisible {
 		return
 	}
-	resp = env.POST(t, "/api/v1/pine/toggle", nil)
-	if resp.StatusCode == http.StatusOK {
-		resp.Body.Close()
-	} else {
-		resp.Body.Close()
-		// Retry once on timeout.
-		time.Sleep(2 * time.Second)
-		resp = env.POST(t, "/api/v1/pine/toggle", nil)
-		resp.Body.Close()
+	resp := env.POST(t, "/api/v1/pine/toggle", nil)
+	resp.Body.Close()
+	// Poll until closed.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(500 * time.Millisecond)
+		st = getPineStatus(t)
+		if !st.IsVisible {
+			return
+		}
 	}
-	time.Sleep(1 * time.Second)
+	t.Log("warning: pine editor still visible after close attempt")
 }
 
 func TestPineStatus(t *testing.T) {
