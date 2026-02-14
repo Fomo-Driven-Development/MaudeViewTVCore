@@ -158,6 +158,61 @@ func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string, pane
 	return s.cdp.RemoveStudy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(studyID))
 }
 
+// --- Compare/Overlay convenience methods ---
+
+func (s *Service) AddCompare(ctx context.Context, chartID, symbol, mode, source string, pane int) (cdpcontrol.Study, error) {
+	symbol = strings.TrimSpace(symbol)
+	if symbol == "" {
+		return cdpcontrol.Study{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		mode = "overlay"
+	}
+	if mode != "overlay" && mode != "compare" {
+		return cdpcontrol.Study{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "mode must be \"overlay\" or \"compare\""}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.Study{}, err
+	}
+
+	var name string
+	var forceOverlay bool
+	inputs := map[string]any{"symbol": symbol}
+	if mode == "overlay" {
+		name = "Overlay"
+		forceOverlay = true
+	} else {
+		name = "Compare"
+		source = strings.TrimSpace(source)
+		if source == "" {
+			source = "close"
+		}
+		inputs["source"] = source
+	}
+	return s.cdp.AddStudy(ctx, strings.TrimSpace(chartID), name, inputs, forceOverlay)
+}
+
+func (s *Service) ListCompares(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
+	}
+	studies, err := s.cdp.ListStudies(ctx, strings.TrimSpace(chartID))
+	if err != nil {
+		return nil, err
+	}
+	var result []cdpcontrol.Study
+	for _, st := range studies {
+		if st.Name == "Overlay" || st.Name == "Compare" {
+			result = append(result, st)
+		}
+	}
+	if result == nil {
+		result = []cdpcontrol.Study{}
+	}
+	return result, nil
+}
+
 func (s *Service) Zoom(ctx context.Context, chartID, direction string) error {
 	direction = strings.TrimSpace(strings.ToLower(direction))
 	if direction != "in" && direction != "out" {

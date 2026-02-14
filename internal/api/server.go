@@ -31,6 +31,8 @@ type Service interface {
 	RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error
 	GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error)
 	ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error)
+	AddCompare(ctx context.Context, chartID, symbol, mode, source string, pane int) (cdpcontrol.Study, error)
+	ListCompares(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error)
 	ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error)
 	GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistDetail, error)
 	SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error)
@@ -515,6 +517,69 @@ func NewServer(svc Service) http.Handler {
 			out.Body.ChartID = input.ChartID
 			out.Body.Study = detail
 			return out, nil
+		})
+
+	// --- Compare/Overlay convenience endpoints ---
+
+	type addCompareInput struct {
+		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+		Body    struct {
+			Symbol string `json:"symbol" required:"true"`
+			Mode   string `json:"mode,omitempty" doc:"overlay (default) or compare"`
+			Source string `json:"source,omitempty" doc:"Price source for compare mode (default: close)"`
+		}
+	}
+	type addCompareOutput struct {
+		Body struct {
+			ChartID string           `json:"chart_id"`
+			Study   cdpcontrol.Study `json:"study"`
+			Status  string           `json:"status"`
+		}
+	}
+	type compareListOutput struct {
+		Body struct {
+			ChartID string             `json:"chart_id"`
+			Studies []cdpcontrol.Study `json:"studies"`
+		}
+	}
+	type removeCompareInput struct {
+		ChartID string `path:"chart_id"`
+		StudyID string `path:"study_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "add-compare", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/compare", Summary: "Add compare/overlay symbol", Tags: []string{"Compare"}},
+		func(ctx context.Context, input *addCompareInput) (*addCompareOutput, error) {
+			study, err := svc.AddCompare(ctx, input.ChartID, input.Body.Symbol, input.Body.Mode, input.Body.Source, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &addCompareOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Study = study
+			out.Body.Status = "added"
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "list-compares", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/compare", Summary: "List compare/overlay studies", Tags: []string{"Compare"}},
+		func(ctx context.Context, input *chartIDInput) (*compareListOutput, error) {
+			studies, err := svc.ListCompares(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &compareListOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Studies = studies
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "remove-compare", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/compare/{study_id}", Summary: "Remove compare/overlay study", Tags: []string{"Compare"}},
+		func(ctx context.Context, input *removeCompareInput) (*struct{}, error) {
+			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID, input.Pane); err != nil {
+				return nil, mapErr(err)
+			}
+			return &struct{}{}, nil
 		})
 
 	// --- Watchlist endpoints ---

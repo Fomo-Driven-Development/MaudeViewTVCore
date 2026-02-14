@@ -56,6 +56,12 @@ func (s *stubService) GetStudyInputs(ctx context.Context, chartID, studyID strin
 func (s *stubService) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error) {
 	return cdpcontrol.StudyDetail{}, nil
 }
+func (s *stubService) AddCompare(ctx context.Context, chartID, symbol, mode, source string, pane int) (cdpcontrol.Study, error) {
+	return cdpcontrol.Study{}, nil
+}
+func (s *stubService) ListCompares(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Study, error) {
+	return []cdpcontrol.Study{}, nil
+}
 func (s *stubService) ListWatchlists(ctx context.Context) ([]cdpcontrol.WatchlistInfo, error) {
 	return []cdpcontrol.WatchlistInfo{}, nil
 }

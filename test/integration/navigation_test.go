@@ -515,3 +515,120 @@ func TestTakeChartSnapshot(t *testing.T) {
 		r.Body.Close()
 	}
 }
+
+// --- Compare/Overlay tests ---
+
+func TestCompareOverlay(t *testing.T) {
+	// 1. Add overlay symbol.
+	resp := env.POST(t, env.chartPath("compare"), map[string]any{
+		"symbol": "ETHUSD",
+	})
+	requireStatus(t, resp, http.StatusOK)
+	addResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Study   struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"study"`
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, addResult.Status, "added", "status")
+	requireField(t, addResult.Study.Name, "Overlay", "study.name")
+	if addResult.Study.ID == "" {
+		t.Fatal("expected non-empty study ID")
+	}
+	studyID := addResult.Study.ID
+	t.Logf("added overlay: id=%s name=%s", studyID, addResult.Study.Name)
+
+	time.Sleep(1 * time.Second)
+
+	// 2. List compares — verify ETHUSD overlay is present.
+	resp = env.GET(t, env.chartPath("compare"))
+	requireStatus(t, resp, http.StatusOK)
+	listResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Studies []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"studies"`
+	}](t, resp)
+
+	found := false
+	for _, s := range listResult.Studies {
+		if s.ID == studyID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("overlay study %s not found in compare list", studyID)
+	}
+	t.Logf("listed %d compare/overlay studies", len(listResult.Studies))
+
+	// 3. Remove the overlay.
+	resp = env.DELETE(t, env.chartPath("compare/"+studyID))
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE compare status = %d, want 200 or 204", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	time.Sleep(500 * time.Millisecond)
+
+	// 4. List again — verify empty.
+	resp = env.GET(t, env.chartPath("compare"))
+	requireStatus(t, resp, http.StatusOK)
+	afterList := decodeJSON[struct {
+		Studies []struct {
+			ID string `json:"id"`
+		} `json:"studies"`
+	}](t, resp)
+	for _, s := range afterList.Studies {
+		if s.ID == studyID {
+			t.Fatalf("overlay study %s still present after removal", studyID)
+		}
+	}
+	t.Logf("verified overlay removed; %d compare studies remaining", len(afterList.Studies))
+}
+
+func TestCompareOverlay_CompareMode(t *testing.T) {
+	resp := env.POST(t, env.chartPath("compare"), map[string]any{
+		"symbol": "IBM",
+		"mode":   "compare",
+		"source": "close",
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Study struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"study"`
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "added", "status")
+	requireField(t, result.Study.Name, "Compare", "study.name")
+	t.Logf("added compare: id=%s", result.Study.ID)
+
+	// Cleanup: remove the compare study.
+	time.Sleep(500 * time.Millisecond)
+	r := env.DELETE(t, env.chartPath("compare/"+result.Study.ID))
+	r.Body.Close()
+}
+
+func TestCompareOverlay_InvalidMode(t *testing.T) {
+	resp := env.POST(t, env.chartPath("compare"), map[string]any{
+		"symbol": "ETHUSD",
+		"mode":   "invalid",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}
+
+func TestCompareOverlay_MissingSymbol(t *testing.T) {
+	resp := env.POST(t, env.chartPath("compare"), map[string]any{})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}
