@@ -407,6 +407,24 @@ func (s *stubService) ToggleIndicatorFavorite(ctx context.Context, chartID, quer
 func (s *stubService) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error) {
 	return map[string]any{}, nil
 }
+func (s *stubService) GetCurrency(ctx context.Context, chartID string, pane int) (cdpcontrol.CurrencyInfo, error) {
+	return cdpcontrol.CurrencyInfo{}, nil
+}
+func (s *stubService) SetCurrency(ctx context.Context, chartID, currency string, pane int) (cdpcontrol.CurrencyInfo, error) {
+	return cdpcontrol.CurrencyInfo{}, nil
+}
+func (s *stubService) GetAvailableCurrencies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableCurrency, error) {
+	return []cdpcontrol.AvailableCurrency{}, nil
+}
+func (s *stubService) GetUnit(ctx context.Context, chartID string, pane int) (cdpcontrol.UnitInfo, error) {
+	return cdpcontrol.UnitInfo{}, nil
+}
+func (s *stubService) SetUnit(ctx context.Context, chartID, unit string, pane int) (cdpcontrol.UnitInfo, error) {
+	return cdpcontrol.UnitInfo{}, nil
+}
+func (s *stubService) GetAvailableUnits(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableUnit, error) {
+	return []cdpcontrol.AvailableUnit{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

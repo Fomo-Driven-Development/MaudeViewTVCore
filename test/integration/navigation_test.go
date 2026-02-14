@@ -800,3 +800,120 @@ func TestChartToggles_ExtendedHours(t *testing.T) {
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }
+
+// --- Currency tests ---
+
+func TestGetCurrency(t *testing.T) {
+	resp := env.GET(t, env.chartPath("currency"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID  string `json:"chart_id"`
+		Currency struct {
+			Currency       string `json:"currency"`
+			IsConverted    bool   `json:"is_converted"`
+			NativeCurrency string `json:"native_currency"`
+		} `json:"currency"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	t.Logf("currency: %s, is_converted: %v, native: %s", result.Currency.Currency, result.Currency.IsConverted, result.Currency.NativeCurrency)
+}
+
+func TestSetCurrency_AndRestore(t *testing.T) {
+	// Read current currency so we can restore.
+	resp := env.GET(t, env.chartPath("currency"))
+	requireStatus(t, resp, http.StatusOK)
+	original := decodeJSON[struct {
+		Currency struct {
+			Currency    string `json:"currency"`
+			IsConverted bool   `json:"is_converted"`
+		} `json:"currency"`
+	}](t, resp)
+
+	t.Cleanup(func() {
+		// Reset to native currency.
+		r := env.PUT(t, env.chartPath("currency")+"?currency=null", nil)
+		r.Body.Close()
+		time.Sleep(2 * time.Second)
+	})
+
+	// Set to EUR.
+	resp = env.PUT(t, env.chartPath("currency")+"?currency=EUR", nil)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Currency struct {
+			Currency    string `json:"currency"`
+			IsConverted bool   `json:"is_converted"`
+		} `json:"currency"`
+	}](t, resp)
+
+	requireField(t, result.Currency.Currency, "EUR", "currency")
+	if !result.Currency.IsConverted {
+		t.Logf("warning: is_converted=false after setting EUR (may be native currency)")
+	}
+	t.Logf("set currency: was=%s is=%s converted=%v", original.Currency.Currency, result.Currency.Currency, result.Currency.IsConverted)
+}
+
+func TestGetAvailableCurrencies(t *testing.T) {
+	resp := env.GET(t, env.chartPath("currency/available"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID    string `json:"chart_id"`
+		Currencies []struct {
+			Code        string `json:"code"`
+			Description string `json:"description"`
+			Kind        string `json:"kind"`
+		} `json:"currencies"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	if len(result.Currencies) == 0 {
+		t.Fatal("expected non-empty currencies list")
+	}
+	// Verify at least one currency has code and description.
+	first := result.Currencies[0]
+	if first.Code == "" {
+		t.Fatal("expected first currency to have code")
+	}
+	t.Logf("available currencies: %d (first: %s - %s [%s])", len(result.Currencies), first.Code, first.Description, first.Kind)
+}
+
+// --- Unit tests ---
+
+func TestGetUnit(t *testing.T) {
+	resp := env.GET(t, env.chartPath("unit"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Unit    struct {
+			Unit        string `json:"unit"`
+			IsConverted bool   `json:"is_converted"`
+		} `json:"unit"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	t.Logf("unit: %q, is_converted: %v", result.Unit.Unit, result.Unit.IsConverted)
+}
+
+func TestGetAvailableUnits(t *testing.T) {
+	resp := env.GET(t, env.chartPath("unit/available"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Units   []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"units"`
+	}](t, resp)
+
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	if len(result.Units) == 0 {
+		t.Fatal("expected non-empty units list")
+	}
+	first := result.Units[0]
+	if first.ID == "" {
+		t.Fatal("expected first unit to have id")
+	}
+	t.Logf("available units: %d (first: %s - %s [%s])", len(result.Units), first.ID, first.Name, first.Type)
+}

@@ -2236,6 +2236,74 @@ func (c *Client) DismissDialog(ctx context.Context) (LayoutActionResult, error) 
 	return LayoutActionResult{Status: "dismissed"}, nil
 }
 
+// --- Currency / Unit client methods ---
+
+func (c *Client) GetCurrency(ctx context.Context, chartID string) (CurrencyInfo, error) {
+	var out CurrencyInfo
+	if err := c.evalOnChart(ctx, chartID, jsGetCurrency(), &out); err != nil {
+		return CurrencyInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetCurrency(ctx context.Context, chartID, currency string) (CurrencyInfo, error) {
+	if err := c.evalOnChart(ctx, chartID, jsSetCurrency(currency), nil); err != nil {
+		return CurrencyInfo{}, err
+	}
+	select {
+	case <-time.After(1500 * time.Millisecond):
+	case <-ctx.Done():
+		return CurrencyInfo{}, ctx.Err()
+	}
+	return c.GetCurrency(ctx, chartID)
+}
+
+func (c *Client) GetAvailableCurrencies(ctx context.Context, chartID string) ([]AvailableCurrency, error) {
+	var out struct {
+		Currencies []AvailableCurrency `json:"currencies"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGetAvailableCurrencies(), &out); err != nil {
+		return nil, err
+	}
+	if out.Currencies == nil {
+		return []AvailableCurrency{}, nil
+	}
+	return out.Currencies, nil
+}
+
+func (c *Client) GetUnit(ctx context.Context, chartID string) (UnitInfo, error) {
+	var out UnitInfo
+	if err := c.evalOnChart(ctx, chartID, jsGetUnit(), &out); err != nil {
+		return UnitInfo{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SetUnit(ctx context.Context, chartID, unit string) (UnitInfo, error) {
+	if err := c.evalOnChart(ctx, chartID, jsSetUnit(unit), nil); err != nil {
+		return UnitInfo{}, err
+	}
+	select {
+	case <-time.After(1500 * time.Millisecond):
+	case <-ctx.Done():
+		return UnitInfo{}, ctx.Err()
+	}
+	return c.GetUnit(ctx, chartID)
+}
+
+func (c *Client) GetAvailableUnits(ctx context.Context, chartID string) ([]AvailableUnit, error) {
+	var out struct {
+		Units []AvailableUnit `json:"units"`
+	}
+	if err := c.evalOnChart(ctx, chartID, jsGetAvailableUnits(), &out); err != nil {
+		return nil, err
+	}
+	if out.Units == nil {
+		return []AvailableUnit{}, nil
+	}
+	return out.Units, nil
+}
+
 func jsString(v string) string {
 	b, _ := json.Marshal(v)
 	return string(b)

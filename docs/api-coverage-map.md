@@ -11,6 +11,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | Region | Endpoints | What It Does |
 |--------|-----------|--------------|
 | **Symbol** | `GET/PUT /chart/{id}/symbol`, `GET /chart/{id}/symbol/info` | Read/change ticker (BTCUSD, AAPL, etc.), get extended metadata |
+| **Currency / Unit** | `GET/PUT /chart/{id}/currency`, `GET /chart/{id}/currency/available`, `GET/PUT /chart/{id}/unit`, `GET /chart/{id}/unit/available` | Get/set price denomination currency and unit; list available options |
 | **Resolution** | `GET/PUT /chart/{id}/resolution` | Change bar interval (1m, 5m, 1h, D, W, M, etc.) |
 | **Chart Type** | `GET/PUT /chart/{id}/chart-type` | Switch between candles, bars, line, area, Heikin Ashi, etc. |
 | **Indicators** | `GET/POST/PATCH/DELETE /chart/{id}/studies/*`, `POST /chart/{id}/indicators/search`, `POST /chart/{id}/indicators/add` | Add, modify, remove studies; search indicator library; manage favorites |
@@ -83,24 +84,24 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | **Settings Gear**        | Top bar (far right)       | Hard       | Opens the full chart properties dialog (colors, grid, scales, trading, events). Complex multi-tab dialog. |
 | **Publish**              | Top bar (green button)    | N/A        | Publishes trading ideas to TradingView social. Out of scope for automation.                               |
 | **Trade**                | Top bar (right of layout) | Hard       | Opens broker integration / order panel. Requires connected broker account.                                |
-| **USD Selector**         | Top right corner          | Low        | Change price denomination currency. Likely a simple property.                                             |
+| ~~**USD Selector**~~     | Top right corner          | ~~Low~~    | **COVERED** — `GET/PUT /chart/{id}/currency`, `GET /chart/{id}/currency/available`, `GET/PUT /chart/{id}/unit`, `GET /chart/{id}/unit/available` |
 | ~~**Star / Bookmark**~~  | Bottom left corner        | ~~Low~~    | **COVERED** — `GET /layout/favorite`, `POST /layout/favorite/toggle` via `_loadChartService` JS API       |
 | **Calendar Icon**        | Bottom bar                | Low        | Toggle economic calendar view.                                                                            |
 
 ### Hidden panels — no API
 
-| Feature | Panel Location | Difficulty | Notes |
-|---------|---------------|------------|-------|
-| **Object Tree** | Right sidebar | Medium | Lists all drawings and studies in a tree view. Read-only introspection — we already have `GET /drawings` and `GET /studies` which serve the same purpose. |
-| **Data Window** | Right sidebar | Medium | Shows OHLCV + study values at cursor position. Would need cursor positioning + value extraction. |
-| **News** | Right sidebar | Hard | Financial news feed from TradingView's data providers. Would need to scrape the news panel DOM or find an internal API. |
-| **Economic Calendar** | Bottom panel | Hard | Events feed (FOMC, CPI, etc.). Separate data source from chart data. |
-| **Screener** | Bottom panel | Hard | Stock/crypto screener with filters. Complex filtering UI, separate from chart. |
-| **Hotlists** | Right sidebar | Medium | Most active, top gainers/losers. TradingView aggregates these server-side. |
-| **Ideas / Community** | Right sidebar | N/A | Social trading ideas. Out of scope. |
-| **Trading Panel** | Bottom panel | Hard | Order placement, positions, P&L. Requires broker connection. Out of scope for research tool. |
-| **Chart Properties** | Modal dialog | Hard | Full settings dialog — appearance (colors, background, grid, watermark), scales (log, auto, percentage, lock), trading (positions, orders, executions), events (dividends, splits, earnings). Multi-tab dialog with dozens of options. |
-| **Chart Templates** | Modal dialog | Medium | Save/load named appearance configurations. Dialog-driven. |
+| Feature               | Panel Location | Difficulty | Notes                                                                                                                                                                                                                                  |     |
+| --------------------- | -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| **Object Tree**       | Right sidebar  | Medium     | Lists all drawings and studies in a tree view. Read-only introspection — we already have `GET /drawings` and `GET /studies` which serve the same purpose.                                                                              |     |
+| **Data Window**       | Right sidebar  | Medium     | Shows OHLCV + study values at cursor position. Would need cursor positioning + value extraction.                                                                                                                                       |     |
+| **News**              | Right sidebar  | Hard       | Financial news feed from TradingView's data providers. Would need to scrape the news panel DOM or find an internal API.                                                                                                                |     |
+| **Economic Calendar** | Bottom panel   | Hard       | Events feed (FOMC, CPI, etc.). Separate data source from chart data.                                                                                                                                                                   |     |
+| **Screener**          | Bottom panel   | Hard       | Stock/crypto screener with filters. Complex filtering UI, separate from chart.                                                                                                                                                         |     |
+| **Hotlists**          | Right sidebar  | Medium     | Most active, top gainers/losers. TradingView aggregates these server-side.                                                                                                                                                             |     |
+| **Ideas / Community** | Right sidebar  | N/A        | Social trading ideas. Out of scope.                                                                                                                                                                                                    |     |
+| **Trading Panel**     | Bottom panel   | Hard       | Order placement, positions, P&L. Requires broker connection. Out of scope for research tool.                                                                                                                                           |     |
+| **Chart Properties**  | Modal dialog   | Hard       | Full settings dialog — appearance (colors, background, grid, watermark), scales (log, auto, percentage, lock), trading (positions, orders, executions), events (dividends, splits, earnings). Multi-tab dialog with dozens of options. |     |
+| **Chart Templates**   | Modal dialog   | Medium     | Save/load named appearance configurations. Dialog-driven.                                                                                                                                                                              |     |
 
 ### Context menus & miscellaneous
 

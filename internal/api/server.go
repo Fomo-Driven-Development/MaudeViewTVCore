@@ -167,6 +167,12 @@ type Service interface {
 	ListFavoriteIndicators(ctx context.Context, chartID string) (cdpcontrol.IndicatorSearchResult, error)
 	ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorFavoriteResult, error)
 	ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error)
+	GetCurrency(ctx context.Context, chartID string, pane int) (cdpcontrol.CurrencyInfo, error)
+	SetCurrency(ctx context.Context, chartID, currency string, pane int) (cdpcontrol.CurrencyInfo, error)
+	GetAvailableCurrencies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableCurrency, error)
+	GetUnit(ctx context.Context, chartID string, pane int) (cdpcontrol.UnitInfo, error)
+	SetUnit(ctx context.Context, chartID, unit string, pane int) (cdpcontrol.UnitInfo, error)
+	GetAvailableUnits(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableUnit, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -2769,6 +2775,116 @@ func NewServer(svc Service) http.Handler {
 			}
 			out := &probeIndicatorDOMOutput{}
 			out.Body = result
+			return out, nil
+		})
+
+	// --- Currency / Unit endpoints ---
+
+	type currencyInput struct {
+		ChartID  string `path:"chart_id"`
+		Currency string `query:"currency" required:"true"`
+		Pane     int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+	}
+	type currencyOutput struct {
+		Body struct {
+			ChartID  string                `json:"chart_id"`
+			Currency cdpcontrol.CurrencyInfo `json:"currency"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-currency", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/currency", Summary: "Get current currency", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *chartIDInput) (*currencyOutput, error) {
+			info, err := svc.GetCurrency(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &currencyOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Currency = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-currency", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/currency", Summary: "Set currency (use 'null' to reset)", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *currencyInput) (*currencyOutput, error) {
+			info, err := svc.SetCurrency(ctx, input.ChartID, input.Currency, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &currencyOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Currency = info
+			return out, nil
+		})
+
+	type availableCurrenciesOutput struct {
+		Body struct {
+			ChartID    string                       `json:"chart_id"`
+			Currencies []cdpcontrol.AvailableCurrency `json:"currencies"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-available-currencies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/currency/available", Summary: "List available currencies", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *chartIDInput) (*availableCurrenciesOutput, error) {
+			list, err := svc.GetAvailableCurrencies(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &availableCurrenciesOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Currencies = list
+			return out, nil
+		})
+
+	type unitInput struct {
+		ChartID string `path:"chart_id"`
+		Unit    string `query:"unit" required:"true"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+	}
+	type unitOutput struct {
+		Body struct {
+			ChartID string             `json:"chart_id"`
+			Unit    cdpcontrol.UnitInfo `json:"unit"`
+		}
+	}
+
+	huma.Register(api, huma.Operation{OperationID: "get-unit", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/unit", Summary: "Get current unit", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *chartIDInput) (*unitOutput, error) {
+			info, err := svc.GetUnit(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &unitOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Unit = info
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "set-unit", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/unit", Summary: "Set unit (use 'null' to reset)", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *unitInput) (*unitOutput, error) {
+			info, err := svc.SetUnit(ctx, input.ChartID, input.Unit, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &unitOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Unit = info
+			return out, nil
+		})
+
+	type availableUnitsOutput struct {
+		Body struct {
+			ChartID string                    `json:"chart_id"`
+			Units   []cdpcontrol.AvailableUnit `json:"units"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-available-units", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/unit/available", Summary: "List available units", Tags: []string{"Symbol"}},
+		func(ctx context.Context, input *chartIDInput) (*availableUnitsOutput, error) {
+			list, err := svc.GetAvailableUnits(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &availableUnitsOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.Units = list
 			return out, nil
 		})
 

@@ -564,3 +564,32 @@ type IndicatorFavoriteResult struct {
 	Name       string `json:"name"`
 	IsFavorite bool   `json:"is_favorite"`
 }
+
+// CurrencyInfo describes the current currency conversion state of a chart.
+type CurrencyInfo struct {
+	Currency       string `json:"currency"`
+	IsConverted    bool   `json:"is_converted"`
+	NativeCurrency string `json:"native_currency"`
+}
+
+// UnitInfo describes the current unit conversion state of a chart.
+type UnitInfo struct {
+	Unit        string `json:"unit"`
+	IsConverted bool   `json:"is_converted"`
+}
+
+// AvailableCurrency describes a single currency available for conversion.
+type AvailableCurrency struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+}
+
+// AvailableUnit describes a single unit available for conversion.
+type AvailableUnit struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Type        string `json:"type"`
+}

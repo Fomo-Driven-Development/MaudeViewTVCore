@@ -1228,6 +1228,58 @@ func (s *Service) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, 
 	return s.cdp.ProbeIndicatorDialogDOM(ctx)
 }
 
+// --- Currency / Unit methods ---
+
+func (s *Service) GetCurrency(ctx context.Context, chartID string, pane int) (cdpcontrol.CurrencyInfo, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.CurrencyInfo{}, err
+	}
+	return s.cdp.GetCurrency(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetCurrency(ctx context.Context, chartID, currency string, pane int) (cdpcontrol.CurrencyInfo, error) {
+	currency = strings.TrimSpace(currency)
+	if currency == "" {
+		return cdpcontrol.CurrencyInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "currency is required (use \"null\" to reset)"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.CurrencyInfo{}, err
+	}
+	return s.cdp.SetCurrency(ctx, strings.TrimSpace(chartID), currency)
+}
+
+func (s *Service) GetAvailableCurrencies(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableCurrency, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
+	}
+	return s.cdp.GetAvailableCurrencies(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) GetUnit(ctx context.Context, chartID string, pane int) (cdpcontrol.UnitInfo, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.UnitInfo{}, err
+	}
+	return s.cdp.GetUnit(ctx, strings.TrimSpace(chartID))
+}
+
+func (s *Service) SetUnit(ctx context.Context, chartID, unit string, pane int) (cdpcontrol.UnitInfo, error) {
+	unit = strings.TrimSpace(unit)
+	if unit == "" {
+		return cdpcontrol.UnitInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "unit is required (use \"null\" to reset)"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.UnitInfo{}, err
+	}
+	return s.cdp.SetUnit(ctx, strings.TrimSpace(chartID), unit)
+}
+
+func (s *Service) GetAvailableUnits(ctx context.Context, chartID string, pane int) ([]cdpcontrol.AvailableUnit, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return nil, err
+	}
+	return s.cdp.GetAvailableUnits(ctx, strings.TrimSpace(chartID))
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

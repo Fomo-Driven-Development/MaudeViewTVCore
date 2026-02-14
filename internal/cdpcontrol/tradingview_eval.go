@@ -3250,3 +3250,91 @@ if (starEl) {
 return JSON.stringify({ok:true,data:{name:name,is_favorite:isFav}});
 `, index))
 }
+
+// --- Currency / Unit JS eval functions ---
+
+func jsGetCurrency() string {
+	return wrapJSEval(jsPreamble + `
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+var cur = ms.currency ? ms.currency() : null;
+var isConverted = typeof ms.isConvertedToOtherCurrency === "function" ? ms.isConvertedToOtherCurrency() : false;
+var native = "";
+try { var si = ms.symbolInfo; if (si) native = si.currency_code || si.currency || ""; } catch(_){}
+return JSON.stringify({ok:true,data:{currency:cur||"",is_converted:!!isConverted,native_currency:native}});
+`)
+}
+
+func jsSetCurrency(code string) string {
+	if code == "null" {
+		return wrapJSEval(jsPreamble + `
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+ms.setCurrency(null);
+return JSON.stringify({ok:true,data:{status:"ok"}});
+`)
+	}
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+ms.setCurrency(%s);
+return JSON.stringify({ok:true,data:{status:"ok"}});
+`, jsString(code)))
+}
+
+func jsGetAvailableCurrencies() string {
+	return wrapJSEvalAsync(jsPreamble + `
+var list = await api._chartApiInstance.availableCurrencies();
+var result = [];
+for (var i = 0; i < list.length; i++) {
+  var c = list[i];
+  result.push({code:c.code||"",description:c.description||"",id:c.id||"",kind:c.kind||""});
+}
+return JSON.stringify({ok:true,data:{currencies:result}});
+`)
+}
+
+func jsGetUnit() string {
+	return wrapJSEval(jsPreamble + `
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+var u = ms.unit ? ms.unit() : null;
+var isConverted = typeof ms.isConvertedToOtherUnit === "function" ? ms.isConvertedToOtherUnit() : false;
+return JSON.stringify({ok:true,data:{unit:u||"",is_converted:!!isConverted}});
+`)
+}
+
+func jsSetUnit(id string) string {
+	if id == "null" {
+		return wrapJSEval(jsPreamble + `
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+ms.setUnit(null);
+return JSON.stringify({ok:true,data:{status:"ok"}});
+`)
+	}
+	return wrapJSEval(fmt.Sprintf(jsPreamble+`
+var cw = chart._chartWidget;
+var ms = cw.model().mainSeries();
+ms.setUnit(%s);
+return JSON.stringify({ok:true,data:{status:"ok"}});
+`, jsString(id)))
+}
+
+func jsGetAvailableUnits() string {
+	return wrapJSEvalAsync(jsPreamble + `
+var cats = await api._chartApiInstance.availableUnits();
+var result = [];
+var keys = Object.keys(cats);
+for (var i = 0; i < keys.length; i++) {
+  var catKey = keys[i];
+  var items = cats[catKey];
+  if (!Array.isArray(items)) continue;
+  for (var j = 0; j < items.length; j++) {
+    var u = items[j];
+    result.push({id:u.id||"",name:u.name||"",description:u.description||"",type:catKey});
+  }
+}
+return JSON.stringify({ok:true,data:{units:result}});
+`)
+}
