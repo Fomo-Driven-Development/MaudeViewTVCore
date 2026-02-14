@@ -354,18 +354,15 @@ func addTestStrategy() error {
 
 	time.Sleep(1 * time.Second)
 
-	// Open a fresh editor tab so subsequent Pine tests don't overwrite the
-	// strategy tab. new-indicator/new-strategy replace the current tab's content
-	// (which would unlink our strategy from the chart), whereas new-tab
-	// (Shift+Alt+T) creates a genuinely new empty tab.
-	freshResp, err := env.doJSON(http.MethodPost, "/api/v1/pine/new-tab", nil)
-	if err != nil {
-		fmt.Fprintf(os.Stdout, "integration: new-tab warning: %v\n", err)
-	} else {
-		freshResp.Body.Close()
-	}
-
-	time.Sleep(1 * time.Second)
+	// NOTE: Do NOT call PineNewTab (Shift+Alt+T) here. That shortcut pops the
+	// Pine editor out to a separate browser tab (tradingview.com/pine/...) rather
+	// than creating a new script tab within the panel. The popped-out editor is
+	// invisible to DOM queries in the chart page, causing ensurePineOpen() to
+	// timeout (~12s) in subsequent Pine tests.
+	//
+	// If Pine tests overwrite the strategy tab (e.g. Ctrl+K Ctrl+S creates a new
+	// strategy template), TestStrategy_Init will re-add the test strategy before
+	// strategy tests run.
 
 	// Close Pine editor.
 	resp3, err := env.doJSON(http.MethodPost, "/api/v1/pine/toggle", nil)

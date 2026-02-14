@@ -36,6 +36,43 @@ func getActiveStrategy(t *testing.T) map[string]any {
 	return result
 }
 
+// TestStrategy_Init runs first (tests within a file execute in declaration order)
+// and re-adds the test strategy if a prior test group (e.g. Pine editor tests with
+// Ctrl+K Ctrl+S "New strategy") auto-applied a different strategy to the chart,
+// replacing ours. TradingView only allows one strategy at a time.
+func TestStrategy_Init(t *testing.T) {
+	if !env.StrategyReady {
+		t.Skip("strategy not set up")
+		return
+	}
+
+	resp := env.GET(t, strategyPath("active"))
+	if resp.StatusCode == http.StatusOK {
+		result := decodeJSON[map[string]any](t, resp)
+		if result["strategy"] != nil {
+			t.Log("strategy already present on chart — no re-add needed")
+			return
+		}
+	} else {
+		resp.Body.Close()
+	}
+
+	t.Log("strategy disappeared (likely replaced by Pine tests), re-adding...")
+	if err := addTestStrategy(); err != nil {
+		t.Fatalf("re-add strategy: %v", err)
+	}
+	time.Sleep(5 * time.Second)
+
+	// Verify the strategy is now active.
+	resp = env.GET(t, strategyPath("active"))
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[map[string]any](t, resp)
+	if result["strategy"] == nil {
+		t.Fatal("strategy still not active after re-add")
+	}
+	t.Log("strategy re-added and verified")
+}
+
 // --- Probing & Discovery ---
 
 func TestStrategyProbe(t *testing.T) {

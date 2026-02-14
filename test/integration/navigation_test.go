@@ -117,7 +117,9 @@ func TestSetTimeFrame_AllPresets(t *testing.T) {
 			requireField(t, result.Resolution, tc.wantRes, "resolution")
 			requireField(t, result.Preset, tc.name, "preset")
 
-			if result.From <= 0 {
+			// "All" preset can return negative timestamps for symbols with
+			// pre-1970 data (e.g. SPX goes back to ~1871).
+			if tc.name != "All" && result.From <= 0 {
 				t.Fatalf("from = %.0f, want > 0", result.From)
 			}
 			if result.To <= result.From {
