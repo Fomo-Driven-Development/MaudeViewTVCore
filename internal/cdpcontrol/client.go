@@ -2365,6 +2365,87 @@ func (c *Client) GetStudyTemplate(ctx context.Context, id int) (StudyTemplateEnt
 	return out, nil
 }
 
+// --- Hotlists Manager methods ---
+
+func (c *Client) ProbeHotlistsManager(ctx context.Context) (HotlistsManagerProbe, error) {
+	var out HotlistsManagerProbe
+	if err := c.evalOnAnyChart(ctx, jsProbeHotlistsManager(), &out); err != nil {
+		return HotlistsManagerProbe{}, err
+	}
+	initProbeDefaults(&out.AccessPaths, &out.Methods, &out.State)
+	return out, nil
+}
+
+func (c *Client) ProbeHotlistsManagerDeep(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnAnyChart(ctx, jsProbeHotlistsManagerDeep(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetHotlistMarkets(ctx context.Context) (any, error) {
+	var out struct {
+		Markets any `json:"markets"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGetHotlistMarkets(), &out); err != nil {
+		return nil, err
+	}
+	return out.Markets, nil
+}
+
+func (c *Client) GetHotlistExchanges(ctx context.Context) ([]HotlistExchangeDetail, error) {
+	var out struct {
+		Exchanges []HotlistExchangeDetail `json:"exchanges"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsGetHotlistExchanges(), &out); err != nil {
+		return nil, err
+	}
+	if out.Exchanges == nil {
+		return []HotlistExchangeDetail{}, nil
+	}
+	return out.Exchanges, nil
+}
+
+func (c *Client) GetOneHotlist(ctx context.Context, exchange, group string) (HotlistResult, error) {
+	var out HotlistResult
+	if err := c.evalOnAnyChart(ctx, jsGetOneHotlist(exchange, group), &out); err != nil {
+		return HotlistResult{}, err
+	}
+	if out.Symbols == nil {
+		out.Symbols = []HotlistSymbol{}
+	}
+	return out, nil
+}
+
+// --- Data Window Probe methods ---
+
+func (c *Client) ProbeDataWindow(ctx context.Context, chartID string) (DataWindowProbe, error) {
+	var out DataWindowProbe
+	if err := c.evalOnChart(ctx, chartID, jsProbeDataWindow(), &out); err != nil {
+		return DataWindowProbe{}, err
+	}
+	if out.DOMElements == nil {
+		out.DOMElements = []string{}
+	}
+	if out.CrosshairMethods == nil {
+		out.CrosshairMethods = []string{}
+	}
+	if out.LegendElements == nil {
+		out.LegendElements = []string{}
+	}
+	if out.ChartWidgetProps == nil {
+		out.ChartWidgetProps = []string{}
+	}
+	if out.ModelProps == nil {
+		out.ModelProps = []string{}
+	}
+	if out.DataWindowState == nil {
+		out.DataWindowState = map[string]any{}
+	}
+	return out, nil
+}
+
 func jsString(v string) string {
 	b, _ := json.Marshal(v)
 	return string(b)

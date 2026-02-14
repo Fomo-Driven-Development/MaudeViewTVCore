@@ -1340,6 +1340,43 @@ func (s *Service) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.Stud
 	return s.cdp.GetStudyTemplate(ctx, id)
 }
 
+// --- Hotlists Manager methods ---
+
+func (s *Service) ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error) {
+	return s.cdp.ProbeHotlistsManager(ctx)
+}
+
+func (s *Service) ProbeHotlistsManagerDeep(ctx context.Context) (map[string]any, error) {
+	return s.cdp.ProbeHotlistsManagerDeep(ctx)
+}
+
+func (s *Service) GetHotlistMarkets(ctx context.Context) (any, error) {
+	return s.cdp.GetHotlistMarkets(ctx)
+}
+
+func (s *Service) GetHotlistExchanges(ctx context.Context) ([]cdpcontrol.HotlistExchangeDetail, error) {
+	return s.cdp.GetHotlistExchanges(ctx)
+}
+
+func (s *Service) GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error) {
+	if strings.TrimSpace(exchange) == "" {
+		return cdpcontrol.HotlistResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "exchange is required"}
+	}
+	if strings.TrimSpace(group) == "" {
+		return cdpcontrol.HotlistResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "group is required"}
+	}
+	return s.cdp.GetOneHotlist(ctx, strings.TrimSpace(exchange), strings.TrimSpace(group))
+}
+
+// --- Data Window Probe methods ---
+
+func (s *Service) ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.DataWindowProbe{}, err
+	}
+	return s.cdp.ProbeDataWindow(ctx, strings.TrimSpace(chartID))
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

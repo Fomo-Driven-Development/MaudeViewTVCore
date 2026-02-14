@@ -446,6 +446,24 @@ func (s *stubService) ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyT
 func (s *stubService) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error) {
 	return cdpcontrol.StudyTemplateEntry{}, nil
 }
+func (s *stubService) ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error) {
+	return cdpcontrol.HotlistsManagerProbe{}, nil
+}
+func (s *stubService) ProbeHotlistsManagerDeep(ctx context.Context) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (s *stubService) GetHotlistMarkets(ctx context.Context) (any, error) {
+	return nil, nil
+}
+func (s *stubService) GetHotlistExchanges(ctx context.Context) ([]cdpcontrol.HotlistExchangeDetail, error) {
+	return []cdpcontrol.HotlistExchangeDetail{}, nil
+}
+func (s *stubService) GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error) {
+	return cdpcontrol.HotlistResult{}, nil
+}
+func (s *stubService) ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error) {
+	return cdpcontrol.DataWindowProbe{}, nil
+}
 
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})

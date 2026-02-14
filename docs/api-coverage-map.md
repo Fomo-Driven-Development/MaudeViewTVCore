@@ -4,7 +4,7 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 
 ![Coverage Map](chart_coverage.png)
 
-## Covered Regions (181+ endpoints)
+## Covered Regions (187+ endpoints)
 
 ### Top Toolbar
 
@@ -64,7 +64,8 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 |--------|-----------|--------------|
 | **Health** | `GET /health`, `POST /health/deep` | Basic and deep health checks (browser connection, tab state, chart readiness) |
 | **Page Control** | `POST /page/reload`, `POST /layout/dismiss-dialog`, `POST /layout/fullscreen` | Reload page, dismiss modals, toggle fullscreen |
-| **Introspection** | `GET /chart/{id}/chart-api/probe`, `GET /chart/{id}/chart-api/probe/deep`, `GET /chart/{id}/chart-api/resolve-symbol`, `PUT /chart/{id}/chart-api/timezone` | Probe internal APIs, resolve symbol metadata, switch timezone |
+| **Introspection** | `GET /chart/{id}/chart-api/probe`, `GET /chart/{id}/chart-api/probe/deep`, `GET /chart/{id}/chart-api/resolve-symbol`, `PUT /chart/{id}/chart-api/timezone`, `POST /chart/{id}/data-window/probe` | Probe internal APIs, resolve symbol metadata, switch timezone, discover data window state |
+| **Hotlists** | `GET /hotlists/probe`, `GET /hotlists/probe/deep`, `GET /hotlists/markets`, `GET /hotlists/exchanges`, `GET /hotlists/{exchange}/{group}` | Probe hotlists manager, get market organization, list exchanges with groups, fetch top gainers/losers/most active |
 
 ---
 
@@ -93,11 +94,11 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 | Feature               | Panel Location | Difficulty | Notes                                                                                                                                                                                                                                  |     |
 | --------------------- | -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
 | **Object Tree**       | Right sidebar  | Medium     | Lists all drawings and studies in a tree view. Read-only introspection — we already have `GET /drawings` and `GET /studies` which serve the same purpose.                                                                              |     |
-| **Data Window**       | Right sidebar  | Medium     | Shows OHLCV + study values at cursor position. Would need cursor positioning + value extraction.                                                                                                                                       |     |
+| ~~**Data Window**~~   | Right sidebar  | ~~Medium~~ | **PARTIALLY COVERED** — `POST /chart/{id}/data-window/probe` discovers accessible state (DOM elements, crosshair methods, legend, model props). Read endpoints deferred to future phase based on probe findings.                        |     |
 | **News**              | Right sidebar  | Hard       | Financial news feed from TradingView's data providers. Would need to scrape the news panel DOM or find an internal API.                                                                                                                |     |
 | **Economic Calendar** | Bottom panel   | Hard       | Events feed (FOMC, CPI, etc.). Separate data source from chart data.                                                                                                                                                                   |     |
 | **Screener**          | Bottom panel   | Hard       | Stock/crypto screener with filters. Complex filtering UI, separate from chart.                                                                                                                                                         |     |
-| **Hotlists**          | Right sidebar  | Medium     | Most active, top gainers/losers. TradingView aggregates these server-side.                                                                                                                                                             |     |
+| ~~**Hotlists**~~      | Right sidebar  | ~~Medium~~ | **COVERED** — `GET /hotlists/probe`, `GET /hotlists/probe/deep`, `GET /hotlists/markets`, `GET /hotlists/exchanges`, `GET /hotlists/{exchange}/{group}` via webpack-internal `hotlistsManager()` singleton                               |     |
 | **Ideas / Community** | Right sidebar  | N/A        | Social trading ideas. Out of scope.                                                                                                                                                                                                    |     |
 | **Trading Panel**     | Bottom panel   | Hard       | Order placement, positions, P&L. Requires broker connection. Out of scope for research tool.                                                                                                                                           |     |
 | **Chart Properties**  | Modal dialog   | Hard       | Full settings dialog — appearance (colors, background, grid, watermark), scales (log, auto, percentage, lock), trading (positions, orders, executions), events (dividends, splits, earnings). Multi-tab dialog with dozens of options. |     |
@@ -118,12 +119,12 @@ Visual reference: [`chart_coverage.png`](chart_coverage.png) — red boxes show 
 ## Coverage Summary
 
 ```
-Covered:          181+ endpoints across 17 major categories
-Not covered:       ~16 features (see tables above)
+Covered:          187+ endpoints across 19 major categories
+Not covered:       ~14 features (see tables above)
 
 Breakdown of gaps:
   Low difficulty:   4  (undo/redo, USD, star, calendar)
-  Medium difficulty: 4  (templates, object tree, data window, hotlists)
+  Medium difficulty: 2  (templates, object tree)
   Hard difficulty:   5  (settings dialog, chart properties, news, screener, trading panel)
   Out of scope:      3  (publish, ideas/community, multi-monitor)
 ```

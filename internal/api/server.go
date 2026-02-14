@@ -180,6 +180,12 @@ type Service interface {
 	BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error
 	ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyTemplateList, error)
 	GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error)
+	ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error)
+	ProbeHotlistsManagerDeep(ctx context.Context) (map[string]any, error)
+	GetHotlistMarkets(ctx context.Context) (any, error)
+	GetHotlistExchanges(ctx context.Context) ([]cdpcontrol.HotlistExchangeDetail, error)
+	GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error)
+	ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error)
 }
 
 func NewServer(svc Service) http.Handler {
@@ -3008,6 +3014,102 @@ func NewServer(svc Service) http.Handler {
 			out := &availableUnitsOutput{}
 			out.Body.ChartID = input.ChartID
 			out.Body.Units = list
+			return out, nil
+		})
+
+	// --- Hotlists endpoints ---
+
+	type hotlistsProbeOutput struct {
+		Body cdpcontrol.HotlistsManagerProbe
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-hotlists", Method: http.MethodGet, Path: "/api/v1/hotlists/probe", Summary: "Probe hotlistsManager() singleton", Tags: []string{"Hotlists"}},
+		func(ctx context.Context, input *struct{}) (*hotlistsProbeOutput, error) {
+			probe, err := svc.ProbeHotlistsManager(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &hotlistsProbeOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	type hotlistsProbeDeepOutput struct {
+		Body map[string]any
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-hotlists-deep", Method: http.MethodGet, Path: "/api/v1/hotlists/probe/deep", Summary: "Deep probe hotlistsManager() methods and properties", Tags: []string{"Hotlists"}},
+		func(ctx context.Context, input *struct{}) (*hotlistsProbeDeepOutput, error) {
+			probe, err := svc.ProbeHotlistsManagerDeep(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &hotlistsProbeDeepOutput{}
+			out.Body = probe
+			return out, nil
+		})
+
+	type hotlistMarketsOutput struct {
+		Body struct {
+			Markets any `json:"markets"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-hotlist-markets", Method: http.MethodGet, Path: "/api/v1/hotlists/markets", Summary: "Get market organization", Tags: []string{"Hotlists"}},
+		func(ctx context.Context, input *struct{}) (*hotlistMarketsOutput, error) {
+			markets, err := svc.GetHotlistMarkets(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &hotlistMarketsOutput{}
+			out.Body.Markets = markets
+			return out, nil
+		})
+
+	type hotlistExchangesOutput struct {
+		Body struct {
+			Exchanges []cdpcontrol.HotlistExchangeDetail `json:"exchanges"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-hotlist-exchanges", Method: http.MethodGet, Path: "/api/v1/hotlists/exchanges", Summary: "List available exchanges with names, flags, groups", Tags: []string{"Hotlists"}},
+		func(ctx context.Context, input *struct{}) (*hotlistExchangesOutput, error) {
+			exchanges, err := svc.GetHotlistExchanges(ctx)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &hotlistExchangesOutput{}
+			out.Body.Exchanges = exchanges
+			return out, nil
+		})
+
+	type hotlistInput struct {
+		Exchange string `path:"exchange"`
+		Group    string `path:"group"`
+	}
+	type hotlistResultOutput struct {
+		Body cdpcontrol.HotlistResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "get-one-hotlist", Method: http.MethodGet, Path: "/api/v1/hotlists/{exchange}/{group}", Summary: "Get symbols for a specific hotlist", Tags: []string{"Hotlists"}},
+		func(ctx context.Context, input *hotlistInput) (*hotlistResultOutput, error) {
+			result, err := svc.GetOneHotlist(ctx, input.Exchange, input.Group)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &hotlistResultOutput{}
+			out.Body = result
+			return out, nil
+		})
+
+	// --- Data Window endpoints ---
+
+	type dataWindowProbeOutput struct {
+		Body cdpcontrol.DataWindowProbe
+	}
+	huma.Register(api, huma.Operation{OperationID: "probe-data-window", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/data-window/probe", Summary: "Discover accessible data window state", Tags: []string{"Introspection"}},
+		func(ctx context.Context, input *chartIDInput) (*dataWindowProbeOutput, error) {
+			probe, err := svc.ProbeDataWindow(ctx, input.ChartID, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &dataWindowProbeOutput{}
+			out.Body = probe
 			return out, nil
 		})
 

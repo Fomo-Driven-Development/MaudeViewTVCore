@@ -464,18 +464,19 @@ type LayoutFavoriteResult struct {
 
 // DeepHealthResult describes the availability of every implementation mechanism.
 type DeepHealthResult struct {
-	TradingViewAPI bool `json:"tradingview_api"`
-	ChartWidget    bool `json:"chart_widget"`
-	WebpackRequire bool `json:"webpack_require"`
-	AlertsAPI      bool `json:"alerts_api"`
-	WatchlistREST  bool `json:"watchlist_rest"`
-	ReplayAPI      bool `json:"replay_api"`
-	BacktestingAPI bool `json:"backtesting_api"`
-	PineEditorDOM  bool `json:"pine_editor_dom"`
-	MonacoWebpack  bool `json:"monaco_webpack"`
-	LoadChart      bool `json:"load_chart"`
-	SaveChart      bool `json:"save_chart"`
-	ChartAPI       bool `json:"chart_api"`
+	TradingViewAPI  bool `json:"tradingview_api"`
+	ChartWidget     bool `json:"chart_widget"`
+	WebpackRequire  bool `json:"webpack_require"`
+	AlertsAPI       bool `json:"alerts_api"`
+	WatchlistREST   bool `json:"watchlist_rest"`
+	ReplayAPI       bool `json:"replay_api"`
+	BacktestingAPI  bool `json:"backtesting_api"`
+	PineEditorDOM   bool `json:"pine_editor_dom"`
+	MonacoWebpack   bool `json:"monaco_webpack"`
+	LoadChart       bool `json:"load_chart"`
+	SaveChart       bool `json:"save_chart"`
+	ChartAPI        bool `json:"chart_api"`
+	HotlistsManager bool `json:"hotlists_manager"`
 }
 
 // LayoutDetail describes a layout with its full content (studies, drawings, etc.).
@@ -616,4 +617,51 @@ type StudyTemplateList struct {
 	Custom       []StudyTemplateEntry `json:"custom"`
 	Standard     []StudyTemplateEntry `json:"standard"`
 	Fundamentals []StudyTemplateEntry `json:"fundamentals"`
+}
+
+// HotlistsManagerProbe describes the result of probing for the hotlistsManager() singleton.
+type HotlistsManagerProbe struct {
+	Found       bool           `json:"found"`
+	AccessPaths []string       `json:"access_paths"`
+	Methods     []string       `json:"methods"`
+	State       map[string]any `json:"state"`
+}
+
+// HotlistGroupInfo describes a hotlist group within an exchange.
+type HotlistGroupInfo struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// HotlistExchangeDetail describes an exchange with its hotlist groups.
+type HotlistExchangeDetail struct {
+	Exchange string             `json:"exchange"`
+	Name     string             `json:"name"`
+	FullName string             `json:"full_name,omitempty"`
+	Flag     string             `json:"flag,omitempty"`
+	Groups   []HotlistGroupInfo `json:"groups"`
+}
+
+// HotlistSymbol describes a single symbol entry from a hotlist.
+type HotlistSymbol struct {
+	Symbol string         `json:"symbol"`
+	Extra  map[string]any `json:"extra,omitempty"`
+}
+
+// HotlistResult describes the symbols returned for a specific exchange/group hotlist.
+type HotlistResult struct {
+	Exchange string          `json:"exchange"`
+	Group    string          `json:"group"`
+	Symbols  []HotlistSymbol `json:"symbols"`
+}
+
+// DataWindowProbe describes what's discoverable about the data window / crosshair state.
+type DataWindowProbe struct {
+	PanelVisible     bool           `json:"panel_visible"`
+	DOMElements      []string       `json:"dom_elements"`
+	CrosshairMethods []string       `json:"crosshair_methods,omitempty"`
+	LegendElements   []string       `json:"legend_elements,omitempty"`
+	ChartWidgetProps []string       `json:"chart_widget_props,omitempty"`
+	ModelProps       []string       `json:"model_props,omitempty"`
+	DataWindowState  map[string]any `json:"data_window_state,omitempty"`
 }
