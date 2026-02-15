@@ -28,15 +28,9 @@ just run-tv-controller
 
 ## Ports
 
-Defaults:
+Default bind address: `127.0.0.1:8188` (set via `CONTROLLER_BIND_ADDR`).
 
-- Preferred bind: `127.0.0.1:8188`
-- Auto fallback candidates: `127.0.0.1:8188,127.0.0.1:8189,127.0.0.1:8190,127.0.0.1:8191`
-
-Behavior:
-
-- If preferred port is busy and fallback is enabled, tv_controller picks the first free candidate.
-- If no candidate is free, startup fails with an explicit error.
+If the port is busy, startup fails with an explicit error.
 
 ## Key Environment Variables
 
