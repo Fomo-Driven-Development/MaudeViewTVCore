@@ -22,6 +22,13 @@ func NewService(cdp *cdpcontrol.Client, snaps *snapshot.Store) *Service {
 	return &Service{cdp: cdp, snaps: snaps}
 }
 
+func (s *Service) requireNonEmpty(value, fieldName string) error {
+	if strings.TrimSpace(value) == "" {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: fieldName + " is required"}
+	}
+	return nil
+}
+
 // ensurePane activates the given pane index before an operation.
 // If pane < 0 it is a no-op (use current active pane).
 func (s *Service) ensurePane(ctx context.Context, pane int) error {
@@ -61,8 +68,8 @@ func (s *Service) GetSymbol(ctx context.Context, chartID string, pane int) (stri
 }
 
 func (s *Service) SetSymbol(ctx context.Context, chartID, symbol string, pane int) (string, error) {
-	if strings.TrimSpace(symbol) == "" {
-		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	if err := s.requireNonEmpty(symbol, "symbol"); err != nil {
+		return "", err
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return "", err
@@ -78,8 +85,8 @@ func (s *Service) GetResolution(ctx context.Context, chartID string, pane int) (
 }
 
 func (s *Service) SetResolution(ctx context.Context, chartID, resolution string, pane int) (string, error) {
-	if strings.TrimSpace(resolution) == "" {
-		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "resolution is required"}
+	if err := s.requireNonEmpty(resolution, "resolution"); err != nil {
+		return "", err
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return "", err
@@ -102,9 +109,10 @@ func (s *Service) SetChartType(ctx context.Context, chartID string, chartType in
 }
 
 func (s *Service) ExecuteAction(ctx context.Context, chartID, actionID string) error {
-	if strings.TrimSpace(actionID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "action_id is required"}
+	if err := s.requireNonEmpty(actionID, "action_id"); err != nil {
+		return err
 	}
+
 	return s.cdp.ExecuteAction(ctx, strings.TrimSpace(chartID), strings.TrimSpace(actionID))
 }
 
@@ -116,9 +124,10 @@ func (s *Service) ListStudies(ctx context.Context, chartID string, pane int) ([]
 }
 
 func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map[string]any, forceOverlay bool, pane int) (cdpcontrol.Study, error) {
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.Study{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study name is required"}
+	if err := s.requireNonEmpty(name, "study name"); err != nil {
+		return cdpcontrol.Study{}, err
 	}
+
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return cdpcontrol.Study{}, err
 	}
@@ -126,8 +135,8 @@ func (s *Service) AddStudy(ctx context.Context, chartID, name string, inputs map
 }
 
 func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error) {
-	if strings.TrimSpace(studyID) == "" {
-		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	if err := s.requireNonEmpty(studyID, "study_id"); err != nil {
+		return cdpcontrol.StudyDetail{}, err
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return cdpcontrol.StudyDetail{}, err
@@ -136,8 +145,8 @@ func (s *Service) GetStudyInputs(ctx context.Context, chartID, studyID string, p
 }
 
 func (s *Service) ModifyStudyInputs(ctx context.Context, chartID, studyID string, inputs map[string]any, pane int) (cdpcontrol.StudyDetail, error) {
-	if strings.TrimSpace(studyID) == "" {
-		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	if err := s.requireNonEmpty(studyID, "study_id"); err != nil {
+		return cdpcontrol.StudyDetail{}, err
 	}
 	if len(inputs) == 0 {
 		return cdpcontrol.StudyDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "inputs must not be empty"}
@@ -149,9 +158,10 @@ func (s *Service) ModifyStudyInputs(ctx context.Context, chartID, studyID string
 }
 
 func (s *Service) RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error {
-	if strings.TrimSpace(studyID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "study_id is required"}
+	if err := s.requireNonEmpty(studyID, "study_id"); err != nil {
+		return err
 	}
+
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return err
 	}
@@ -311,47 +321,50 @@ func (s *Service) GetActiveWatchlist(ctx context.Context) (cdpcontrol.WatchlistD
 }
 
 func (s *Service) SetActiveWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
-	if strings.TrimSpace(id) == "" {
-		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist id is required"}
+	if err := s.requireNonEmpty(id, "watchlist id"); err != nil {
+		return cdpcontrol.WatchlistInfo{}, err
 	}
+
 	return s.cdp.SetActiveWatchlist(ctx, strings.TrimSpace(id))
 }
 
 func (s *Service) GetWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistDetail, error) {
-	if strings.TrimSpace(id) == "" {
-		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return cdpcontrol.WatchlistDetail{}, err
 	}
 	return s.cdp.GetWatchlist(ctx, strings.TrimSpace(id))
 }
 
 func (s *Service) CreateWatchlist(ctx context.Context, name string) (cdpcontrol.WatchlistInfo, error) {
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return cdpcontrol.WatchlistInfo{}, err
 	}
 	return s.cdp.CreateWatchlist(ctx, strings.TrimSpace(name))
 }
 
 func (s *Service) RenameWatchlist(ctx context.Context, id, name string) (cdpcontrol.WatchlistInfo, error) {
-	if strings.TrimSpace(id) == "" {
-		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return cdpcontrol.WatchlistInfo{}, err
 	}
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.WatchlistInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return cdpcontrol.WatchlistInfo{}, err
 	}
 	return s.cdp.RenameWatchlist(ctx, strings.TrimSpace(id), strings.TrimSpace(name))
 }
 
 func (s *Service) DeleteWatchlist(ctx context.Context, id string) error {
-	if strings.TrimSpace(id) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return err
 	}
+
 	return s.cdp.DeleteWatchlist(ctx, strings.TrimSpace(id))
 }
 
 func (s *Service) AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
-	if strings.TrimSpace(id) == "" {
-		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return cdpcontrol.WatchlistDetail{}, err
 	}
+
 	if len(symbols) == 0 {
 		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
 	}
@@ -359,8 +372,8 @@ func (s *Service) AddWatchlistSymbols(ctx context.Context, id string, symbols []
 }
 
 func (s *Service) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
-	if strings.TrimSpace(id) == "" {
-		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return cdpcontrol.WatchlistDetail{}, err
 	}
 	if len(symbols) == 0 {
 		return cdpcontrol.WatchlistDetail{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbols must not be empty"}
@@ -369,12 +382,14 @@ func (s *Service) RemoveWatchlistSymbols(ctx context.Context, id string, symbols
 }
 
 func (s *Service) FlagSymbol(ctx context.Context, id, symbol string) error {
-	if strings.TrimSpace(id) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "watchlist_id is required"}
+	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(symbol) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+
+	if err := s.requireNonEmpty(symbol, "symbol"); err != nil {
+		return err
 	}
+
 	return s.cdp.FlagSymbol(ctx, strings.TrimSpace(id), strings.TrimSpace(symbol))
 }
 
@@ -389,16 +404,18 @@ func (s *Service) ProbeChartApi(ctx context.Context, chartID string) (cdpcontrol
 }
 
 func (s *Service) ResolveSymbol(ctx context.Context, chartID, symbol string) (cdpcontrol.ResolvedSymbolInfo, error) {
-	if strings.TrimSpace(symbol) == "" {
-		return cdpcontrol.ResolvedSymbolInfo{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "symbol is required"}
+	if err := s.requireNonEmpty(symbol, "symbol"); err != nil {
+		return cdpcontrol.ResolvedSymbolInfo{}, err
 	}
+
 	return s.cdp.ResolveSymbol(ctx, strings.TrimSpace(chartID), strings.TrimSpace(symbol))
 }
 
 func (s *Service) SwitchTimezone(ctx context.Context, chartID, tz string) error {
-	if strings.TrimSpace(tz) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "timezone is required"}
+	if err := s.requireNonEmpty(tz, "timezone"); err != nil {
+		return err
 	}
+
 	return s.cdp.SwitchTimezone(ctx, strings.TrimSpace(chartID), strings.TrimSpace(tz))
 }
 
@@ -478,16 +495,18 @@ func (s *Service) GetActiveStrategy(ctx context.Context, chartID string) (map[st
 }
 
 func (s *Service) SetActiveStrategy(ctx context.Context, chartID, strategyID string) error {
-	if strings.TrimSpace(strategyID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "strategy_id is required"}
+	if err := s.requireNonEmpty(strategyID, "strategy_id"); err != nil {
+		return err
 	}
+
 	return s.cdp.SetActiveStrategy(ctx, strings.TrimSpace(chartID), strings.TrimSpace(strategyID))
 }
 
 func (s *Service) SetStrategyInput(ctx context.Context, chartID, name string, value any) error {
-	if strings.TrimSpace(name) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return err
 	}
+
 	return s.cdp.SetStrategyInput(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name), value)
 }
 
@@ -508,8 +527,6 @@ func (s *Service) StrategyGotoDate(ctx context.Context, chartID string, timestam
 func (s *Service) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
 	return s.cdp.ScanAlertsAccess(ctx, strings.TrimSpace(chartID))
 }
-
-
 
 func (s *Service) ProbeAlertsRestApi(ctx context.Context, chartID string) (cdpcontrol.AlertsApiProbe, error) {
 	return s.cdp.ProbeAlertsRestApi(ctx, strings.TrimSpace(chartID))
@@ -597,9 +614,10 @@ func (s *Service) ListDrawings(ctx context.Context, chartID string, pane int) ([
 }
 
 func (s *Service) GetDrawing(ctx context.Context, chartID, shapeID string, pane int) (map[string]any, error) {
-	if strings.TrimSpace(shapeID) == "" {
-		return nil, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
+		return nil, err
 	}
+
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return nil, err
 	}
@@ -638,8 +656,8 @@ func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, p
 }
 
 func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error) {
-	if strings.TrimSpace(shapeID) == "" {
-		return "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
+		return "", err
 	}
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return "", err
@@ -648,9 +666,10 @@ func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string, pan
 }
 
 func (s *Service) RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool, pane int) error {
-	if strings.TrimSpace(shapeID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
+		return err
 	}
+
 	if err := s.ensurePane(ctx, pane); err != nil {
 		return err
 	}
@@ -684,9 +703,10 @@ func (s *Service) SetMagnet(ctx context.Context, chartID string, enabled bool, m
 }
 
 func (s *Service) SetDrawingVisibility(ctx context.Context, chartID, shapeID string, visible bool) error {
-	if strings.TrimSpace(shapeID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
+		return err
 	}
+
 	return s.cdp.SetDrawingVisibility(ctx, strings.TrimSpace(chartID), strings.TrimSpace(shapeID), visible)
 }
 
@@ -695,16 +715,18 @@ func (s *Service) GetDrawingTool(ctx context.Context, chartID string) (string, e
 }
 
 func (s *Service) SetDrawingTool(ctx context.Context, chartID, tool string) error {
-	if strings.TrimSpace(tool) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "tool is required"}
+	if err := s.requireNonEmpty(tool, "tool"); err != nil {
+		return err
 	}
+
 	return s.cdp.SetDrawingTool(ctx, strings.TrimSpace(chartID), strings.TrimSpace(tool))
 }
 
 func (s *Service) SetDrawingZOrder(ctx context.Context, chartID, shapeID, action string) error {
-	if strings.TrimSpace(shapeID) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "shape_id is required"}
+	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
+		return err
 	}
+
 	valid := map[string]bool{"bring_forward": true, "bring_to_front": true, "send_backward": true, "send_to_back": true}
 	a := strings.TrimSpace(action)
 	if !valid[a] {
@@ -815,9 +837,10 @@ func (s *Service) ListSnapshots(ctx context.Context) ([]snapshot.SnapshotMeta, e
 }
 
 func (s *Service) GetSnapshot(ctx context.Context, id string) (snapshot.SnapshotMeta, error) {
-	if strings.TrimSpace(id) == "" {
-		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	if err := s.requireNonEmpty(id, "snapshot_id"); err != nil {
+		return snapshot.SnapshotMeta{}, err
 	}
+
 	meta, err := s.snaps.Get(strings.TrimSpace(id))
 	if err != nil {
 		return snapshot.SnapshotMeta{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
@@ -826,9 +849,10 @@ func (s *Service) GetSnapshot(ctx context.Context, id string) (snapshot.Snapshot
 }
 
 func (s *Service) ReadSnapshotImage(ctx context.Context, id string) ([]byte, string, error) {
-	if strings.TrimSpace(id) == "" {
-		return nil, "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	if err := s.requireNonEmpty(id, "snapshot_id"); err != nil {
+		return nil, "", err
 	}
+
 	data, format, err := s.snaps.ReadImage(strings.TrimSpace(id))
 	if err != nil {
 		return nil, "", &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
@@ -837,9 +861,10 @@ func (s *Service) ReadSnapshotImage(ctx context.Context, id string) ([]byte, str
 }
 
 func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
-	if strings.TrimSpace(id) == "" {
-		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "snapshot_id is required"}
+	if err := s.requireNonEmpty(id, "snapshot_id"); err != nil {
+		return err
 	}
+
 	if err := s.snaps.Delete(strings.TrimSpace(id)); err != nil {
 		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeSnapshotNotFound, Message: err.Error()}
 	}
@@ -884,9 +909,10 @@ func (s *Service) GetPineSource(ctx context.Context) (cdpcontrol.PineState, erro
 }
 
 func (s *Service) SetPineSource(ctx context.Context, source string) (cdpcontrol.PineState, error) {
-	if strings.TrimSpace(source) == "" {
-		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "source is required"}
+	if err := s.requireNonEmpty(source, "source"); err != nil {
+		return cdpcontrol.PineState{}, err
 	}
+
 	return s.cdp.SetPineSource(ctx, source)
 }
 
@@ -919,8 +945,8 @@ func (s *Service) PineNewStrategy(ctx context.Context) (cdpcontrol.PineState, er
 }
 
 func (s *Service) PineOpenScript(ctx context.Context, name string) (cdpcontrol.PineState, error) {
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.PineState{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return cdpcontrol.PineState{}, err
 	}
 	return s.cdp.PineOpenScript(ctx, name)
 }
@@ -1001,8 +1027,8 @@ func (s *Service) SaveLayout(ctx context.Context) (cdpcontrol.LayoutActionResult
 }
 
 func (s *Service) CloneLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return cdpcontrol.LayoutActionResult{}, err
 	}
 	return s.cdp.CloneLayout(ctx, strings.TrimSpace(name))
 }
@@ -1015,15 +1041,15 @@ func (s *Service) DeleteLayout(ctx context.Context, id int) (cdpcontrol.LayoutAc
 }
 
 func (s *Service) RenameLayout(ctx context.Context, name string) (cdpcontrol.LayoutActionResult, error) {
-	if strings.TrimSpace(name) == "" {
-		return cdpcontrol.LayoutActionResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "name is required"}
+	if err := s.requireNonEmpty(name, "name"); err != nil {
+		return cdpcontrol.LayoutActionResult{}, err
 	}
 	return s.cdp.RenameLayout(ctx, strings.TrimSpace(name))
 }
 
 func (s *Service) SetLayoutGrid(ctx context.Context, template string) (cdpcontrol.LayoutStatus, error) {
-	if strings.TrimSpace(template) == "" {
-		return cdpcontrol.LayoutStatus{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "template is required"}
+	if err := s.requireNonEmpty(template, "template"); err != nil {
+		return cdpcontrol.LayoutStatus{}, err
 	}
 	return s.cdp.SetLayoutGrid(ctx, strings.TrimSpace(template))
 }
@@ -1194,15 +1220,15 @@ func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) 
 // --- Indicator Dialog methods ---
 
 func (s *Service) SearchIndicators(ctx context.Context, chartID, query string) (cdpcontrol.IndicatorSearchResult, error) {
-	if strings.TrimSpace(query) == "" {
-		return cdpcontrol.IndicatorSearchResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	if err := s.requireNonEmpty(query, "query"); err != nil {
+		return cdpcontrol.IndicatorSearchResult{}, err
 	}
 	return s.cdp.SearchIndicators(ctx, strings.TrimSpace(chartID), strings.TrimSpace(query))
 }
 
 func (s *Service) AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorAddResult, error) {
-	if strings.TrimSpace(query) == "" {
-		return cdpcontrol.IndicatorAddResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	if err := s.requireNonEmpty(query, "query"); err != nil {
+		return cdpcontrol.IndicatorAddResult{}, err
 	}
 	if index < 0 {
 		return cdpcontrol.IndicatorAddResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "index must be >= 0"}
@@ -1215,8 +1241,8 @@ func (s *Service) ListFavoriteIndicators(ctx context.Context, chartID string) (c
 }
 
 func (s *Service) ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (cdpcontrol.IndicatorFavoriteResult, error) {
-	if strings.TrimSpace(query) == "" {
-		return cdpcontrol.IndicatorFavoriteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "query is required"}
+	if err := s.requireNonEmpty(query, "query"); err != nil {
+		return cdpcontrol.IndicatorFavoriteResult{}, err
 	}
 	if index < 0 {
 		return cdpcontrol.IndicatorFavoriteResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "index must be >= 0"}
@@ -1359,11 +1385,11 @@ func (s *Service) GetHotlistExchanges(ctx context.Context) ([]cdpcontrol.Hotlist
 }
 
 func (s *Service) GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error) {
-	if strings.TrimSpace(exchange) == "" {
-		return cdpcontrol.HotlistResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "exchange is required"}
+	if err := s.requireNonEmpty(exchange, "exchange"); err != nil {
+		return cdpcontrol.HotlistResult{}, err
 	}
-	if strings.TrimSpace(group) == "" {
-		return cdpcontrol.HotlistResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "group is required"}
+	if err := s.requireNonEmpty(group, "group"); err != nil {
+		return cdpcontrol.HotlistResult{}, err
 	}
 	return s.cdp.GetOneHotlist(ctx, strings.TrimSpace(exchange), strings.TrimSpace(group))
 }
@@ -1384,4 +1410,3 @@ func decodeDataURL(dataURL string) ([]byte, error) {
 	}
 	return base64.StdEncoding.DecodeString(parts[1])
 }
-
