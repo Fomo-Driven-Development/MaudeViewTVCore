@@ -81,6 +81,7 @@ Copy `example.env` → `.env`. Key settings:
 
 ## Documentation
 
-- `docs/controller-runbook.md` — Controller API usage guide
-- `docs/functionality-catalog.md` — Latest capability matrix snapshot
-- `docs/next-capture-checklist.md` — Planned capture expansion
+- `docs/security-guide.md` — Security hardening for CDP browser automation
+- `docs/controller-runbook.md` — Controller startup, config, and usage
+- `docs/dev/implementation-status.md` — All 176 endpoints, mechanisms, fragility, coverage gaps
+- `docs/dev/js-internals.md` — TradingView JS manager singletons reference
