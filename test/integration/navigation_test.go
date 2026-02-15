@@ -14,7 +14,7 @@ func resetChart(t *testing.T) {
 	resp := env.PUT(t, env.chartPath("timeframe")+"?preset=1Y", nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 // goToDateAndVerify posts go-to-date and polls visible-range until the target
@@ -34,14 +34,14 @@ func goToDateAndVerify(t *testing.T, timestamp int64, maxAttempts int) {
 				t.Fatalf("go-to-date returned %d on attempt %d", resp.StatusCode, attempt)
 			}
 			t.Logf("attempt %d: go-to-date returned %d, retrying", attempt, resp.StatusCode)
-			time.Sleep(2 * time.Second)
+			time.Sleep(testDataSettleMedium)
 			continue
 		}
 		resp.Body.Close()
 
 		// Poll visible-range up to 3 times for data to load.
 		for poll := 0; poll < 3; poll++ {
-			time.Sleep(1 * time.Second)
+			time.Sleep(testSettleLong)
 			resp = env.GET(t, env.chartPath("visible-range"))
 			requireStatus(t, resp, http.StatusOK)
 			vr := decodeJSON[struct {
@@ -57,7 +57,7 @@ func goToDateAndVerify(t *testing.T, timestamp int64, maxAttempts int) {
 
 		if attempt < maxAttempts {
 			t.Logf("attempt %d: go-to-date did not navigate, retrying", attempt)
-			time.Sleep(1 * time.Second)
+			time.Sleep(testSettleLong)
 		}
 	}
 	t.Fatalf("go-to-date to %d failed after %d attempts", timestamp, maxAttempts)
@@ -226,7 +226,7 @@ func TestResetView(t *testing.T) {
 	// Poll until visible range advances past the before snapshot.
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(testSettleMedium)
 		resp = env.GET(t, env.chartPath("visible-range"))
 		requireStatus(t, resp, http.StatusOK)
 		after := decodeJSON[struct {
@@ -262,7 +262,7 @@ func TestSetChartType_AllStyles(t *testing.T) {
 		// Restore to candles.
 		resp := env.PUT(t, env.chartPath("chart-type")+"?type=candles", nil)
 		resp.Body.Close()
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(testSettleMedium)
 	})
 
 	styles := []struct {
@@ -384,7 +384,7 @@ func TestZoom_InAndOut(t *testing.T) {
 	requireField(t, zoomResult.Status, "executed", "status")
 	requireField(t, zoomResult.Direction, "in", "direction")
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	resp = env.GET(t, env.chartPath("visible-range"))
 	requireStatus(t, resp, http.StatusOK)
@@ -439,7 +439,7 @@ func TestScroll(t *testing.T) {
 	requireField(t, scrollResult.Status, "executed", "status")
 	requireField(t, scrollResult.Bars, -50, "bars")
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Verify visible range shifted left.
 	resp = env.GET(t, env.chartPath("visible-range"))
@@ -540,7 +540,7 @@ func TestCompareOverlay(t *testing.T) {
 	studyID := addResult.Study.ID
 	t.Logf("added overlay: id=%s name=%s", studyID, addResult.Study.Name)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 2. List compares — verify ETHUSD overlay is present.
 	resp = env.GET(t, env.chartPath("compare"))
@@ -572,7 +572,7 @@ func TestCompareOverlay(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// 4. List again — verify empty.
 	resp = env.GET(t, env.chartPath("compare"))
@@ -609,7 +609,7 @@ func TestCompareOverlay_CompareMode(t *testing.T) {
 	t.Logf("added compare: id=%s", result.Study.ID)
 
 	// Cleanup: remove the compare study.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 	r := env.DELETE(t, env.chartPath("compare/"+result.Study.ID))
 	r.Body.Close()
 }
@@ -834,7 +834,7 @@ func TestSetCurrency_AndRestore(t *testing.T) {
 		// Reset to native currency.
 		r := env.PUT(t, env.chartPath("currency")+"?currency=null", nil)
 		r.Body.Close()
-		time.Sleep(2 * time.Second)
+		time.Sleep(testDataSettleMedium)
 	})
 
 	// Set to EUR.
@@ -957,7 +957,7 @@ func TestSetUnit_AndRestore(t *testing.T) {
 		// Restore to original (use "null" to reset to native).
 		r := env.PUT(t, env.chartPath("unit")+"?unit=null", nil)
 		r.Body.Close()
-		time.Sleep(1 * time.Second)
+		time.Sleep(testSettleLong)
 	})
 
 	// 4. Set the new unit.
@@ -1025,7 +1025,7 @@ func TestSwitchTimezone_AndRestore(t *testing.T) {
 			"timezone": "Etc/UTC",
 		})
 		r.Body.Close()
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(testSettleMedium)
 	})
 
 	// Switch to America/New_York.

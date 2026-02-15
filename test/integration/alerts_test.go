@@ -211,7 +211,7 @@ func TestAlerts_StopAndRestart(t *testing.T) {
 	requireField(t, stopResult.Status, "stopped", "status")
 	t.Logf("stopped alert %s", alertID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Restart the alert.
 	resp = env.POST(t, "/api/v1/alerts/restart", map[string]any{
@@ -244,7 +244,7 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 	}](t, resp)
 	requireField(t, cloneResult.Status, "cloned", "status")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Get new alert list and find the clone.
 	afterIDs := listAlertIDs(t)
@@ -291,7 +291,7 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 	requireField(t, deleteResult.Status, "deleted", "status")
 	t.Logf("deleted cloned alert %s", clonedID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Verify count is back to original.
 	finalIDs := listAlertIDs(t)
@@ -398,7 +398,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	}](t, resp)
 	requireField(t, cloneResult.Status, "cloned", "status")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Find cloned ID.
 	afterIDs := listAlertIDs(t)
@@ -437,7 +437,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	requireField(t, stopResult.Status, "stopped", "status")
 	t.Logf("stopped clone %s", clonedID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 5. Restart the clone.
 	resp = env.POST(t, "/api/v1/alerts/restart", map[string]any{
@@ -450,7 +450,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	requireField(t, restartResult.Status, "restarted", "status")
 	t.Logf("restarted clone %s", clonedID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 6. Delete the clone.
 	resp = env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
@@ -463,7 +463,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	requireField(t, deleteResult.Status, "deleted", "status")
 	t.Logf("deleted clone %s", clonedID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 7. Verify the clone is gone.
 	finalIDs := listAlertIDs(t)

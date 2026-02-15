@@ -13,6 +13,26 @@ import (
 	"time"
 )
 
+const (
+	// UI settle times.
+	testSettleShort  = 200 * time.Millisecond
+	testSettleMedium = 500 * time.Millisecond
+	testSettleLong   = 1 * time.Second
+	testSettleSmall  = 3 * testSettleShort / 2 // 300ms
+)
+
+const (
+	// Data loading settle times.
+	testDataSettleMedium = 2 * testSettleLong
+	testDataSettleLong   = 5 * testSettleLong
+)
+
+const (
+	// Page reload settle times.
+	testSettleReload      = 3 * time.Second
+	testReloadSettleLongest = 8 * testSettleLong
+)
+
 var env *Env
 
 // Env holds shared state for all integration tests.
@@ -228,7 +248,7 @@ func setupStrategyLayout() error {
 	// Clone triggers page reload. Retry until the page is back and we can
 	// confirm we're on the cloned layout by checking status name.
 	for attempt := range 5 {
-		wait := time.Duration(3+attempt*2) * time.Second
+		wait := testSettleReload + time.Duration(attempt*2)*testSettleLong
 		time.Sleep(wait)
 
 		currentName, nameErr := env.currentLayoutName()
@@ -263,7 +283,7 @@ func setupStrategyLayout() error {
 	}
 
 	// 6. Wait for backtest data to generate.
-	time.Sleep(5 * time.Second)
+	time.Sleep(testDataSettleLong)
 
 	env.StrategyReady = true
 	fmt.Fprintf(os.Stdout, "integration: strategy setup complete (StrategyReady=true)\n")
@@ -279,7 +299,7 @@ func addTestStrategy() error {
 		return fmt.Errorf("open pine: %w", err)
 	}
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Verify it opened.
 	resp, err = env.Client.Get(env.BaseURL + "/api/v1/pine/status")
@@ -294,13 +314,13 @@ func addTestStrategy() error {
 	resp.Body.Close()
 	if !st.IsVisible {
 		// Retry toggle once.
-		time.Sleep(2 * time.Second)
+		time.Sleep(testDataSettleMedium)
 		resp, err = env.doJSON(http.MethodPost, "/api/v1/pine/toggle", nil)
 		if err != nil {
 			return fmt.Errorf("retry open pine: %w", err)
 		}
 		resp.Body.Close()
-		time.Sleep(2 * time.Second)
+		time.Sleep(testDataSettleMedium)
 	}
 
 	// Load new strategy template.
@@ -309,7 +329,7 @@ func addTestStrategy() error {
 		return fmt.Errorf("new-strategy: %w", err)
 	}
 	resp.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Write test strategy source.
 	resp, err = env.doJSON(http.MethodPut, "/api/v1/pine/source", map[string]any{
@@ -325,7 +345,7 @@ func addTestStrategy() error {
 	}
 	fmt.Fprintf(os.Stdout, "integration: wrote test strategy source\n")
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Add to chart.
 	resp2, err := env.doJSON(http.MethodPost, "/api/v1/pine/add-to-chart", nil)
@@ -339,7 +359,7 @@ func addTestStrategy() error {
 	}
 	fmt.Fprintf(os.Stdout, "integration: added strategy to chart\n")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Save the script so it persists as a named study on the chart.
 	// Without saving, the strategy is an "unnamed" editor tab that gets removed
@@ -352,7 +372,7 @@ func addTestStrategy() error {
 		fmt.Fprintf(os.Stdout, "integration: saved strategy script\n")
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// NOTE: Do NOT call PineNewTab (Shift+Alt+T) here. That shortcut pops the
 	// Pine editor out to a separate browser tab (tradingview.com/pine/...) rather
@@ -370,7 +390,7 @@ func addTestStrategy() error {
 		return fmt.Errorf("close pine: %w", err)
 	}
 	resp3.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	return nil
 }
@@ -395,7 +415,7 @@ func teardownStrategyLayout() {
 	}
 
 	// Wait for layout switch to settle (triggers page reload).
-	time.Sleep(5 * time.Second)
+	time.Sleep(testDataSettleLong)
 
 	// Resolve and delete the test layout by name.
 	// By now the layout has been saved and should be in the list.
@@ -449,7 +469,7 @@ func TestMain(m *testing.M) {
 	if wr, err := env.Client.Do(req); err == nil {
 		wr.Body.Close()
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Strategy layout setup: clone layout, add test strategy.
 	if err := setupStrategyLayout(); err != nil {

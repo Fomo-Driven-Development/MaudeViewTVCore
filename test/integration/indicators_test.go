@@ -30,7 +30,7 @@ func TestSearchIndicators(t *testing.T) {
 	t.Logf("found %d results for 'Volume', first: %s", result.TotalCount, result.Results[0].Name)
 
 	// Allow dialog to fully dismiss before next test
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 }
 
 func TestSearchIndicators_EmptyQuery(t *testing.T) {
@@ -72,7 +72,7 @@ func TestAddIndicatorBySearch(t *testing.T) {
 	t.Logf("added indicator: %s (query=%s, index=%d)", result.Name, result.Query, result.Index)
 
 	// Wait for study to appear
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Verify study was added
 	resp = env.GET(t, env.chartPath("studies"))
@@ -93,7 +93,7 @@ func TestAddIndicatorBySearch(t *testing.T) {
 	resp = env.DELETE(t, env.chartPath("studies/"+lastStudy.ID))
 	requireStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 func TestListFavoriteIndicators(t *testing.T) {
@@ -113,7 +113,7 @@ func TestListFavoriteIndicators(t *testing.T) {
 	t.Logf("favorites: %d results, category=%s", result.TotalCount, result.Category)
 
 	// Allow dialog to fully dismiss before next test
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 }
 
 func TestProbeIndicatorDialogDOM(t *testing.T) {
@@ -161,10 +161,10 @@ func TestStudyCRUD(t *testing.T) {
 	t.Cleanup(func() {
 		r := env.DELETE(t, env.chartPath("studies/"+studyID))
 		r.Body.Close()
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(testSettleMedium)
 	})
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 3. Verify study count increased.
 	resp = env.GET(t, env.chartPath("studies"))
@@ -223,7 +223,7 @@ func TestStudyCRUD(t *testing.T) {
 		t.Logf("PATCH response inputs: %v", modified.Study.Inputs)
 
 		// 6. Verify input changed (allow settle time for TradingView internals).
-		time.Sleep(1 * time.Second)
+		time.Sleep(testSettleLong)
 		resp = env.GET(t, env.chartPath("studies/"+studyID))
 		requireStatus(t, resp, http.StatusOK)
 		verified := decodeJSON[struct {
@@ -271,7 +271,7 @@ func TestToggleIndicatorFavorite(t *testing.T) {
 	}
 	t.Logf("search found %d results, first: %s", search.TotalCount, search.Results[0].Name)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 2. Toggle the first result as favorite.
 	resp = env.POST(t, env.chartPath("indicators/favorite"), map[string]any{
@@ -288,7 +288,7 @@ func TestToggleIndicatorFavorite(t *testing.T) {
 	t.Logf("toggle favorite: status=%s query=%s name=%s is_favorite=%v",
 		toggleResult.Status, toggleResult.Query, toggleResult.Name, toggleResult.IsFavorite)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 3. Toggle again to restore original state.
 	resp = env.POST(t, env.chartPath("indicators/favorite"), map[string]any{
@@ -302,5 +302,5 @@ func TestToggleIndicatorFavorite(t *testing.T) {
 	t.Logf("restored favorite: is_favorite=%v", restoreResult.IsFavorite)
 
 	// Allow dialog to dismiss.
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 }

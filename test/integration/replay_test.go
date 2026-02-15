@@ -36,7 +36,7 @@ func ensureReplayDeactivated(t *testing.T) {
 		resp = env.POST(t, env.chartPath("replay/deactivate"), nil)
 		requireStatus(t, resp, http.StatusOK)
 		resp.Body.Close()
-		time.Sleep(2 * time.Second)
+		time.Sleep(testDataSettleMedium)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestReplayActivateAutoAndDeactivate(t *testing.T) {
 	result := decodeJSON[map[string]any](t, resp)
 	t.Logf("activate auto result: %v", result)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Status should show replay started.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -124,7 +124,7 @@ func TestReplayActivateAutoAndDeactivate(t *testing.T) {
 	nav := decodeJSON[navStatus](t, resp)
 	requireField(t, nav.Status, "deactivated", "status")
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Status should show replay not started.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -148,7 +148,7 @@ func TestReplayActivateAtDate(t *testing.T) {
 	result := decodeJSON[map[string]any](t, resp)
 	t.Logf("activate at date result: %v", result)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	resp = env.GET(t, env.chartPath("replay/status"))
 	requireStatus(t, resp, http.StatusOK)
@@ -167,7 +167,7 @@ func TestReplayStep(t *testing.T) {
 	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Step forward 1 bar.
 	resp = env.POST(t, env.chartPath("replay/step"), map[string]any{"count": 1})
@@ -194,7 +194,7 @@ func TestReplayAutoplay(t *testing.T) {
 	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Start autoplay.
 	resp = env.POST(t, env.chartPath("replay/autoplay/start"), nil)
@@ -202,7 +202,7 @@ func TestReplayAutoplay(t *testing.T) {
 	nav := decodeJSON[navStatus](t, resp)
 	requireField(t, nav.Status, "autoplay_started", "status")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Verify autoplay is running.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -219,7 +219,7 @@ func TestReplayAutoplay(t *testing.T) {
 	nav = decodeJSON[navStatus](t, resp)
 	requireField(t, nav.Status, "autoplay_stopped", "status")
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Verify autoplay stopped.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -238,7 +238,7 @@ func TestReplayAutoplayDelay(t *testing.T) {
 	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Change autoplay delay.
 	resp = env.PUT(t, env.chartPath("replay/autoplay/delay"), map[string]any{
@@ -274,7 +274,7 @@ func TestReplayReset(t *testing.T) {
 	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	resp = env.POST(t, env.chartPath("replay/step"), map[string]any{"count": 10})
 	requireStatus(t, resp, http.StatusOK)
@@ -296,7 +296,7 @@ func TestReplayStartAndStop(t *testing.T) {
 	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Start replay at a specific point.
 	const jan15_2024 = 1705276800.0
@@ -308,7 +308,7 @@ func TestReplayStartAndStop(t *testing.T) {
 	requireField(t, startResult.Status, "started", "status")
 	t.Logf("replay started: chart_id=%s", startResult.ChartID)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Verify replay is running.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -325,7 +325,7 @@ func TestReplayStartAndStop(t *testing.T) {
 	requireField(t, stopResult.Status, "stopped", "status")
 	t.Logf("replay stopped: chart_id=%s", stopResult.ChartID)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Verify replay stopped (still in replay mode, but playback stopped).
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -350,7 +350,7 @@ func TestReplayFullLifecycle(t *testing.T) {
 	resp = env.POST(t, env.chartPath("replay/activate/auto"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// 3. Verify started.
 	resp = env.GET(t, env.chartPath("replay/status"))
@@ -370,7 +370,7 @@ func TestReplayFullLifecycle(t *testing.T) {
 	resp = env.POST(t, env.chartPath("replay/autoplay/start"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 6. Stop autoplay.
 	resp = env.POST(t, env.chartPath("replay/autoplay/stop"), nil)
@@ -381,13 +381,13 @@ func TestReplayFullLifecycle(t *testing.T) {
 	resp = env.POST(t, env.chartPath("replay/reset"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// 8. Deactivate.
 	resp = env.POST(t, env.chartPath("replay/deactivate"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// 9. Verify deactivated.
 	resp = env.GET(t, env.chartPath("replay/status"))

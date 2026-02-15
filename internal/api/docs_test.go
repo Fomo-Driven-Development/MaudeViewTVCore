@@ -87,12 +87,12 @@ func (s *stubService) AddWatchlistSymbols(ctx context.Context, id string, symbol
 func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
 	return cdpcontrol.WatchlistDetail{}, nil
 }
-func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
-func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error { return nil }
+func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error    { return nil }
+func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error  { return nil }
 func (s *stubService) Scroll(ctx context.Context, chartID string, bars int) error { return nil }
-func (s *stubService) ResetView(ctx context.Context, chartID string) error  { return nil }
-func (s *stubService) UndoChart(ctx context.Context, chartID string) error { return nil }
-func (s *stubService) RedoChart(ctx context.Context, chartID string) error { return nil }
+func (s *stubService) ResetView(ctx context.Context, chartID string) error        { return nil }
+func (s *stubService) UndoChart(ctx context.Context, chartID string) error        { return nil }
+func (s *stubService) RedoChart(ctx context.Context, chartID string) error        { return nil }
 func (s *stubService) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
 	return nil
 }
@@ -144,11 +144,11 @@ func (s *stubService) GetReplayStatus(ctx context.Context, chartID string) (cdpc
 func (s *stubService) StartReplay(ctx context.Context, chartID string, point float64) error {
 	return nil
 }
-func (s *stubService) StopReplay(ctx context.Context, chartID string) error  { return nil }
+func (s *stubService) StopReplay(ctx context.Context, chartID string) error            { return nil }
 func (s *stubService) ReplayStep(ctx context.Context, chartID string, count int) error { return nil }
-func (s *stubService) StartAutoplay(ctx context.Context, chartID string) error { return nil }
-func (s *stubService) StopAutoplay(ctx context.Context, chartID string) error  { return nil }
-func (s *stubService) ResetReplay(ctx context.Context, chartID string) error   { return nil }
+func (s *stubService) StartAutoplay(ctx context.Context, chartID string) error         { return nil }
+func (s *stubService) StopAutoplay(ctx context.Context, chartID string) error          { return nil }
+func (s *stubService) ResetReplay(ctx context.Context, chartID string) error           { return nil }
 func (s *stubService) ChangeAutoplayDelay(ctx context.Context, chartID string, delay float64) (float64, error) {
 	return delay, nil
 }
@@ -185,8 +185,8 @@ func (s *stubService) ProbeAlertsRestApi(ctx context.Context, chartID string) (c
 func (s *stubService) ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error) {
 	return map[string]any{}, nil
 }
-func (s *stubService) ListAlerts(ctx context.Context) (any, error)                { return nil, nil }
-func (s *stubService) GetAlerts(ctx context.Context, ids []string) (any, error)   { return nil, nil }
+func (s *stubService) ListAlerts(ctx context.Context) (any, error)              { return nil, nil }
+func (s *stubService) GetAlerts(ctx context.Context, ids []string) (any, error) { return nil, nil }
 func (s *stubService) CreateAlert(ctx context.Context, params map[string]any) (any, error) {
 	return nil, nil
 }
@@ -199,7 +199,7 @@ func (s *stubService) RestartAlerts(ctx context.Context, ids []string) error { r
 func (s *stubService) CloneAlerts(ctx context.Context, ids []string) error   { return nil }
 func (s *stubService) ListFires(ctx context.Context) (any, error)            { return nil, nil }
 func (s *stubService) DeleteFires(ctx context.Context, ids []string) error   { return nil }
-func (s *stubService) DeleteAllFires(ctx context.Context) error { return nil }
+func (s *stubService) DeleteAllFires(ctx context.Context) error              { return nil }
 func (s *stubService) ListDrawings(ctx context.Context, chartID string, pane int) ([]cdpcontrol.Shape, error) {
 	return []cdpcontrol.Shape{}, nil
 }
@@ -465,6 +465,82 @@ func (s *stubService) ProbeDataWindow(ctx context.Context, chartID string, pane 
 	return cdpcontrol.DataWindowProbe{}, nil
 }
 
+type studyPathInputRecording struct {
+	chartID string
+	studyID string
+	pane    int
+}
+
+type recordingService struct {
+	*stubService
+
+	getStudyInputsCalls []studyPathInputRecording
+	removeStudyCalls    []studyPathInputRecording
+}
+
+func (s *recordingService) GetStudyInputs(ctx context.Context, chartID, studyID string, pane int) (cdpcontrol.StudyDetail, error) {
+	s.getStudyInputsCalls = append(s.getStudyInputsCalls, studyPathInputRecording{
+		chartID: chartID,
+		studyID: studyID,
+		pane:    pane,
+	})
+	return s.stubService.GetStudyInputs(ctx, chartID, studyID, pane)
+}
+
+func (s *recordingService) RemoveStudy(ctx context.Context, chartID, studyID string, pane int) error {
+	s.removeStudyCalls = append(s.removeStudyCalls, studyPathInputRecording{
+		chartID: chartID,
+		studyID: studyID,
+		pane:    pane,
+	})
+	return s.stubService.RemoveStudy(ctx, chartID, studyID, pane)
+}
+
+func TestStudyPathInputsReuseForGetAndRemove(t *testing.T) {
+	svc := &recordingService{stubService: &stubService{}}
+	h := NewServer(svc)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/chart/chart-1/studies/study-1?pane=2", nil)
+	getResp := httptest.NewRecorder()
+	h.ServeHTTP(getResp, getReq)
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("get-study status = %d, want %d", getResp.Code, http.StatusOK)
+	}
+	if len(svc.getStudyInputsCalls) != 1 {
+		t.Fatalf("get-study calls = %d, want 1", len(svc.getStudyInputsCalls))
+	}
+	gotGet := svc.getStudyInputsCalls[0]
+	if gotGet.chartID != "chart-1" || gotGet.studyID != "study-1" || gotGet.pane != 2 {
+		t.Fatalf("get-study path input = %s, %s, %d; want chart-1, study-1, 2", gotGet.chartID, gotGet.studyID, gotGet.pane)
+	}
+
+	removeReq := httptest.NewRequest(http.MethodDelete, "/api/v1/chart/chart-1/studies/study-1?pane=2", nil)
+	removeResp := httptest.NewRecorder()
+	h.ServeHTTP(removeResp, removeReq)
+	if removeResp.Code != http.StatusNoContent {
+		t.Fatalf("remove-study status = %d, want %d", removeResp.Code, http.StatusNoContent)
+	}
+
+	compareReq := httptest.NewRequest(http.MethodDelete, "/api/v1/chart/chart-9/compare/study-9", nil)
+	compareResp := httptest.NewRecorder()
+	h.ServeHTTP(compareResp, compareReq)
+	if compareResp.Code != http.StatusNoContent {
+		t.Fatalf("remove-compare status = %d, want %d", compareResp.Code, http.StatusNoContent)
+	}
+
+	if len(svc.removeStudyCalls) != 2 {
+		t.Fatalf("remove endpoint calls = %d, want 2", len(svc.removeStudyCalls))
+	}
+	gotRemove := svc.removeStudyCalls[0]
+	if gotRemove.chartID != "chart-1" || gotRemove.studyID != "study-1" || gotRemove.pane != 2 {
+		t.Fatalf("remove-study path input = %s, %s, %d; want chart-1, study-1, 2", gotRemove.chartID, gotRemove.studyID, gotRemove.pane)
+	}
+	gotCompare := svc.removeStudyCalls[1]
+	if gotCompare.chartID != "chart-9" || gotCompare.studyID != "study-9" || gotCompare.pane != -1 {
+		t.Fatalf("remove-compare path input = %s, %s, %d; want chart-9, study-9, -1", gotCompare.chartID, gotCompare.studyID, gotCompare.pane)
+	}
+}
+
 func TestDocsDarkMode(t *testing.T) {
 	h := NewServer(&stubService{})
 	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
@@ -477,5 +553,34 @@ func TestDocsDarkMode(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, `data-theme="dark"`) {
 		t.Fatalf("docs missing dark theme marker")
+	}
+}
+
+func TestNewServerRegistersAllDomainRoutes(t *testing.T) {
+	h := NewServer(&stubService{})
+
+	tests := []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{http.MethodGet, "/api/v1/charts", http.StatusOK},
+		{http.MethodGet, "/api/v1/watchlists/active", http.StatusOK},
+		{http.MethodGet, "/api/v1/chart/chart-1/studies", http.StatusOK},
+		{http.MethodGet, "/api/v1/chart/chart-1/drawings", http.StatusOK},
+		{http.MethodGet, "/api/v1/chart/chart-1/alerts/scan", http.StatusOK},
+		{http.MethodGet, "/api/v1/chart/chart-1/replay/status", http.StatusOK},
+		{http.MethodGet, "/api/v1/pine/status", http.StatusOK},
+		{http.MethodGet, "/api/v1/layouts", http.StatusOK},
+		{http.MethodGet, "/health", http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		req := httptest.NewRequest(tt.method, tt.path, nil)
+		resp := httptest.NewRecorder()
+		h.ServeHTTP(resp, req)
+		if resp.Code != tt.want {
+			t.Fatalf("route %s %s returned %d, want %d", tt.method, tt.path, resp.Code, tt.want)
+		}
 	}
 }

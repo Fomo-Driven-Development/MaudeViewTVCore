@@ -16,7 +16,7 @@ func restoreGrid(t *testing.T) {
 	t.Helper()
 	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "s"})
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 // requireErrorStatus asserts that the response has a 400 or 422 status code.
@@ -206,7 +206,7 @@ func TestToggleFullscreen(t *testing.T) {
 	}
 	t.Logf("fullscreen toggle on → is_fullscreen=%v", on.IsFullscreen)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Toggle off.
 	resp = env.POST(t, "/api/v1/layout/fullscreen", nil)
@@ -252,7 +252,7 @@ func TestSetGrid_AllTemplates(t *testing.T) {
 			requireField(t, result.ChartCount, tc.wantCharts, "chart_count")
 			t.Logf("grid=%s charts=%d", result.GridTemplate, result.ChartCount)
 
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(testSettleMedium)
 		})
 	}
 }
@@ -264,7 +264,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "2h"})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Activate index 0.
 	resp = env.POST(t, "/api/v1/chart/activate", map[string]any{"index": 0})
@@ -274,7 +274,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	}](t, resp)
 	requireField(t, act0.ActiveIndex, 0, "active_index after activate(0)")
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(testSettleSmall)
 
 	// Next → should go to index 1.
 	resp = env.POST(t, "/api/v1/chart/next", nil)
@@ -286,7 +286,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	requireField(t, next.ChartIndex, 1, "chart_index after next")
 	t.Logf("next → index=%d count=%d", next.ChartIndex, next.ChartCount)
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(testSettleSmall)
 
 	// Prev → should go back to index 0.
 	resp = env.POST(t, "/api/v1/chart/prev", nil)
@@ -298,7 +298,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	requireField(t, prev.ChartIndex, 0, "chart_index after prev")
 	t.Logf("prev → index=%d count=%d", prev.ChartIndex, prev.ChartCount)
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(testSettleSmall)
 
 	// Activate index 1 directly.
 	resp = env.POST(t, "/api/v1/chart/activate", map[string]any{"index": 1})
@@ -317,7 +317,7 @@ func TestMaximizeChart(t *testing.T) {
 	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "2h"})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Toggle maximize on.
 	resp = env.POST(t, "/api/v1/chart/maximize", nil)
@@ -331,7 +331,7 @@ func TestMaximizeChart(t *testing.T) {
 	t.Logf("maximize on → is_maximized=%v", on.IsMaximized)
 
 	// Alt+Enter needs time to settle before the second toggle.
-	time.Sleep(2 * time.Second)
+	time.Sleep(testDataSettleMedium)
 
 	// Toggle maximize off. The endpoint always returns 200 with the
 	// current state; verify it at least responds.
@@ -431,7 +431,7 @@ func TestBatchDeleteLayouts(t *testing.T) {
 			// Save so the clone persists in TradingView's layout list.
 			sr := env.POST(t, "/api/v1/layout/save", nil)
 			sr.Body.Close()
-			time.Sleep(1 * time.Second)
+			time.Sleep(testSettleLong)
 
 			// Compare layout lists to find the new ID.
 			afterLayouts, err := env.listLayouts()
@@ -460,7 +460,7 @@ func TestBatchDeleteLayouts(t *testing.T) {
 	// Switch back to original layout before deleting clones.
 	resp := env.POST(t, "/api/v1/layout/switch", map[string]any{"id": env.OriginalLayoutID})
 	resp.Body.Close()
-	time.Sleep(5 * time.Second)
+	time.Sleep(testDataSettleLong)
 	env.discoverChartID()
 
 	// Register cleanup in case batch-delete fails.
@@ -565,7 +565,7 @@ func TestLayoutLifecycle(t *testing.T) {
 			} else {
 				resp.Body.Close()
 			}
-			time.Sleep(5 * time.Second)
+			time.Sleep(testDataSettleLong)
 		}
 
 		// Resolve clone ID if we don't have it yet.
@@ -600,7 +600,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	t.Logf("1/9 clone → status=%s name=%q id=%s", cloneResult.Status, cloneResult.LayoutName, cloneResult.LayoutID)
 
 	// 3. Wait for clone to settle (page reload).
-	time.Sleep(5 * time.Second)
+	time.Sleep(testDataSettleLong)
 
 	// 4. Re-discover chart ID (changes after layout switch).
 	if err := env.discoverChartID(); err != nil {
@@ -663,7 +663,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	}
 
 	// Wait for page reload to settle.
-	time.Sleep(8 * time.Second)
+	time.Sleep(testReloadSettleLongest)
 
 	// Re-discover chart ID.
 	if err := env.discoverChartID(); err != nil {
@@ -688,7 +688,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	_, resolveErr := env.resolveLayoutNumericID(cloneName)
 	if resolveErr == nil {
 		// List might be cached — poll once after a short delay.
-		time.Sleep(2 * time.Second)
+		time.Sleep(testDataSettleMedium)
 		_, resolveErr = env.resolveLayoutNumericID(cloneName)
 	}
 	if resolveErr == nil {

@@ -2,14 +2,24 @@ package netutil
 
 import (
 	"net"
+	"strings"
 	"testing"
 )
 
-func TestSelectBindAddrPreferredFree(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+func mustListen(t *testing.T, network, address string) net.Listener {
+	t.Helper()
+	ln, err := net.Listen(network, address)
 	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), "permission denied") {
+			t.Skipf("skipping network bind test in restricted environment: %v", err)
+		}
 		t.Fatalf("listen: %v", err)
 	}
+	return ln
+}
+
+func TestSelectBindAddrPreferredFree(t *testing.T) {
+	ln := mustListen(t, "tcp", "127.0.0.1:0")
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
@@ -23,16 +33,10 @@ func TestSelectBindAddrPreferredFree(t *testing.T) {
 }
 
 func TestSelectBindAddrFallback(t *testing.T) {
-	busy, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen busy: %v", err)
-	}
+	busy := mustListen(t, "tcp", "127.0.0.1:0")
 	defer func() { _ = busy.Close() }()
 
-	free, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen free: %v", err)
-	}
+	free := mustListen(t, "tcp", "127.0.0.1:0")
 	freeAddr := free.Addr().String()
 	_ = free.Close()
 

@@ -61,7 +61,7 @@ func TestStrategy_Init(t *testing.T) {
 	if err := addTestStrategy(); err != nil {
 		t.Fatalf("re-add strategy: %v", err)
 	}
-	time.Sleep(5 * time.Second)
+	time.Sleep(testDataSettleLong)
 
 	// Verify the strategy is now active.
 	resp = env.GET(t, strategyPath("active"))
@@ -207,7 +207,7 @@ func TestStrategy_SetActiveAndRestore(t *testing.T) {
 	requireField(t, setResult.Status, "set", "status")
 	t.Logf("set active strategy %s → status=%s", strategyID, setResult.Status)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Verify it's still active.
 	afterActive := getActiveStrategy(t)
@@ -333,7 +333,7 @@ func TestStrategy_SetInput(t *testing.T) {
 	requireField(t, setResult.Status, "set", "status")
 	t.Logf("set input %q = %d → status=%s", inputName, newValue, setResult.Status)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Restore original value.
 	t.Cleanup(func() {
@@ -342,7 +342,7 @@ func TestStrategy_SetInput(t *testing.T) {
 			"value": originalValue,
 		})
 		r.Body.Close()
-		time.Sleep(1 * time.Second)
+		time.Sleep(testSettleLong)
 	})
 }
 

@@ -46,7 +46,7 @@ func ensurePineOpen(t *testing.T) {
 		if !st.IsVisible {
 			resp := env.POST(t, "/api/v1/pine/toggle", nil)
 			resp.Body.Close()
-			time.Sleep(1 * time.Second) // let DOM settle after click
+			time.Sleep(testSettleLong) // let DOM settle after click
 		}
 
 		// Phase 2: Poll until ready.
@@ -83,7 +83,7 @@ func ensurePineClosed(t *testing.T) {
 	// Poll until closed.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(testSettleMedium)
 		st = getPineStatus(t)
 		if !st.IsVisible {
 			return
@@ -186,7 +186,7 @@ plot(close)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Save the script.
 	resp = env.POST(t, "/api/v1/pine/save", nil)
@@ -210,7 +210,7 @@ plot(close, color=color.blue)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Add to chart.
 	resp = env.POST(t, "/api/v1/pine/add-to-chart", nil)
@@ -220,7 +220,7 @@ plot(close, color=color.blue)
 	t.Logf("added to chart: status=%s visible=%v", st.Status, st.IsVisible)
 
 	// Clean up: remove the study that was just added.
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 	resp = env.GET(t, env.chartPath("studies"))
 	requireStatus(t, resp, http.StatusOK)
 	studies := decodeJSON[struct {
@@ -251,7 +251,7 @@ plot(close)
 	})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Undo.
 	resp = env.POST(t, "/api/v1/pine/undo", nil)
@@ -280,7 +280,7 @@ plot(open, "Open Price")
 	})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Find and replace "Price" with "Value".
 	resp = env.POST(t, "/api/v1/pine/find-replace", map[string]any{
@@ -345,7 +345,7 @@ plot(high)
 	})
 	requireStatus(t, resp, http.StatusOK)
 	before := decodeJSON[pineState](t, resp)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// Delete one line.
 	resp = env.POST(t, "/api/v1/pine/delete-line", map[string]any{"count": 1})
@@ -442,7 +442,7 @@ func TestPineNewIndicator(t *testing.T) {
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("new-indicator: status=%s visible=%v", st.Status, st.IsVisible)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 func TestPineNewStrategy(t *testing.T) {
@@ -454,7 +454,7 @@ func TestPineNewStrategy(t *testing.T) {
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("new-strategy: status=%s visible=%v", st.Status, st.IsVisible)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 func TestPineCommandPalette(t *testing.T) {
@@ -467,7 +467,7 @@ func TestPineCommandPalette(t *testing.T) {
 	t.Logf("command-palette: status=%s visible=%v", st.Status, st.IsVisible)
 
 	// Press Escape to close the palette so it doesn't interfere.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 }
 
 func TestPineOpenScript(t *testing.T) {
@@ -483,12 +483,12 @@ plot(close)
 	})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	resp = env.POST(t, "/api/v1/pine/save", nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 
 	// Try to open a script by name.
 	resp = env.POST(t, "/api/v1/pine/open-script", map[string]any{
@@ -520,7 +520,7 @@ plot(open, "Open")
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "set", "status")
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(testSettleMedium)
 
 	// 3. Read source back.
 	resp = env.GET(t, "/api/v1/pine/source")
@@ -559,7 +559,7 @@ plot(open, "Open")
 	resp.Body.Close()
 
 	// 8. Clean up: remove the study.
-	time.Sleep(1 * time.Second)
+	time.Sleep(testSettleLong)
 	resp = env.GET(t, env.chartPath("studies"))
 	requireStatus(t, resp, http.StatusOK)
 	studies := decodeJSON[struct {
