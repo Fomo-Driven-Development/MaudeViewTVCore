@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dgnsrekt/tv_agent/internal/capture"
-	"github.com/dgnsrekt/tv_agent/internal/cdp"
-	"github.com/dgnsrekt/tv_agent/internal/config"
-	"github.com/dgnsrekt/tv_agent/internal/storage"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/capture"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdp"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/storage"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 )
 
 func registerStudyHandlers(api huma.API, svc Service) {

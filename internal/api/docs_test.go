@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
-	"github.com/dgnsrekt/tv_agent/internal/snapshot"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 )
 
 type stubService struct{}

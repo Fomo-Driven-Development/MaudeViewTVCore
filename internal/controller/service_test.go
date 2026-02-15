@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 )
 
 func TestRequireNonEmpty(t *testing.T) {

@@ -12,8 +12,8 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
-	"github.com/dgnsrekt/tv_agent/internal/capture"
-	"github.com/dgnsrekt/tv_agent/internal/config"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/capture"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
 )
 
 // Client manages CDP connections to browser tabs.

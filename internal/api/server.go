@@ -9,8 +9,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
-	"github.com/dgnsrekt/tv_agent/internal/snapshot"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

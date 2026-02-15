@@ -1,4 +1,4 @@
-module github.com/dgnsrekt/tv_agent
+module github.com/dgnsrekt/MaudeViewTVCore
 
 go 1.24.0
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 )
 
 func registerChartHandlers(api huma.API, svc Service) {

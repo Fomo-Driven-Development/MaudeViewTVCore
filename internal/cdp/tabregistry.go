@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/chromedp/cdproto/target"
-	"github.com/dgnsrekt/tv_agent/internal/storage"
-	"github.com/dgnsrekt/tv_agent/internal/types"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/storage"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/types"
 )
 
 // TabRegistry maps CDP target IDs to tab metadata.

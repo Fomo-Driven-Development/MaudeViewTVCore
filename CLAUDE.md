@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**tv_agent** is a browser automation system for TradingView. It captures network traffic via Chrome DevTools Protocol (CDP) for passive research, and provides a REST API for active chart control. Module: `github.com/dgnsrekt/tv_agent`, Go 1.24.
+**tv_agent** is a browser automation system for TradingView. It captures network traffic via Chrome DevTools Protocol (CDP) for passive research, and provides a REST API for active chart control. Module: `github.com/dgnsrekt/MaudeViewTVCore`, Go 1.24.
 
 ## Build & Run Commands
 

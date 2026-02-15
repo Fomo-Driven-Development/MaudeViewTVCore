@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dgnsrekt/tv_agent/internal/api"
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
-	"github.com/dgnsrekt/tv_agent/internal/config"
-	"github.com/dgnsrekt/tv_agent/internal/controller"
-	"github.com/dgnsrekt/tv_agent/internal/netutil"
-	"github.com/dgnsrekt/tv_agent/internal/snapshot"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/api"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/controller"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/netutil"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgnsrekt/tv_agent/internal/cdpcontrol"
-	"github.com/dgnsrekt/tv_agent/internal/snapshot"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 	"github.com/google/uuid"
 )
 
