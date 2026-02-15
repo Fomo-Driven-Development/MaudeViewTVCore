@@ -1456,7 +1456,10 @@ func (c *Client) clickOnAnyChart(ctx context.Context, x, y float64) error {
 	if err != nil {
 		return err
 	}
-	return cdp.dispatchMouseClick(ctx, sessionID, x, y)
+	if err := cdp.dispatchMouseClick(ctx, sessionID, x, y); err != nil {
+		return newError(CodeEvalFailure, "failed to dispatch trusted mouse click", err)
+	}
+	return nil
 }
 
 func (c *Client) sendShortcut(ctx context.Context, key, code string, keyCode, modifiers int, settle time.Duration, desc string) error {
@@ -1473,7 +1476,10 @@ func (c *Client) sendKeysOnAnyChart(ctx context.Context, key, code string, keyCo
 	if err != nil {
 		return err
 	}
-	return cdp.dispatchKeyEvent(ctx, sessionID, key, code, keyCode, modifiers)
+	if err := cdp.dispatchKeyEvent(ctx, sessionID, key, code, keyCode, modifiers); err != nil {
+		return newError(CodeEvalFailure, "failed to dispatch trusted key event", err)
+	}
+	return nil
 }
 
 // insertTextOnAnyChart types text into the currently focused element via CDP.
@@ -1482,7 +1488,10 @@ func (c *Client) insertTextOnAnyChart(ctx context.Context, text string) error {
 	if err != nil {
 		return err
 	}
-	return cdp.insertText(ctx, sessionID, text)
+	if err := cdp.insertText(ctx, sessionID, text); err != nil {
+		return newError(CodeEvalFailure, "failed to dispatch trusted text insertion", err)
+	}
+	return nil
 }
 
 // typeTextOnAnyChart types text character-by-character using CDP key events.
@@ -1494,7 +1503,7 @@ func (c *Client) typeTextOnAnyChart(ctx context.Context, text string) error {
 	}
 	for _, ch := range text {
 		if err := cdp.dispatchCharInput(ctx, sessionID, string(ch)); err != nil {
-			return err
+			return newError(CodeEvalFailure, "failed to dispatch trusted character input", err)
 		}
 	}
 	return nil
@@ -1573,7 +1582,7 @@ func (c *Client) openAndSearchIndicators(ctx context.Context, query string) erro
 	// fires all native events that React's controlled components respond to.
 	if err := c.evalOnAnyChart(ctx, jsSetIndicatorSearchValue(query), nil); err != nil {
 		c.dismissIndicatorDialog(ctx)
-		return newError(CodeEvalFailure, "failed to type search query", err)
+		return err
 	}
 	return nil
 }
@@ -1913,7 +1922,7 @@ func (c *Client) syncTabsLocked(ctx context.Context) error {
 
 	targets, err := c.cdp.listTargets(ctx)
 	if err != nil {
-		return err
+		return newError(CodeCDPUnavailable, "failed to list targets", err)
 	}
 
 	expected := make(map[target.ID]ChartInfo)

@@ -80,7 +80,7 @@ func (r *rawCDP) close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.conn != nil {
-		r.conn.Close()
+		_ = r.conn.Close()
 		r.conn = nil
 	}
 }
@@ -315,7 +315,7 @@ func (r *rawCDP) listTargets(ctx context.Context) ([]*target.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("rawcdp: /json/list: HTTP %d", resp.StatusCode)
 	}
@@ -550,7 +550,7 @@ func (r *rawCDP) browserWSURL(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("rawcdp: /json/version: HTTP %d", resp.StatusCode)
 	}
