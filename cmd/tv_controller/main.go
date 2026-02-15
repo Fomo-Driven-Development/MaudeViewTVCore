@@ -14,7 +14,6 @@ import (
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/controller"
-	"github.com/dgnsrekt/MaudeViewTVCore/internal/netutil"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -37,18 +36,12 @@ func main() {
 		"bind_addr", cfg.BindAddr,
 		"tab_url_filter", cfg.TabURLFilter,
 		"eval_timeout_ms", cfg.EvalTimeoutMS,
-		"port_auto_fallback", cfg.PortAutoFallback,
-		"port_candidates", cfg.PortCandidates,
 		"log_level", cfg.LogLevel,
 		"log_file", cfg.LogFile,
 		"snapshot_dir", cfg.SnapshotDir,
 	)
 
-	bindAddr, err := netutil.SelectBindAddr(cfg.BindAddr, cfg.PortCandidates, cfg.PortAutoFallback)
-	if err != nil {
-		slog.Error("failed to select bind address", "preferred", cfg.BindAddr, "error", err)
-		os.Exit(1)
-	}
+	bindAddr := cfg.BindAddr
 
 	cdpClient := cdpcontrol.NewClient(cfg.ControllerCDPURL(), cfg.TabURLFilter, time.Duration(cfg.EvalTimeoutMS)*time.Millisecond)
 	if err := cdpClient.Connect(context.Background()); err != nil {

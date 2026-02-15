@@ -25,11 +25,10 @@ Manual build: `go build -o ./bin/<name> ./cmd/<name>` where name is `researcher`
 
 ```bash
 go test ./...                              # All tests
-go test ./internal/netutil/                # Single package
-go test -run TestPortCheck ./internal/netutil/  # Single test
+go test ./internal/api/                    # Single package
 ```
 
-Key test files exist in: `internal/netutil/`, `internal/api/`, and `test/integration/`.
+Key test files exist in: `internal/api/` and `test/integration/`.
 
 ## Architecture
 
@@ -50,7 +49,6 @@ Key test files exist in: `internal/netutil/`, `internal/api/`, and `test/integra
 | `api` | Huma REST API server with chi router. Defines operations via `Service` interface. |
 | `controller` | Service layer wrapping `cdpcontrol.Client` with input validation. |
 | `cdpcontrol` | Active CDP client for TradingView JS evaluation. Per-chart mutex locking, configurable eval timeout. |
-| `netutil` | Port availability checking with fallback candidates. |
 
 ### Data Flow
 
