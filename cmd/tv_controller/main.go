@@ -27,7 +27,9 @@ func main() {
 	}
 
 	if err := setupLogger(cfg.LogLevel, cfg.LogFile); err != nil {
-		_, _ = io.WriteString(os.Stderr, "logger setup failed: "+err.Error()+"\n")
+		if _, writeErr := io.WriteString(os.Stderr, "logger setup failed: "+err.Error()+"\n"); writeErr != nil {
+			slog.Debug("logger setup stderr write failed", "error", writeErr)
+		}
 		os.Exit(1)
 	}
 
@@ -53,7 +55,11 @@ func main() {
 		slog.Error("failed to connect CDP controller", "cdp_url", cfg.ControllerCDPURL(), "error", err)
 		os.Exit(1)
 	}
-	defer func() { _ = cdpClient.Close() }()
+	defer func() {
+		if err := cdpClient.Close(); err != nil {
+			slog.Debug("CDP client close failed", "error", err)
+		}
+	}()
 
 	snapStore, err := snapshot.NewStore(cfg.SnapshotDir)
 	if err != nil {

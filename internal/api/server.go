@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -200,7 +201,9 @@ func NewServer(svc Service) http.Handler {
 
 	router.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte(docsHTML))
+		if _, err := w.Write([]byte(docsHTML)); err != nil {
+			slog.Debug("docs response write failed", "error", err)
+		}
 	})
 
 	type healthOutput struct {
@@ -467,7 +470,7 @@ func NewServer(svc Service) http.Handler {
 			Status  string           `json:"status"`
 		}
 	}
-	type removeStudyInput struct {
+	type studyPathInput struct {
 		ChartID string `path:"chart_id"`
 		StudyID string `path:"study_id"`
 		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
@@ -499,7 +502,7 @@ func NewServer(svc Service) http.Handler {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "remove-study", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Remove study", Tags: []string{"Studies"}},
-		func(ctx context.Context, input *removeStudyInput) (*struct{}, error) {
+		func(ctx context.Context, input *studyPathInput) (*struct{}, error) {
 			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID, input.Pane); err != nil {
 				return nil, mapErr(err)
 			}
@@ -514,7 +517,7 @@ func NewServer(svc Service) http.Handler {
 	}
 
 	huma.Register(api, huma.Operation{OperationID: "get-study", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/studies/{study_id}", Summary: "Get study detail with inputs", Tags: []string{"Studies"}},
-		func(ctx context.Context, input *removeStudyInput) (*getStudyOutput, error) {
+		func(ctx context.Context, input *studyPathInput) (*getStudyOutput, error) {
 			detail, err := svc.GetStudyInputs(ctx, input.ChartID, input.StudyID, input.Pane)
 			if err != nil {
 				return nil, mapErr(err)
@@ -570,11 +573,7 @@ func NewServer(svc Service) http.Handler {
 			Studies []cdpcontrol.Study `json:"studies"`
 		}
 	}
-	type removeCompareInput struct {
-		ChartID string `path:"chart_id"`
-		StudyID string `path:"study_id"`
-		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
-	}
+	type comparePathInput = studyPathInput
 
 	huma.Register(api, huma.Operation{OperationID: "add-compare", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/compare", Summary: "Add compare/overlay symbol", Tags: []string{"Compare"}},
 		func(ctx context.Context, input *addCompareInput) (*addCompareOutput, error) {
@@ -602,7 +601,7 @@ func NewServer(svc Service) http.Handler {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "remove-compare", Method: http.MethodDelete, Path: "/api/v1/chart/{chart_id}/compare/{study_id}", Summary: "Remove compare/overlay study", Tags: []string{"Compare"}},
-		func(ctx context.Context, input *removeCompareInput) (*struct{}, error) {
+		func(ctx context.Context, input *comparePathInput) (*struct{}, error) {
 			if err := svc.RemoveStudy(ctx, input.ChartID, input.StudyID, input.Pane); err != nil {
 				return nil, mapErr(err)
 			}
@@ -1111,8 +1110,8 @@ func NewServer(svc Service) http.Handler {
 
 	type toggleResultOutput struct {
 		Body struct {
-			ChartID string            `json:"chart_id"`
-			Status  string            `json:"status"`
+			ChartID string                  `json:"chart_id"`
+			Status  string                  `json:"status"`
 			Before  cdpcontrol.ChartToggles `json:"before"`
 			After   cdpcontrol.ChartToggles `json:"after"`
 		}
@@ -1461,7 +1460,11 @@ func NewServer(svc Service) http.Handler {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "list-strategies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/list", Summary: "List all loaded strategies", Tags: []string{"Strategy"}},
-		func(ctx context.Context, input *chartIDInput) (*struct{ Body struct{ Strategies any `json:"strategies"` } }, error) {
+		func(ctx context.Context, input *chartIDInput) (*struct {
+			Body struct {
+				Strategies any `json:"strategies"`
+			}
+		}, error) {
 			strategies, err := svc.ListStrategies(ctx, input.ChartID)
 			if err != nil {
 				return nil, mapErr(err)
@@ -1493,7 +1496,11 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 	huma.Register(api, huma.Operation{OperationID: "set-active-strategy", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/strategy/active", Summary: "Set active strategy by entity ID", Tags: []string{"Strategy"}},
-		func(ctx context.Context, input *setStrategyInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+		func(ctx context.Context, input *setStrategyInput) (*struct {
+			Body struct {
+				Status string `json:"status"`
+			}
+		}, error) {
 			if err := svc.SetActiveStrategy(ctx, input.ChartID, input.Body.StrategyID); err != nil {
 				return nil, mapErr(err)
 			}
@@ -1514,7 +1521,11 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 	huma.Register(api, huma.Operation{OperationID: "set-strategy-input", Method: http.MethodPut, Path: "/api/v1/chart/{chart_id}/strategy/input", Summary: "Set a strategy input parameter", Tags: []string{"Strategy"}},
-		func(ctx context.Context, input *setStrategyInputInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+		func(ctx context.Context, input *setStrategyInputInput) (*struct {
+			Body struct {
+				Status string `json:"status"`
+			}
+		}, error) {
 			if err := svc.SetStrategyInput(ctx, input.ChartID, input.Body.Name, input.Body.Value); err != nil {
 				return nil, mapErr(err)
 			}
@@ -1539,7 +1550,11 @@ func NewServer(svc Service) http.Handler {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "get-strategy-date-range", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/date-range", Summary: "Get backtest date range", Tags: []string{"Strategy"}},
-		func(ctx context.Context, input *chartIDInput) (*struct{ Body struct{ DateRange any `json:"date_range"` } }, error) {
+		func(ctx context.Context, input *chartIDInput) (*struct {
+			Body struct {
+				DateRange any `json:"date_range"`
+			}
+		}, error) {
 			dateRange, err := svc.GetStrategyDateRange(ctx, input.ChartID)
 			if err != nil {
 				return nil, mapErr(err)
@@ -1561,7 +1576,11 @@ func NewServer(svc Service) http.Handler {
 		}
 	}
 	huma.Register(api, huma.Operation{OperationID: "strategy-goto-date", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/strategy/goto", Summary: "Navigate chart to a specific trade/bar timestamp", Tags: []string{"Strategy"}},
-		func(ctx context.Context, input *strategyGotoInput) (*struct{ Body struct{ Status string `json:"status"` } }, error) {
+		func(ctx context.Context, input *strategyGotoInput) (*struct {
+			Body struct {
+				Status string `json:"status"`
+			}
+		}, error) {
 			if err := svc.StrategyGotoDate(ctx, input.ChartID, input.Body.Timestamp, input.Body.BelowBar); err != nil {
 				return nil, mapErr(err)
 			}
@@ -1918,7 +1937,7 @@ func NewServer(svc Service) http.Handler {
 
 	type drawingTogglesOutput struct {
 		Body struct {
-			ChartID string                  `json:"chart_id"`
+			ChartID string                    `json:"chart_id"`
 			Toggles cdpcontrol.DrawingToggles `json:"toggles"`
 		}
 	}
@@ -2128,7 +2147,7 @@ func NewServer(svc Service) http.Handler {
 	type takeSnapshotOutput struct {
 		Body struct {
 			Snapshot snapshot.SnapshotMeta `json:"snapshot"`
-			URL      string               `json:"url"`
+			URL      string                `json:"url"`
 		}
 	}
 	huma.Register(api, huma.Operation{OperationID: "browser-screenshot", Method: http.MethodPost, Path: "/api/v1/browser_screenshot", Summary: "Take browser viewport screenshot", Tags: []string{"Snapshots"}},
@@ -2916,7 +2935,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	type currencyOutput struct {
 		Body struct {
-			ChartID  string                `json:"chart_id"`
+			ChartID  string                  `json:"chart_id"`
 			Currency cdpcontrol.CurrencyInfo `json:"currency"`
 		}
 	}
@@ -2947,7 +2966,7 @@ func NewServer(svc Service) http.Handler {
 
 	type availableCurrenciesOutput struct {
 		Body struct {
-			ChartID    string                       `json:"chart_id"`
+			ChartID    string                         `json:"chart_id"`
 			Currencies []cdpcontrol.AvailableCurrency `json:"currencies"`
 		}
 	}
@@ -2970,7 +2989,7 @@ func NewServer(svc Service) http.Handler {
 	}
 	type unitOutput struct {
 		Body struct {
-			ChartID string             `json:"chart_id"`
+			ChartID string              `json:"chart_id"`
 			Unit    cdpcontrol.UnitInfo `json:"unit"`
 		}
 	}
@@ -3001,7 +3020,7 @@ func NewServer(svc Service) http.Handler {
 
 	type availableUnitsOutput struct {
 		Body struct {
-			ChartID string                    `json:"chart_id"`
+			ChartID string                     `json:"chart_id"`
 			Units   []cdpcontrol.AvailableUnit `json:"units"`
 		}
 	}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -36,7 +37,9 @@ type Config struct {
 
 // Load reads configuration from environment variables and optional .env file.
 func Load() (*Config, error) {
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		slog.Debug("failed to load .env file", "error", err)
+	}
 
 	cfg := &Config{
 		CDPAddress:       getEnvOrDefault("CHROMIUM_CDP_ADDRESS", "127.0.0.1"),

@@ -3,6 +3,7 @@ package snapshot
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -70,12 +71,16 @@ func (s *Store) Save(meta SnapshotMeta, imageData []byte) error {
 
 	data, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		_ = os.Remove(imgPath)
+		if removeErr := os.Remove(imgPath); removeErr != nil {
+			slog.Debug("snapshot image cleanup failed", "error", removeErr, "path", imgPath)
+		}
 		return fmt.Errorf("snapshot store: marshal meta: %w", err)
 	}
 
 	if err := os.WriteFile(jsonPath, data, 0o644); err != nil {
-		_ = os.Remove(imgPath)
+		if removeErr := os.Remove(imgPath); removeErr != nil {
+			slog.Debug("snapshot image cleanup failed", "error", removeErr, "path", imgPath)
+		}
 		return fmt.Errorf("snapshot store: write meta: %w", err)
 	}
 
@@ -176,7 +181,11 @@ func (s *Store) Delete(id string) error {
 	imgPath := filepath.Join(s.dir, id+"."+meta.Format)
 	jsonPath := filepath.Join(s.dir, id+".json")
 
-	_ = os.Remove(imgPath)
-	_ = os.Remove(jsonPath)
+	if err := os.Remove(imgPath); err != nil {
+		slog.Debug("snapshot image cleanup failed", "error", err, "path", imgPath)
+	}
+	if err := os.Remove(jsonPath); err != nil {
+		slog.Debug("snapshot metadata cleanup failed", "error", err, "path", jsonPath)
+	}
 	return nil
 }

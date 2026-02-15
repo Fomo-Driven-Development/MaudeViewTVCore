@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -1211,7 +1212,9 @@ func (s *Service) PreviewLayout(ctx context.Context, id int, takeSnapshot bool) 
 
 	// Switch back to the original layout.
 	if !alreadyOnTarget && previousID > 0 {
-		_, _ = s.cdp.SwitchLayout(ctx, previousID)
+		if _, err := s.cdp.SwitchLayout(ctx, previousID); err != nil {
+			slog.Debug("restore previous layout failed", "error", err, "previous_id", previousID)
+		}
 	}
 
 	return detail, nil

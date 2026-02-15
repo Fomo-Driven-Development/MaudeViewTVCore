@@ -16,10 +16,32 @@ import (
 	"github.com/chromedp/cdproto/target"
 )
 
+const (
+	uiSettleShort  = 50 * time.Millisecond
+	uiSettleMedium = 300 * time.Millisecond
+	uiSettleLong   = 500 * time.Millisecond
+)
+
 var chartURLPattern = regexp.MustCompile(`/chart/([^/?#]+)/?`)
 
 // transientHints are substrings in error causes that indicate a transient
 // failure worth retrying (e.g. broken connection, closed session).
+var sendShortcutDispatch = func(c *Client, ctx context.Context, key, code string, keyCode, modifiers int) error {
+	return c.sendKeysOnAnyChart(ctx, key, code, keyCode, modifiers)
+}
+
+var sendShortcutWait = func(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 var transientHints = []string{
 	"context canceled",
 	"target closed",
@@ -117,7 +139,9 @@ func (c *Client) cleanupLocked() {
 			session.mu.Lock()
 			if session.sessionID != "" {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				_ = c.cdp.detachFromTarget(ctx, session.sessionID)
+				if err := c.cdp.detachFromTarget(ctx, session.sessionID); err != nil {
+					slog.Debug("detach cleanup failed", "error", err)
+				}
 				cancel()
 				session.sessionID = ""
 			}
@@ -241,7 +265,7 @@ func (c *Client) SetResolution(ctx context.Context, chartID, resolution string) 
 
 	// Give TradingView time to process the resolution change before verifying.
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(uiSettleLong):
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
@@ -266,7 +290,7 @@ func (c *Client) SetChartType(ctx context.Context, chartID string, chartType int
 
 	// Give TradingView time to process the chart type change before verifying.
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(uiSettleLong):
 	case <-ctx.Done():
 		return 0, ctx.Err()
 	}
@@ -368,31 +392,19 @@ func (c *Client) Scroll(ctx context.Context, chartID string, bars int) error {
 func (c *Client) ResetView(ctx context.Context, chartID string) error {
 	// Alt+R via CDP — trusted "Reset chart view" keyboard shortcut.
 	// modifiers: 1=Alt
-	if err := c.sendKeysOnAnyChart(ctx, "r", "KeyR", 82, 1); err != nil {
-		return newError(CodeEvalFailure, "failed to send Alt+R", err)
-	}
-	time.Sleep(500 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "r", "KeyR", 82, 1, uiSettleLong, "failed to send Alt+R")
 }
 
 func (c *Client) UndoChart(ctx context.Context, chartID string) error {
 	// Ctrl+Z — chart-level undo for drawings, studies, etc.
 	// modifiers: 2=Ctrl
-	if err := c.sendKeysOnAnyChart(ctx, "z", "KeyZ", 90, 2); err != nil {
-		return newError(CodeEvalFailure, "failed to send Ctrl+Z", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "z", "KeyZ", 90, 2, uiSettleMedium, "failed to send Ctrl+Z")
 }
 
 func (c *Client) RedoChart(ctx context.Context, chartID string) error {
 	// Ctrl+Y — chart-level redo for drawings, studies, etc.
 	// modifiers: 2=Ctrl
-	if err := c.sendKeysOnAnyChart(ctx, "y", "KeyY", 89, 2); err != nil {
-		return newError(CodeEvalFailure, "failed to send Ctrl+Y", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "y", "KeyY", 89, 2, uiSettleMedium, "failed to send Ctrl+Y")
 }
 
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
@@ -471,29 +483,17 @@ func (c *Client) GetChartToggles(ctx context.Context, chartID string) (ChartTogg
 
 func (c *Client) ToggleLogScale(ctx context.Context, chartID string) error {
 	// Alt+L via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	if err := c.sendKeysOnAnyChart(ctx, "l", "KeyL", 76, 1); err != nil {
-		return newError(CodeEvalFailure, "failed to send Alt+L", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "l", "KeyL", 76, 1, uiSettleMedium, "failed to send Alt+L")
 }
 
 func (c *Client) ToggleAutoScale(ctx context.Context, chartID string) error {
 	// Alt+A via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	if err := c.sendKeysOnAnyChart(ctx, "a", "KeyA", 65, 1); err != nil {
-		return newError(CodeEvalFailure, "failed to send Alt+A", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "a", "KeyA", 65, 1, uiSettleMedium, "failed to send Alt+A")
 }
 
 func (c *Client) ToggleExtendedHours(ctx context.Context, chartID string) error {
 	// Alt+E via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	if err := c.sendKeysOnAnyChart(ctx, "e", "KeyE", 69, 1); err != nil {
-		return newError(CodeEvalFailure, "failed to send Alt+E", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	return nil
+	return c.sendShortcut(ctx, "e", "KeyE", 69, 1, uiSettleMedium, "failed to send Alt+E")
 }
 
 func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
@@ -1178,7 +1178,7 @@ func (c *Client) ReloadPage(ctx context.Context, chartID string, hard bool) erro
 	defer cancel()
 
 	// Brief pause to let the reload start.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(uiSettleLong)
 
 	for {
 		select {
@@ -1190,7 +1190,7 @@ func (c *Client) ReloadPage(ctx context.Context, chartID string, hard bool) erro
 		// Re-attach if needed, then evaluate.
 		sid, attachErr := c.ensureSession(pollCtx, cdp, session, info.TargetID)
 		if attachErr != nil {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(uiSettleLong)
 			continue
 		}
 		evalCtx, evalCancel := context.WithTimeout(pollCtx, 3*time.Second)
@@ -1201,17 +1201,19 @@ func (c *Client) ReloadPage(ctx context.Context, chartID string, hard bool) erro
 			session.mu.Lock()
 			session.sessionID = ""
 			session.mu.Unlock()
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(uiSettleLong)
 			continue
 		}
 		if raw == "complete" {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(uiSettleLong)
 	}
 
 	// Refresh the tab registry so new chart IDs are available.
-	_ = c.refreshTabs(ctx)
+	if err := c.refreshTabs(ctx); err != nil {
+		slog.Debug("refresh tabs after chart reload failed", "error", err)
+	}
 	return nil
 }
 
@@ -1285,12 +1287,11 @@ func (c *Client) PineNewIndicator(ctx context.Context) (PineState, error) {
 		return PineState{}, err
 	}
 	// Chord: Ctrl+K then Ctrl+I
-	if err := c.sendKeysOnAnyChart(ctx, "k", "KeyK", 75, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+K", err)
+	if err := c.sendShortcut(ctx, "k", "KeyK", 75, 2, uiSettleShort, "failed to dispatch Ctrl+K"); err != nil {
+		return PineState{}, err
 	}
-	time.Sleep(50 * time.Millisecond)
-	if err := c.sendKeysOnAnyChart(ctx, "i", "KeyI", 73, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+I", err)
+	if err := c.sendShortcut(ctx, "i", "KeyI", 73, 2, uiSettleShort, "failed to dispatch Ctrl+I"); err != nil {
+		return PineState{}, err
 	}
 	if err := c.evalOnAnyChart(ctx, jsPineWaitForNewScript(), &out); err != nil {
 		return PineState{}, err
@@ -1304,12 +1305,11 @@ func (c *Client) PineNewStrategy(ctx context.Context) (PineState, error) {
 		return PineState{}, err
 	}
 	// Chord: Ctrl+K then Ctrl+S
-	if err := c.sendKeysOnAnyChart(ctx, "k", "KeyK", 75, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+K", err)
+	if err := c.sendShortcut(ctx, "k", "KeyK", 75, 2, uiSettleShort, "failed to dispatch Ctrl+K"); err != nil {
+		return PineState{}, err
 	}
-	time.Sleep(50 * time.Millisecond)
-	if err := c.sendKeysOnAnyChart(ctx, "s", "KeyS", 83, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+S", err)
+	if err := c.sendShortcut(ctx, "s", "KeyS", 83, 2, uiSettleShort, "failed to dispatch Ctrl+S"); err != nil {
+		return PineState{}, err
 	}
 	if err := c.evalOnAnyChart(ctx, jsPineWaitForNewScript(), &out); err != nil {
 		return PineState{}, err
@@ -1323,18 +1323,17 @@ func (c *Client) PineGoToLine(ctx context.Context, line int) (PineState, error) 
 		return PineState{}, err
 	}
 	// Ctrl+G opens Go to Line dialog
-	if err := c.sendKeysOnAnyChart(ctx, "g", "KeyG", 71, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+G", err)
+	if err := c.sendShortcut(ctx, "g", "KeyG", 71, 2, uiSettleMedium, "failed to dispatch Ctrl+G"); err != nil {
+		return PineState{}, err
 	}
-	time.Sleep(200 * time.Millisecond)
 	// Type the line number
 	if err := c.insertTextOnAnyChart(ctx, fmt.Sprintf("%d", line)); err != nil {
 		return PineState{}, newError(CodeEvalFailure, "failed to type line number", err)
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(uiSettleShort)
 	// Enter to confirm
-	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 0); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to confirm go-to-line", err)
+	if err := c.sendShortcut(ctx, "Enter", "Enter", 13, 0, 0, "failed to confirm go-to-line"); err != nil {
+		return PineState{}, err
 	}
 	if err := c.evalOnAnyChart(ctx, jsPineBriefWait(300), &out); err != nil {
 		return PineState{}, err
@@ -1348,15 +1347,14 @@ func (c *Client) PineOpenScript(ctx context.Context, name string) (PineState, er
 		return PineState{}, err
 	}
 	// Ctrl+O opens the script picker dialog
-	if err := c.sendKeysOnAnyChart(ctx, "o", "KeyO", 79, 2); err != nil {
-		return PineState{}, newError(CodeEvalFailure, "failed to dispatch Ctrl+O", err)
+	if err := c.sendShortcut(ctx, "o", "KeyO", 79, 2, uiSettleLong, "failed to dispatch Ctrl+O"); err != nil {
+		return PineState{}, err
 	}
-	time.Sleep(500 * time.Millisecond)
 	// Type the script name to filter
 	if err := c.insertTextOnAnyChart(ctx, name); err != nil {
 		return PineState{}, newError(CodeEvalFailure, "failed to type script name", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(uiSettleLong)
 	// Click the first matching result and wait for load; response includes close button coords.
 	var clickResult struct {
 		PineState
@@ -1369,8 +1367,10 @@ func (c *Client) PineOpenScript(ctx context.Context, name string) (PineState, er
 	out = clickResult.PineState
 	// Dismiss the dialog with a trusted CDP click on the close button
 	if clickResult.CloseX > 0 && clickResult.CloseY > 0 {
-		_ = c.clickOnAnyChart(ctx, clickResult.CloseX, clickResult.CloseY)
-		time.Sleep(200 * time.Millisecond)
+		if err := c.clickOnAnyChart(ctx, clickResult.CloseX, clickResult.CloseY); err != nil {
+			slog.Debug("indicator dialog close click failed", "error", err)
+		}
+		time.Sleep(uiSettleMedium)
 	}
 	return out, nil
 }
@@ -1459,6 +1459,13 @@ func (c *Client) clickOnAnyChart(ctx context.Context, x, y float64) error {
 	return cdp.dispatchMouseClick(ctx, sessionID, x, y)
 }
 
+func (c *Client) sendShortcut(ctx context.Context, key, code string, keyCode, modifiers int, settle time.Duration, desc string) error {
+	if err := sendShortcutDispatch(c, ctx, key, code, keyCode, modifiers); err != nil {
+		return newError(CodeEvalFailure, desc, err)
+	}
+	return sendShortcutWait(ctx, settle)
+}
+
 // sendKeysOnAnyChart dispatches a trusted CDP key event on the first chart's session.
 // modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.
 func (c *Client) sendKeysOnAnyChart(ctx context.Context, key, code string, keyCode, modifiers int) error {
@@ -1531,8 +1538,12 @@ func (c *Client) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, e
 // text without closing the dialog.
 func (c *Client) dismissIndicatorDialog(ctx context.Context) {
 	for range 2 {
-		_ = c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0)
-		_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil)
+		if err := c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0); err != nil {
+			slog.Debug("sendKeys while dismissing indicator dialog failed", "error", err)
+		}
+		if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil); err != nil {
+			slog.Debug("eval for indicator dialog close state failed", "error", err)
+		}
 	}
 }
 
@@ -1540,7 +1551,9 @@ func (c *Client) dismissIndicatorDialog(ctx context.Context) {
 func (c *Client) openAndSearchIndicators(ctx context.Context, query string) error {
 	// Click the chart canvas to ensure it has focus before sending "/" shortcut.
 	// Without focus, the "/" key may be ignored.
-	_ = c.clickOnAnyChart(ctx, 400, 400)
+	if err := c.clickOnAnyChart(ctx, 400, 400); err != nil {
+		slog.Debug("indicator search focus click failed", "error", err)
+	}
 
 	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
 		return newError(CodeEvalFailure, "failed to send / key", err)
@@ -1623,7 +1636,9 @@ func (c *Client) AddIndicatorBySearch(ctx context.Context, chartID, query string
 
 func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (IndicatorSearchResult, error) {
 	// Click chart to ensure focus, then open indicator dialog
-	_ = c.clickOnAnyChart(ctx, 400, 400)
+	if err := c.clickOnAnyChart(ctx, 400, 400); err != nil {
+		slog.Debug("favorites indicator focus click failed", "error", err)
+	}
 	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
 		return IndicatorSearchResult{}, newError(CodeEvalFailure, "failed to send / key", err)
 	}
@@ -2073,25 +2088,33 @@ func (c *Client) SwitchLayout(ctx context.Context, id int) (LayoutActionResult, 
 	}
 
 	// Step 1b: Suppress beforeunload handlers to avoid blocking dialog.
-	_ = c.evalOnAnyChart(ctx, jsSuppressBeforeunload(), &struct{}{})
+	if err := c.evalOnAnyChart(ctx, jsSuppressBeforeunload(), &struct{}{}); err != nil {
+		slog.Debug("beforeunload suppression eval failed", "error", err)
+	}
 
 	// Step 1c: Enable Page domain and register auto-accept handler for any
 	// remaining beforeunload dialog the JS suppression didn't catch.
 	cdpConn, sessionID, resolveErr := c.resolveAnySession(ctx)
 	var unregister func()
 	if resolveErr == nil {
-		_ = cdpConn.enablePageDomain(ctx, sessionID)
+		if err := cdpConn.enablePageDomain(ctx, sessionID); err != nil {
+			slog.Debug("enable page domain failed", "error", err)
+		}
 		sid := sessionID
 		unregister = cdpConn.registerEventHandler("Page.javascriptDialogOpening", func(evtSessionID string, params json.RawMessage) {
 			acceptCtx, acceptCancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer acceptCancel()
-			_ = cdpConn.handleJavaScriptDialog(acceptCtx, sid, true)
+			if err := cdpConn.handleJavaScriptDialog(acceptCtx, sid, true); err != nil {
+				slog.Debug("auto-accept beforeunload dialog failed", "error", err)
+			}
 		})
 	}
 
 	// Step 2: Navigate via window.location (triggers full page reload).
 	navJS := wrapJSEval(fmt.Sprintf(`window.location.href = "/chart/%s/"; return JSON.stringify({ok:true,data:{}});`, resolved.ShortURL))
-	_ = c.evalOnAnyChart(ctx, navJS, &struct{}{}) // will likely error due to navigation
+	if err := c.evalOnAnyChart(ctx, navJS, &struct{}{}); err != nil {
+		slog.Debug("layout navigation eval expected failure", "error", err)
+	}
 
 	// Step 3: Invalidate sessions and poll until the new page is ready.
 	c.mu.Lock()
@@ -2117,13 +2140,15 @@ func (c *Client) SwitchLayout(ctx context.Context, id int) (LayoutActionResult, 
 			return LayoutActionResult{}, newError(CodeEvalTimeout, "timed out waiting for layout switch", pollCtx.Err())
 		default:
 		}
-		_ = c.refreshTabs(ctx)
+		if err := c.refreshTabs(ctx); err != nil {
+			slog.Debug("refresh tabs during layout switch failed", "error", err)
+		}
 		var readyOut struct{ Ready string }
 		readyErr := c.evalOnAnyChart(pollCtx, wrapJSEval(`return JSON.stringify({ok:true,data:{ready:document.readyState}});`), &readyOut)
 		if readyErr == nil && readyOut.Ready == "complete" {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(uiSettleLong)
 	}
 
 	// Step 4: Read the new layout status.
@@ -2176,28 +2201,25 @@ func (c *Client) SetLayoutGrid(ctx context.Context, template string) (LayoutStat
 
 func (c *Client) NextChart(ctx context.Context) (ActiveChartInfo, error) {
 	// Tab key (keyCode 9, no modifiers)
-	if err := c.sendKeysOnAnyChart(ctx, "Tab", "Tab", 9, 0); err != nil {
-		return ActiveChartInfo{}, newError(CodeEvalFailure, "failed to dispatch Tab key", err)
+	if err := c.sendShortcut(ctx, "Tab", "Tab", 9, 0, uiSettleMedium, "failed to dispatch Tab key"); err != nil {
+		return ActiveChartInfo{}, err
 	}
-	time.Sleep(200 * time.Millisecond)
 	return c.GetActiveChart(ctx)
 }
 
 func (c *Client) PrevChart(ctx context.Context) (ActiveChartInfo, error) {
 	// Shift+Tab key (keyCode 9, modifiers 8=Shift)
-	if err := c.sendKeysOnAnyChart(ctx, "Tab", "Tab", 9, 8); err != nil {
-		return ActiveChartInfo{}, newError(CodeEvalFailure, "failed to dispatch Shift+Tab key", err)
+	if err := c.sendShortcut(ctx, "Tab", "Tab", 9, 8, uiSettleMedium, "failed to dispatch Shift+Tab key"); err != nil {
+		return ActiveChartInfo{}, err
 	}
-	time.Sleep(200 * time.Millisecond)
 	return c.GetActiveChart(ctx)
 }
 
 func (c *Client) MaximizeChart(ctx context.Context) (LayoutStatus, error) {
 	// Alt+Enter (keyCode 13, modifiers 1=Alt)
-	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 1); err != nil {
-		return LayoutStatus{}, newError(CodeEvalFailure, "failed to dispatch Alt+Enter key", err)
+	if err := c.sendShortcut(ctx, "Enter", "Enter", 13, 1, uiSettleMedium, "failed to dispatch Alt+Enter key"); err != nil {
+		return LayoutStatus{}, err
 	}
-	time.Sleep(200 * time.Millisecond)
 	return c.GetLayoutStatus(ctx)
 }
 
@@ -2445,29 +2467,3 @@ func (c *Client) ProbeDataWindow(ctx context.Context, chartID string) (DataWindo
 	}
 	return out, nil
 }
-
-func jsString(v string) string {
-	b, _ := json.Marshal(v)
-	return string(b)
-}
-
-func jsJSON(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
-}
-
-func buildIIFE(async bool, body string) string {
-	prefix := "(function(){\n"
-	if async {
-		prefix = "(async function(){\n"
-	}
-	return prefix + `try {
-` + body + `
-} catch (err) {
-return JSON.stringify({ok:false,error_code:"` + CodeEvalFailure + `",error_message:String(err && err.message || err)});
-}
-})()`
-}
-
-func wrapJSEval(body string) string      { return buildIIFE(false, body) }
-func wrapJSEvalAsync(body string) string  { return buildIIFE(true, body) }

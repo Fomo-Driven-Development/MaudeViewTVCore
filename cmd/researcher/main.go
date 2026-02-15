@@ -16,7 +16,9 @@ import (
 )
 
 func main() {
-	_ = os.MkdirAll("logs", 0o755)
+	if err := os.MkdirAll("logs", 0o755); err != nil {
+		slog.Debug("log directory creation failed", "error", err)
+	}
 
 	logWriter := &lumberjack.Logger{
 		Filename:   "logs/researcher.log",
