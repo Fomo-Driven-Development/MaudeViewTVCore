@@ -917,3 +917,136 @@ func TestGetAvailableUnits(t *testing.T) {
 	}
 	t.Logf("available units: %d (first: %s - %s [%s])", len(result.Units), first.ID, first.Name, first.Type)
 }
+
+func TestSetUnit_AndRestore(t *testing.T) {
+	// 1. Check available units.
+	resp := env.GET(t, env.chartPath("unit/available"))
+	requireStatus(t, resp, http.StatusOK)
+	available := decodeJSON[struct {
+		Units []struct {
+			ID string `json:"id"`
+		} `json:"units"`
+	}](t, resp)
+	if len(available.Units) < 2 {
+		t.Skip("fewer than 2 available units; cannot test set unit")
+	}
+
+	// 2. Read current unit.
+	resp = env.GET(t, env.chartPath("unit"))
+	requireStatus(t, resp, http.StatusOK)
+	original := decodeJSON[struct {
+		Unit struct {
+			Unit string `json:"unit"`
+		} `json:"unit"`
+	}](t, resp)
+	t.Logf("original unit: %q", original.Unit.Unit)
+
+	// 3. Pick a different unit.
+	var newUnit string
+	for _, u := range available.Units {
+		if u.ID != original.Unit.Unit {
+			newUnit = u.ID
+			break
+		}
+	}
+	if newUnit == "" {
+		t.Skip("no alternative unit found")
+	}
+
+	t.Cleanup(func() {
+		// Restore to original (use "null" to reset to native).
+		r := env.PUT(t, env.chartPath("unit")+"?unit=null", nil)
+		r.Body.Close()
+		time.Sleep(1 * time.Second)
+	})
+
+	// 4. Set the new unit.
+	resp = env.PUT(t, env.chartPath("unit")+"?unit="+newUnit, nil)
+	requireStatus(t, resp, http.StatusOK)
+	setResult := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Unit    struct {
+			Unit        string `json:"unit"`
+			IsConverted bool   `json:"is_converted"`
+		} `json:"unit"`
+	}](t, resp)
+	requireField(t, setResult.ChartID, env.ChartID, "chart_id")
+	t.Logf("set unit to %q: is_converted=%v", setResult.Unit.Unit, setResult.Unit.IsConverted)
+
+	// 5. Verify it changed.
+	resp = env.GET(t, env.chartPath("unit"))
+	requireStatus(t, resp, http.StatusOK)
+	after := decodeJSON[struct {
+		Unit struct {
+			Unit string `json:"unit"`
+		} `json:"unit"`
+	}](t, resp)
+	if after.Unit.Unit == original.Unit.Unit {
+		t.Logf("warning: unit did not change (may not be supported for this symbol)")
+	}
+}
+
+// --- Resolve Symbol ---
+
+func TestResolveSymbol(t *testing.T) {
+	resp := env.GET(t, env.chartPath("chart-api/resolve-symbol")+"?symbol=AAPL")
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Symbol      string `json:"symbol"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Exchange    string `json:"exchange"`
+		Type        string `json:"type"`
+		Currency    string `json:"currency"`
+		Timezone    string `json:"timezone"`
+	}](t, resp)
+
+	if result.Symbol == "" && result.Name == "" {
+		t.Fatal("expected non-empty symbol or name")
+	}
+	t.Logf("resolved AAPL: symbol=%s name=%s exchange=%s type=%s currency=%s tz=%s",
+		result.Symbol, result.Name, result.Exchange, result.Type, result.Currency, result.Timezone)
+}
+
+func TestResolveSymbol_EmptySymbol(t *testing.T) {
+	resp := env.GET(t, env.chartPath("chart-api/resolve-symbol")+"?symbol=")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}
+
+// --- Timezone ---
+
+func TestSwitchTimezone_AndRestore(t *testing.T) {
+	t.Cleanup(func() {
+		// Restore to UTC.
+		r := env.PUT(t, env.chartPath("chart-api/timezone"), map[string]any{
+			"timezone": "Etc/UTC",
+		})
+		r.Body.Close()
+		time.Sleep(500 * time.Millisecond)
+	})
+
+	// Switch to America/New_York.
+	resp := env.PUT(t, env.chartPath("chart-api/timezone"), map[string]any{
+		"timezone": "America/New_York",
+	})
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		Status  string `json:"status"`
+	}](t, resp)
+	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	t.Logf("switched timezone to America/New_York: status=%s", result.Status)
+}
+
+func TestSwitchTimezone_EmptyReject(t *testing.T) {
+	resp := env.PUT(t, env.chartPath("chart-api/timezone"), map[string]any{
+		"timezone": "",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}

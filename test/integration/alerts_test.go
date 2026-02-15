@@ -356,6 +356,18 @@ func TestModifyAlert(t *testing.T) {
 	t.Logf("modified alert %s → name=%s", alertID, modifiedName)
 }
 
+// --- Delete All Fires ---
+
+func TestDeleteAllFires(t *testing.T) {
+	resp := env.DELETE(t, "/api/v1/alerts/fires/all")
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		Status string `json:"status"`
+	}](t, resp)
+	requireField(t, result.Status, "deleted", "status")
+	t.Logf("delete all fires: status=%s", result.Status)
+}
+
 // --- Full Lifecycle ---
 
 func TestAlertsFullLifecycle(t *testing.T) {

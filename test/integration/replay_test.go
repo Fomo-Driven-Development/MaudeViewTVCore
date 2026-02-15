@@ -288,6 +288,52 @@ func TestReplayReset(t *testing.T) {
 	t.Logf("replay reset successful")
 }
 
+func TestReplayStartAndStop(t *testing.T) {
+	ensureReplayDeactivated(t)
+	t.Cleanup(func() { ensureReplayDeactivated(t) })
+
+	// Activate replay first (start requires active replay mode).
+	resp := env.POST(t, env.chartPath("replay/activate/auto"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+	time.Sleep(2 * time.Second)
+
+	// Start replay at a specific point.
+	const jan15_2024 = 1705276800.0
+	resp = env.POST(t, env.chartPath("replay/start"), map[string]any{
+		"point": jan15_2024,
+	})
+	requireStatus(t, resp, http.StatusOK)
+	startResult := decodeJSON[navStatus](t, resp)
+	requireField(t, startResult.Status, "started", "status")
+	t.Logf("replay started: chart_id=%s", startResult.ChartID)
+
+	time.Sleep(2 * time.Second)
+
+	// Verify replay is running.
+	resp = env.GET(t, env.chartPath("replay/status"))
+	requireStatus(t, resp, http.StatusOK)
+	st := decodeJSON[replayStatus](t, resp)
+	if !st.IsReplayStarted {
+		t.Fatal("expected is_replay_started=true after start")
+	}
+
+	// Stop replay.
+	resp = env.POST(t, env.chartPath("replay/stop"), nil)
+	requireStatus(t, resp, http.StatusOK)
+	stopResult := decodeJSON[navStatus](t, resp)
+	requireField(t, stopResult.Status, "stopped", "status")
+	t.Logf("replay stopped: chart_id=%s", stopResult.ChartID)
+
+	time.Sleep(1 * time.Second)
+
+	// Verify replay stopped (still in replay mode, but playback stopped).
+	resp = env.GET(t, env.chartPath("replay/status"))
+	requireStatus(t, resp, http.StatusOK)
+	st = decodeJSON[replayStatus](t, resp)
+	t.Logf("after stop: started=%v connected=%v", st.IsReplayStarted, st.IsReplayConnected)
+}
+
 func TestReplayFullLifecycle(t *testing.T) {
 	ensureReplayDeactivated(t)
 	t.Cleanup(func() { ensureReplayDeactivated(t) })

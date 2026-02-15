@@ -498,7 +498,42 @@ func TestBatchDeleteLayouts(t *testing.T) {
 	}
 }
 
-// --- Group 5: Lifecycle Test (slow — page reloads) ---
+// --- Group 5: Layout Preview ---
+
+func TestPreviewLayout(t *testing.T) {
+	layouts, err := env.listLayouts()
+	if err != nil {
+		t.Fatalf("list layouts: %v", err)
+	}
+	if len(layouts) == 0 {
+		t.Skip("no layouts available for preview test")
+	}
+
+	layoutID := layouts[0].ID
+
+	resp := env.POST(t, "/api/v1/layout/preview", map[string]any{
+		"id": layoutID,
+	})
+	requireStatus(t, resp, http.StatusOK)
+
+	result := decodeJSON[map[string]any](t, resp)
+	if len(result) == 0 {
+		t.Fatal("expected preview to return data")
+	}
+	t.Logf("preview layout %d: %d keys returned", layoutID, len(result))
+}
+
+func TestPreviewLayout_InvalidID(t *testing.T) {
+	resp := env.POST(t, "/api/v1/layout/preview", map[string]any{
+		"id": 0,
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 400 or 422", resp.StatusCode)
+	}
+}
+
+// --- Group 6: Lifecycle Test (slow — page reloads) ---
 
 func TestLayoutLifecycle(t *testing.T) {
 	// Save first to ensure current layout is persisted in the list
