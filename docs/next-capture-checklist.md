@@ -84,24 +84,7 @@ Perform each flow slowly and visibly so network/runtime events are emitted.
 ## Stop + Process
 
 - [ ] Stop researcher with `Ctrl+C` after flows complete.
-- [ ] Run mapper pipeline:
-  - `just mapper-full`
-- [ ] Validate artifacts:
-  - `just mapper-validate`
-
-## Post-Run Verification
-
-Check these files:
-
-- `research_data/<date>/mapper/runtime-probes/runtime-trace.jsonl`
-- `research_data/<date>/mapper/correlation/capability-correlations.jsonl`
-- `research_data/<date>/mapper/reporting/capability-matrix.jsonl`
-
-Quick checks:
-
-- [ ] Runtime event count increased materially vs previous run.
-- [ ] New capability rows appear beyond current 6.
-- [ ] Confidence improved for `widget` and at least 2 static-only candidates moved to validated.
+- [ ] Review captured data in `research_data/<date>/` directories.
 
 ## Safety Notes
 

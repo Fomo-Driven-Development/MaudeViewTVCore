@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**tv_agent** is a passive research browser automation system for TradingView. It captures network traffic, JS bundles, and runtime behavior via Chrome DevTools Protocol (CDP), then analyzes them to build a capability matrix. Module: `github.com/dgnsrekt/tv_agent`, Go 1.24.
+**tv_agent** is a browser automation system for TradingView. It captures network traffic via Chrome DevTools Protocol (CDP) for passive research, and provides a REST API for active chart control. Module: `github.com/dgnsrekt/tv_agent`, Go 1.24.
 
 ## Build & Run Commands
 
@@ -14,39 +14,29 @@ All commands use `just` (justfile). The justfile auto-loads `.env` via `set dote
 # Prerequisites: copy example.env to .env, start Chromium with CDP enabled
 just start-browser          # Launch Chromium with remote debugging on CDP port
 
-# Three main binaries
+# Two main binaries
 just run-researcher         # Build + run passive traffic capture
 just run-tv-controller      # Build + run Huma REST API server
-
-# Mapper pipeline (individual stages or full)
-just mapper-static-only     # Static JS bundle analysis
-just mapper-runtime-only    # Runtime probe injection + telemetry
-just mapper-correlate       # Link static signals to runtime traces
-just mapper-report          # Generate capability matrix
-just mapper-validate        # Validate artifacts
-just mapper-smoke           # Smoke test + baseline report
-just mapper-full            # All stages sequentially
 ```
 
-Manual build: `go build -o ./bin/<name> ./cmd/<name>` where name is `researcher`, `tv_controller`, or `mapper`.
+Manual build: `go build -o ./bin/<name> ./cmd/<name>` where name is `researcher` or `tv_controller`.
 
 ## Running Tests
 
 ```bash
 go test ./...                              # All tests
-go test ./internal/mapper/staticanalysis/  # Single package
-go test -run TestGolden ./internal/mapper/staticanalysis/  # Single test
+go test ./internal/netutil/                # Single package
+go test -run TestPortCheck ./internal/netutil/  # Single test
 ```
 
-Key test files exist in: `internal/mapper/staticanalysis/`, `internal/mapper/runtimeprobes/`, `internal/mapper/correlation/`, `internal/mapper/reporting/`, `internal/mapper/validation/`, `internal/mapper/smoke/`, `internal/netutil/`, `internal/api/`, and root-level `mapper_runbook_test.go` / `mapper_scripts_test.go`.
+Key test files exist in: `internal/netutil/`, `internal/api/`, and `test/integration/`.
 
 ## Architecture
 
-### Three Entry Points (`cmd/`)
+### Two Entry Points (`cmd/`)
 
 1. **researcher** — Passive capture daemon. Attaches to browser tabs matching a URL filter, intercepts HTTP requests/responses, WebSocket frames, and static resources. Writes JSONL to `research_data/`.
 2. **tv_controller** — Huma REST API for active TradingView chart control (set symbol/resolution, manage studies, execute actions). Evaluates JavaScript in browser tabs via CDP.
-3. **mapper** — Multi-stage analysis pipeline with `--mode` flag: `static-only`, `runtime-only`, `correlate`, `report`, `validate`, `smoke`, `full`.
 
 ### Internal Packages (`internal/`)
 
@@ -61,7 +51,6 @@ Key test files exist in: `internal/mapper/staticanalysis/`, `internal/mapper/run
 | `controller` | Service layer wrapping `cdpcontrol.Client` with input validation. |
 | `cdpcontrol` | Active CDP client for TradingView JS evaluation. Per-chart mutex locking, configurable eval timeout. |
 | `netutil` | Port availability checking with fallback candidates. |
-| `mapper/*` | Pipeline stages: `staticanalysis` (token-based AST parser for JS bundles), `runtimeprobes` (passive probe injection), `correlation` (temporal linkage ±2s), `reporting` (capability matrix), `validation`, `smoke`. |
 
 ### Data Flow
 
@@ -71,12 +60,6 @@ Chromium (CDP) → researcher → capture handlers → WriterRegistry → resear
                                                                     ├── websocket/
                                                                     └── resources/js/
 
-research_data/ → mapper pipeline:
-  static-only  → js-bundle-{index,analysis,errors,dependency-graph}.jsonl
-  runtime-only → runtime-trace.jsonl, trace-sessions.jsonl
-  correlate    → capability-correlations.jsonl
-  report       → capability-matrix.jsonl + schema + summary.md
-
 Chromium (CDP) ← tv_controller API ← cdpcontrol (JS eval in TradingView pages)
 ```
 
@@ -85,8 +68,7 @@ Chromium (CDP) ← tv_controller API ← cdpcontrol (JS eval in TradingView page
 - **Configuration**: Environment variables with defaults, loaded from `.env` via godotenv. See `example.env` for all options.
 - **Thread safety**: `sync.RWMutex` on shared state (tab registry, chart locks, writer registry). Double-checked locking in `WriterRegistry`.
 - **Async I/O**: Buffered channels for JSONL writes. `JSONLWriter` drains pending writes on close with 5-second timeout.
-- **JSONL everywhere**: All pipeline artifacts are line-delimited JSON for incremental processing.
-- **Signal anchors**: Static analysis detects heuristic keywords in JS: `action_event`, `api_route`, `feature_flag`, `websocket_channel`.
+- **JSONL everywhere**: All capture artifacts are line-delimited JSON for incremental processing.
 - **Date partitioning**: `research_data/` organized by `YYYY-MM-DD` directories.
 - **Context cancellation**: All long-running operations respect `ctx.Done()`.
 - **Error wrapping**: Typed error codes via `newError` pattern in cdpcontrol.
@@ -101,7 +83,6 @@ Copy `example.env` → `.env`. Key settings:
 
 ## Documentation
 
-- `docs/mapper-runbook.md` — Step-by-step pipeline execution guide
 - `docs/controller-runbook.md` — Controller API usage guide
 - `docs/functionality-catalog.md` — Latest capability matrix snapshot
 - `docs/next-capture-checklist.md` — Planned capture expansion

@@ -167,19 +167,4 @@ Suggested focused flows for the next pass:
 - Position widget and DOM panel interactions.
 - Strategy/backtesting configuration interactions.
 
-Then rerun:
-
-- `just mapper-full`
-- `just mapper-validate`
-
-## Source Artifacts
-
-- `research_data/2026-02-11/mapper/static-analysis/js-bundle-index.jsonl`
-- `research_data/2026-02-11/mapper/static-analysis/js-bundle-analysis.jsonl`
-- `research_data/2026-02-11/mapper/static-analysis/js-bundle-analysis-errors.jsonl`
-- `research_data/2026-02-11/mapper/static-analysis/js-bundle-dependency-graph.jsonl`
-- `research_data/2026-02-11/mapper/runtime-probes/runtime-trace.jsonl`
-- `research_data/2026-02-11/mapper/runtime-probes/trace-sessions.jsonl`
-- `research_data/2026-02-11/mapper/correlation/capability-correlations.jsonl`
-- `research_data/2026-02-11/mapper/reporting/capability-matrix.jsonl`
-- `research_data/2026-02-11/mapper/reporting/capability-matrix-summary.md`
+Then rerun the researcher to capture additional traffic.
