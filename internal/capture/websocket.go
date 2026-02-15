@@ -1,8 +1,6 @@
 package capture
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"log/slog"
 	"sync"
 	"time"
@@ -185,9 +183,6 @@ func (w *WebSocketCapture) GetActiveConnections() int {
 
 func truncateStringBytes(in string, maxBytes int) (string, bool, int, string) {
 	raw := []byte(in)
-	if maxBytes <= 0 || len(raw) <= maxBytes {
-		return in, false, len(raw), ""
-	}
-	sum := sha256.Sum256(raw)
-	return string(raw[:maxBytes]), true, len(raw), hex.EncodeToString(sum[:])
+	out, truncated, origLen, hash := truncateBytes(raw, maxBytes)
+	return string(out), truncated, origLen, hash
 }
