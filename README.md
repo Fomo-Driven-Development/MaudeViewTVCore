@@ -10,6 +10,10 @@ Exposes a REST API for TradingView chart control — symbol, resolution, studies
 
 **[Full Documentation](https://fomo-driven-development.github.io/MaudeViewTvDocs/)** — architecture, quickstart, all 177 endpoints, building agents, configuration, security.
 
+> **WARNING — Security**
+>
+> The controller can execute **arbitrary JavaScript** in any browser tab it connects to. CDP and the REST API have **no authentication**. The managed browser uses a **dedicated profile** — **only log into TradingView in this browser. Do not log into any other websites** (email, banking, social media, etc.). Any site open in a matched tab is fully scriptable. Always bind to `127.0.0.1` (the default) and never expose the CDP port or API to untrusted networks. See the [Security guide](https://fomo-driven-development.github.io/MaudeViewTvDocs/security/) for hardening details.
+
 ## Prerequisites
 
 - Go 1.24+
@@ -31,10 +35,6 @@ curl -s http://127.0.0.1:8188/api/v1/charts | jq
 ```
 
 See the [Quick Start guide](https://fomo-driven-development.github.io/MaudeViewTvDocs/quickstart/) for the full walkthrough including agent setup.
-
-## Security Warning
-
-**CDP and the REST API have no authentication.** Always bind to `127.0.0.1` (the default). Use a dedicated browser profile — the controller can execute arbitrary JavaScript in any matched tab. Do not expose the CDP port or API to untrusted networks.
 
 ## Running Tests
 
