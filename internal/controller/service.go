@@ -656,6 +656,20 @@ func (s *Service) CreateMultipointDrawing(ctx context.Context, chartID string, p
 	return s.cdp.CreateMultipointDrawing(ctx, strings.TrimSpace(chartID), points, options)
 }
 
+func (s *Service) CreateTweetDrawing(ctx context.Context, chartID string, tweetURL string, pane int) (cdpcontrol.TweetDrawingResult, error) {
+	tweetURL = strings.TrimSpace(tweetURL)
+	if tweetURL == "" {
+		return cdpcontrol.TweetDrawingResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "tweet_url is required"}
+	}
+	if !strings.Contains(tweetURL, "twitter.com/") && !strings.Contains(tweetURL, "x.com/") {
+		return cdpcontrol.TweetDrawingResult{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "tweet_url must be a twitter.com or x.com URL"}
+	}
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.TweetDrawingResult{}, err
+	}
+	return s.cdp.CreateTweetDrawing(ctx, strings.TrimSpace(chartID), tweetURL)
+}
+
 func (s *Service) CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error) {
 	if err := s.requireNonEmpty(shapeID, "shape_id"); err != nil {
 		return "", err

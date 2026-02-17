@@ -101,6 +101,7 @@ type Service interface {
 	GetDrawing(ctx context.Context, chartID, shapeID string, pane int) (map[string]any, error)
 	CreateDrawing(ctx context.Context, chartID string, point cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error)
 	CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error)
+	CreateTweetDrawing(ctx context.Context, chartID string, tweetURL string, pane int) (cdpcontrol.TweetDrawingResult, error)
 	CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error)
 	RemoveDrawing(ctx context.Context, chartID, shapeID string, disableUndo bool, pane int) error
 	RemoveAllDrawings(ctx context.Context, chartID string, pane int) error

@@ -1,6 +1,6 @@
 # Implementation Status
 
-176 controller API endpoints across 9 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+177 controller API endpoints across 9 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -12,14 +12,14 @@
 | Misc (health, strategy, snapshots, currency, hotlists) | `server_misc.go` | 28 |
 | Pine Editor | `server_pine.go` | 21 |
 | Layout | `server_layout.go` | 19 |
-| Drawings | `server_drawing.go` | 19 |
+| Drawings | `server_drawing.go` | 20 |
 | Studies & Indicators | `server_study.go` | 15 |
 | Watchlists | `server_watchlist.go` | 15 |
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
-| **Total** | | **173** |
+| **Total** | | **174** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 176.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 177.
 
 ## Endpoints by Feature Area
 
@@ -168,6 +168,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 176
 | GET | `/api/v1/chart/{id}/drawings/{sid}` | JS API call | `chart.getShapeById(id).getProperties()` |
 | POST | `/api/v1/chart/{id}/drawings` | JS API call | `await chart.createShape(point, opts)` |
 | POST | `/api/v1/chart/{id}/drawings/multipoint` | JS API call | `await chart.createMultipointShape(points, opts)` |
+| POST | `/api/v1/chart/{id}/drawings/tweet` | Webpack internal | `createTweetLineToolByUrl(url, model)` — fetches tweet data from TV backend |
 | POST | `/api/v1/chart/{id}/drawings/{sid}/clone` | JS API call | `chart.cloneLineTool(id)` |
 | DELETE | `/api/v1/chart/{id}/drawings/{sid}` | JS API call | `chart.removeEntity(id, opts)` |
 | DELETE | `/api/v1/chart/{id}/drawings` | JS API call | `chart.removeAllShapes()` |
@@ -315,7 +316,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 176
 | Type | Count | Fragility | Notes |
 |------|-------|-----------|-------|
 | JS API call | ~90 | Low | `window.TradingViewApi` — stable public-facing charting library API |
-| Webpack internal | ~20 | **High** | Module IDs and internal singletons change on TradingView deploys |
+| Webpack internal | ~21 | **High** | Module IDs and internal singletons change on TradingView deploys |
 | Keyboard shortcut | ~16 | Low | Standard shortcuts rarely change |
 | JS internal REST | ~14 | Medium | TradingView's private REST paths versioned (`/api/v1/`) but could change |
 | Mixed | ~10 | Medium | Combines 2+ techniques (DOM + click, keyboard + text) |
@@ -331,6 +332,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 176
 - **Flag symbol** — React fiber tree walk (`__reactFiber`)
 - **Pine toggle** — DOM button selectors for CDP trusted click coordinates
 - **Hotlists** (5 endpoints) — webpack-internal `hotlistsManager()` singleton
+- **Tweet drawing** — webpack-internal `createTweetLineToolByUrl()` + TradingView backend fetch
 
 ## Coverage Gaps
 

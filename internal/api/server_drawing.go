@@ -109,6 +109,35 @@ func registerDrawingHandlers(api huma.API, svc Service) {
 			return out, nil
 		})
 
+	type createTweetInput struct {
+		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+		Body    struct {
+			TweetURL string `json:"tweet_url" required:"true" doc:"Full URL to the tweet (twitter.com or x.com)"`
+		}
+	}
+	type createTweetOutput struct {
+		Body struct {
+			ChartID string `json:"chart_id"`
+			ID      string `json:"id"`
+			Status  string `json:"status"`
+			URL     string `json:"url"`
+		}
+	}
+	huma.Register(api, huma.Operation{OperationID: "create-tweet-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/tweet", Summary: "Create a tweet drawing from a URL", Tags: []string{"Drawings"}},
+		func(ctx context.Context, input *createTweetInput) (*createTweetOutput, error) {
+			result, err := svc.CreateTweetDrawing(ctx, input.ChartID, input.Body.TweetURL, input.Pane)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &createTweetOutput{}
+			out.Body.ChartID = input.ChartID
+			out.Body.ID = result.ID
+			out.Body.Status = result.Status
+			out.Body.URL = result.URL
+			return out, nil
+		})
+
 	huma.Register(api, huma.Operation{OperationID: "clone-drawing", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/drawings/{shape_id}/clone", Summary: "Clone a drawing", Tags: []string{"Drawings"}},
 		func(ctx context.Context, input *shapeIDInput) (*createDrawingOutput, error) {
 			id, err := svc.CloneDrawing(ctx, input.ChartID, input.ShapeID, input.Pane)

@@ -916,6 +916,14 @@ func (c *Client) CreateMultipointDrawing(ctx context.Context, chartID string, po
 	return out.ID, nil
 }
 
+func (c *Client) CreateTweetDrawing(ctx context.Context, chartID string, tweetURL string) (TweetDrawingResult, error) {
+	var out TweetDrawingResult
+	if err := c.evalOnChart(ctx, chartID, jsCreateTweetDrawing(tweetURL), &out); err != nil {
+		return TweetDrawingResult{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) CloneDrawing(ctx context.Context, chartID, shapeID string) (string, error) {
 	var out struct {
 		ID string `json:"id"`

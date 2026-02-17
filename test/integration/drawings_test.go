@@ -577,6 +577,51 @@ func TestContent(t *testing.T) {
 	}
 }
 
+// --- Tweet drawing tests (dedicated endpoint) ---
+
+func TestTweetDrawing(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	body := map[string]any{
+		"tweet_url": "https://x.com/DGNSREKT/status/2023511775363174708",
+	}
+	resp := env.POST(t, env.chartPath("drawings/tweet"), body)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ChartID string `json:"chart_id"`
+		ID      string `json:"id"`
+		Status  string `json:"status"`
+		URL     string `json:"url"`
+	}](t, resp)
+	if result.ID == "" {
+		t.Fatal("tweet drawing: id is empty")
+	}
+	requireField(t, result.Status, "created", "status")
+	t.Logf("tweet drawing created: id=%s url=%s", result.ID, result.URL)
+
+	count := listDrawingCount(t)
+	if count < 1 {
+		t.Fatalf("expected at least 1 drawing after tweet creation, got %d", count)
+	}
+}
+
+func TestTweetDrawing_Validation(t *testing.T) {
+	t.Run("empty_url", func(t *testing.T) {
+		body := map[string]any{"tweet_url": ""}
+		resp := env.POST(t, env.chartPath("drawings/tweet"), body)
+		defer resp.Body.Close()
+		requireStatus(t, resp, http.StatusBadRequest)
+	})
+
+	t.Run("invalid_domain", func(t *testing.T) {
+		body := map[string]any{"tweet_url": "https://example.com/not-a-tweet"}
+		resp := env.POST(t, env.chartPath("drawings/tweet"), body)
+		defer resp.Body.Close()
+		requireStatus(t, resp, http.StatusBadRequest)
+	})
+}
+
 // --- Icon shape tests (3 shapes) ---
 
 func TestIcons(t *testing.T) {

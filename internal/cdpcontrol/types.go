@@ -344,6 +344,13 @@ type ShapePoint struct {
 	Price float64 `json:"price"`
 }
 
+// TweetDrawingResult describes the result of creating a tweet drawing.
+type TweetDrawingResult struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	URL    string `json:"url"`
+}
+
 // ChartToggles describes the state of chart toolbar toggles (log scale, auto scale, extended hours).
 type ChartToggles struct {
 	LogScale      *bool `json:"log_scale,omitempty"`

@@ -253,3 +253,63 @@ await chart.applyLineToolsState(dto);
 return JSON.stringify({ok:true,data:{status:"imported"}});
 `, state))
 }
+
+func jsCreateTweetDrawing(tweetURL string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsPreamble+`
+var tweetUrl = %s;
+if (!chart) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart unavailable"});
+}
+// Get or extract webpack require (reuse cached version from alerts bootstrap).
+var _wpReq = window.__tvAgentWpRequire || null;
+if (!_wpReq) {
+  var _ca = window.webpackChunktradingview;
+  if (_ca && Array.isArray(_ca)) {
+    try { _ca.push([["__tweet_" + Date.now()], {}, function(r) { _wpReq = r; }]); } catch(_) {}
+    if (_wpReq) window.__tvAgentWpRequire = _wpReq;
+  }
+}
+if (!_wpReq || !_wpReq.c) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"webpack require unavailable"});
+}
+// Scan module cache for createTweetLineToolByUrl export.
+var _createTweetFn = null;
+var _mc = _wpReq.c;
+var _mkeys = Object.keys(_mc);
+for (var _mi = 0; _mi < _mkeys.length; _mi++) {
+  try {
+    var _exp = _mc[_mkeys[_mi]].exports;
+    if (_exp && typeof _exp.createTweetLineToolByUrl === "function") {
+      _createTweetFn = _exp.createTweetLineToolByUrl;
+      break;
+    }
+  } catch(_) {}
+}
+if (!_createTweetFn) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"createTweetLineToolByUrl not found in webpack modules"});
+}
+// Access internal chart model via _chartWidget.
+var cw = chart._chartWidget;
+if (!cw) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"_chartWidget unavailable"});
+}
+var model = typeof cw.model === "function" ? cw.model() : null;
+if (!model) {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"chart model unavailable"});
+}
+var result = await _createTweetFn(tweetUrl, model);
+if (!result) {
+  return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"createTweetLineToolByUrl returned null (tweet may be invalid or deleted)"});
+}
+// Extract the line tool ID from the result.
+// _id is a WatchedValue — access via .value() or ._value.
+var id = "";
+if (typeof result === "string") { id = result; }
+else if (result && result._id && typeof result._id.value === "function") { id = String(result._id.value()); }
+else if (result && result._id && result._id._value) { id = String(result._id._value); }
+else if (result && typeof result.entityId === "function") { id = String(result.entityId()); }
+else if (result && result.id) { id = String(result.id); }
+else { id = String(result); }
+return JSON.stringify({ok:true,data:{id:id,status:"created",url:tweetUrl}});
+`, jsString(tweetURL)))
+}

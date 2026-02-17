@@ -212,6 +212,9 @@ func (s *stubService) CreateDrawing(ctx context.Context, chartID string, point c
 func (s *stubService) CreateMultipointDrawing(ctx context.Context, chartID string, points []cdpcontrol.ShapePoint, options map[string]any, pane int) (string, error) {
 	return "", nil
 }
+func (s *stubService) CreateTweetDrawing(ctx context.Context, chartID string, tweetURL string, pane int) (cdpcontrol.TweetDrawingResult, error) {
+	return cdpcontrol.TweetDrawingResult{}, nil
+}
 func (s *stubService) CloneDrawing(ctx context.Context, chartID, shapeID string, pane int) (string, error) {
 	return "", nil
 }
