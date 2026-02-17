@@ -5,6 +5,7 @@ package integration
 import (
 	"net/http"
 	"testing"
+	"time"
 )
 
 // --- Drawing test helpers ---
@@ -604,6 +605,45 @@ func TestTweetDrawing(t *testing.T) {
 	if count < 1 {
 		t.Fatalf("expected at least 1 drawing after tweet creation, got %d", count)
 	}
+}
+
+func TestTweetDrawing_DeleteByID(t *testing.T) {
+	t.Cleanup(func() { clearDrawings(t) })
+	clearDrawings(t)
+
+	// Brief pause to avoid TradingView backend rate-limiting on tweet data fetch.
+	time.Sleep(2 * time.Second)
+
+	// Create a tweet drawing.
+	body := map[string]any{
+		"tweet_url": "https://x.com/DGNSREKT/status/2023511775363174708",
+	}
+	resp := env.POST(t, env.chartPath("drawings/tweet"), body)
+	requireStatus(t, resp, http.StatusOK)
+	result := decodeJSON[struct {
+		ID string `json:"id"`
+	}](t, resp)
+	if result.ID == "" {
+		t.Fatal("tweet drawing: id is empty")
+	}
+
+	// Verify it exists.
+	before := listDrawingCount(t)
+	if before < 1 {
+		t.Fatalf("expected at least 1 drawing, got %d", before)
+	}
+
+	// Delete by ID.
+	resp = env.DELETE(t, env.chartPath("drawings/"+result.ID))
+	requireStatus(t, resp, http.StatusNoContent)
+	resp.Body.Close()
+
+	// Verify it was removed.
+	after := listDrawingCount(t)
+	if after >= before {
+		t.Fatalf("expected drawing count to decrease, before=%d after=%d", before, after)
+	}
+	t.Logf("tweet drawing %s deleted, count %d -> %d", result.ID, before, after)
 }
 
 func TestTweetDrawing_Validation(t *testing.T) {
