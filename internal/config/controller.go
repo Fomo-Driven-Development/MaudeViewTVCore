@@ -15,10 +15,24 @@ type ControllerConfig struct {
 	LogLevel      string
 	LogFile       string
 	SnapshotDir   string
+
+	// Browser launch settings (optional, for single-command startup)
+	LaunchBrowser       bool
+	StartURL            string
+	ProfileDir          string
+	LogFileDir          string
+	CrashDumpDir        string
+	EnableCrashReporter bool
 }
 
 // LoadController reads controller configuration from environment variables.
 func LoadController() (*ControllerConfig, error) {
+	logFileDir := getEnvOrDefault("CHROMIUM_LOG_FILE_DIR", "logs")
+	crashDumpDir := getEnvOrDefault("CHROMIUM_CRASH_DUMP_DIR", "")
+	if crashDumpDir == "" {
+		crashDumpDir = logFileDir + "/chromium-crash-dumps"
+	}
+
 	cfg := &ControllerConfig{
 		CDPAddress:    getEnvOrDefault("CHROMIUM_CDP_ADDRESS", "127.0.0.1"),
 		CDPPort:       getEnvIntOrDefault("CHROMIUM_CDP_PORT", 9220),
@@ -28,6 +42,13 @@ func LoadController() (*ControllerConfig, error) {
 		LogLevel:      strings.ToLower(getEnvOrDefault("CONTROLLER_LOG_LEVEL", "info")),
 		LogFile:       getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/tv_controller.log"),
 		SnapshotDir:   getEnvOrDefault("SNAPSHOT_DIR", "./snapshots"),
+
+		LaunchBrowser:       getEnvBoolOrDefault("CONTROLLER_LAUNCH_BROWSER", false),
+		StartURL:            getEnvOrDefault("CHROMIUM_START_URL", "https://www.tradingview.com/"),
+		ProfileDir:          getEnvOrDefault("CHROMIUM_PROFILE_DIR", "./chromium-profile"),
+		LogFileDir:          logFileDir,
+		CrashDumpDir:        crashDumpDir,
+		EnableCrashReporter: getEnvBoolOrDefault("CHROMIUM_ENABLE_CRASH_REPORTER", false),
 	}
 	if cfg.EvalTimeoutMS < 1000 {
 		cfg.EvalTimeoutMS = 1000

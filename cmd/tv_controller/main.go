@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/api"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/browser"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/controller"
@@ -39,13 +41,34 @@ func main() {
 		"log_level", cfg.LogLevel,
 		"log_file", cfg.LogFile,
 		"snapshot_dir", cfg.SnapshotDir,
+		"launch_browser", cfg.LaunchBrowser,
 	)
+
+	var launcher *browser.Launcher
+	if cfg.LaunchBrowser {
+		launcher = browser.NewLauncher(browser.Config{
+			CDPAddress:          cfg.CDPAddress,
+			CDPPort:             cfg.CDPPort,
+			StartURL:            cfg.StartURL,
+			ProfileDir:          cfg.ProfileDir,
+			LogFileDir:          cfg.LogFileDir,
+			CrashDumpDir:        cfg.CrashDumpDir,
+			EnableCrashReporter: cfg.EnableCrashReporter,
+		})
+		if err := launcher.Launch(context.Background()); err != nil {
+			slog.Error("failed to launch browser", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	bindAddr := cfg.BindAddr
 
 	cdpClient := cdpcontrol.NewClient(cfg.ControllerCDPURL(), cfg.TabURLFilter, time.Duration(cfg.EvalTimeoutMS)*time.Millisecond)
 	if err := cdpClient.Connect(context.Background()); err != nil {
 		slog.Error("failed to connect CDP controller", "cdp_url", cfg.ControllerCDPURL(), "error", err)
+		if launcher != nil && launcher.Running() {
+			launcher.Stop()
+		}
 		os.Exit(1)
 	}
 	defer func() {
@@ -57,6 +80,9 @@ func main() {
 	snapStore, err := snapshot.NewStore(cfg.SnapshotDir)
 	if err != nil {
 		slog.Error("failed to create snapshot store", "dir", cfg.SnapshotDir, "error", err)
+		if launcher != nil && launcher.Running() {
+			launcher.Stop()
+		}
 		os.Exit(1)
 	}
 
@@ -65,23 +91,37 @@ func main() {
 
 	srv := &http.Server{Addr: bindAddr, Handler: h}
 
+	serverErr := make(chan error, 1)
 	go func() {
 		slog.Info("tv_controller listening", "addr", bindAddr, "docs", "http://"+bindAddr+"/docs")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("tv_controller server failed", "error", err)
-			os.Exit(1)
+			slog.Error("hint: kill the process holding the port with: lsof -ti:"+bindAddr[strings.LastIndex(bindAddr, ":")+1:]+" | xargs kill -9")
+			serverErr <- err
 		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+
+	exitCode := 0
+	select {
+	case <-sigCh:
+	case <-serverErr:
+		exitCode = 1
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("tv_controller shutdown failed", "error", err)
 	}
+
+	if launcher != nil && launcher.Running() {
+		launcher.Stop()
+	}
+
+	os.Exit(exitCode)
 }
 
 func setupLogger(level, filename string) error {
