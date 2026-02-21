@@ -507,6 +507,19 @@ Filter captured `private_feed` frames for `m: "alert_fired"` messages. The resea
 **Pros:** Passive, no browser-side injection, full history in JSONL.
 **Cons:** Requires post-processing, latency depends on flush interval.
 
+### Option D: SSE Relay via Controller (implemented)
+
+The controller's WebSocket relay (`internal/relay/`) listens for CDP `Network.webSocketCreated/FrameReceived/Closed` events, matches connections against feed configs in `config/relay.yaml`, filters by message type (`"m"` field), and publishes to an SSE endpoint at `GET /api/v1/relay/events`.
+
+```
+Browser WS traffic → CDP Network events → Relay engine (filter) → SSE Broker → GET /api/v1/relay/events
+```
+
+Enable with `CONTROLLER_RELAY_ENABLED=true`. Clients can filter feeds via `?feeds=private_feed,chart_data`.
+
+**Pros:** Real-time streaming to any SSE client, no JS eval, configurable feed/message filtering, multiple concurrent clients supported.
+**Cons:** Requires controller to be running, relay only sees connections created after startup (page reload needed), single point of failure if controller stops.
+
 ### Option Hybrid: Direct WebSocket Client
 
 Connect a Go WebSocket client directly to `wss://pushstream.tradingview.com/message-pipe-ws/private_feed` using the user's auth token (extracted from the chart data socket's `set_auth_token` message). This bypasses the browser entirely.

@@ -1,6 +1,6 @@
 # Implementation Status
 
-184 controller API endpoints across 10 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+185 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -18,9 +18,10 @@
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
 | Notes | `server_notes.go` | 6 |
-| **Total** | | **181** |
+| Relay | SSE streaming | 1 |
+| **Total** | | **182** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 184.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 185.
 
 ## Endpoints by Feature Area
 
@@ -30,6 +31,12 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 184
 |--------|------|------|-----------|
 | GET | `/health` | Static | Returns `{"status":"ok"}` |
 | GET | `/api/v1/health/deep` | JS API call | Browser connection, tab state, chart readiness checks |
+
+### Relay (WebSocket → SSE)
+
+| Method | Path | Type | Mechanism |
+|--------|------|------|-----------|
+| GET | `/api/v1/relay/events` | SSE stream | Relays browser WebSocket frames via Server-Sent Events. Opt-in via `CONTROLLER_RELAY_ENABLED=true`. Filter feeds with `?feeds=private_feed,chart_data`. Config: `config/relay.yaml`. |
 
 ### Charts
 
@@ -336,6 +343,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 184
 | File I/O | ~6 | None | Local snapshot storage |
 | DOM manipulation | ~4 | **High** | CSS class names and DOM structure change frequently |
 | CDP protocol | ~3 | None | Standard CDP commands |
+| SSE relay | 1 | Low | Relays CDP Network.webSocket* events, depends on Network domain |
 
 ### High-fragility endpoints to monitor
 

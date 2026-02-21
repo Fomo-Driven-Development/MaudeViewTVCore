@@ -49,6 +49,7 @@ Key test files exist in: `internal/api/` and `test/integration/`.
 | `api` | Huma REST API server with chi router. Defines operations via `Service` interface. |
 | `controller` | Service layer wrapping `cdpcontrol.Client` with input validation. |
 | `cdpcontrol` | Active CDP client for TradingView JS evaluation. Per-chart mutex locking, configurable eval timeout. |
+| `relay` | WebSocket relay via SSE. Listens for CDP Network events, filters by feed config, publishes to SSE broker. |
 
 ### Data Flow
 
@@ -59,6 +60,8 @@ Chromium (CDP) → researcher → capture handlers → WriterRegistry → resear
                                                                     └── resources/js/
 
 Chromium (CDP) ← tv_controller API ← cdpcontrol (JS eval in TradingView pages)
+                   ↓ (opt-in)
+              SSE Relay ← CDP Network.webSocket* events → GET /api/v1/relay/events
 ```
 
 ## Key Patterns
@@ -78,10 +81,12 @@ Copy `example.env` → `.env`. Key settings:
 - `RESEARCHER_TAB_URL_FILTER` (default `tradingview.com`) — which tabs to attach to
 - `CONTROLLER_BIND_ADDR` (default `127.0.0.1:8188`) — API server bind address
 - `CONTROLLER_EVAL_TIMEOUT_MS` (default 5000) — JS evaluation timeout
+- `CONTROLLER_RELAY_ENABLED` (default `false`) — enable WebSocket relay via SSE
+- `CONTROLLER_RELAY_CONFIG` (default `./config/relay.yaml`) — relay feed config
 
 ## Documentation
 
 - `docs/security-guide.md` — Security hardening for CDP browser automation
 - `docs/controller-runbook.md` — Controller startup, config, and usage
-- `docs/dev/implementation-status.md` — All 176 endpoints, mechanisms, fragility, coverage gaps
+- `docs/dev/implementation-status.md` — All 185 endpoints, mechanisms, fragility, coverage gaps
 - `docs/dev/js-internals.md` — TradingView JS manager singletons reference
