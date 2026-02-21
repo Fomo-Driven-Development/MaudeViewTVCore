@@ -1,6 +1,6 @@
 # Implementation Status
 
-177 controller API endpoints across 9 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+178 controller API endpoints across 9 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -13,13 +13,13 @@
 | Pine Editor | `server_pine.go` | 21 |
 | Layout | `server_layout.go` | 19 |
 | Drawings | `server_drawing.go` | 20 |
-| Studies & Indicators | `server_study.go` | 15 |
+| Studies & Indicators | `server_study.go` | 16 |
 | Watchlists | `server_watchlist.go` | 15 |
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
-| **Total** | | **174** |
+| **Total** | | **175** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 177.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 178.
 
 ## Endpoints by Feature Area
 
@@ -139,6 +139,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 177
 | GET | `/api/v1/indicators/probe-dom` | DOM manipulation | Probe indicator dialog DOM |
 | GET | `/api/v1/study-templates` | JS internal REST | List saved study templates |
 | GET | `/api/v1/study-templates/{id}` | JS internal REST | Get study template detail |
+| POST | `/api/v1/chart/{id}/study-templates/apply` | JS internal REST | Apply a study template by name |
 
 ### Watchlists
 
@@ -318,7 +319,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 177
 | JS API call | ~90 | Low | `window.TradingViewApi` — stable public-facing charting library API |
 | Webpack internal | ~21 | **High** | Module IDs and internal singletons change on TradingView deploys |
 | Keyboard shortcut | ~16 | Low | Standard shortcuts rarely change |
-| JS internal REST | ~14 | Medium | TradingView's private REST paths versioned (`/api/v1/`) but could change |
+| JS internal REST | ~15 | Medium | TradingView's private REST paths versioned (`/api/v1/`) but could change |
 | Mixed | ~10 | Medium | Combines 2+ techniques (DOM + click, keyboard + text) |
 | File I/O | ~6 | None | Local snapshot storage |
 | DOM manipulation | ~4 | **High** | CSS class names and DOM structure change frequently |
