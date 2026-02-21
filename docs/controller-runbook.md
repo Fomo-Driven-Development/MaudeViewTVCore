@@ -65,4 +65,4 @@ curl -s http://127.0.0.1:8188/health
 curl -s http://127.0.0.1:8188/api/v1/charts
 ```
 
-For full endpoint documentation (176 endpoints), see [`dev/implementation-status.md`](dev/implementation-status.md).
+For full endpoint documentation (184 endpoints), see [`dev/implementation-status.md`](dev/implementation-status.md).

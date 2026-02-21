@@ -6,9 +6,9 @@
 
 Browser automation for TradingView via Chrome DevTools Protocol.
 
-Exposes a REST API for TradingView chart control — symbol, resolution, studies, drawings, alerts, watchlists, Pine editor, replay, snapshots, and layouts. Connects to a Chromium browser over CDP and evaluates JavaScript directly in TradingView pages. A separate researcher daemon passively captures network traffic for offline analysis.
+Exposes a REST API for TradingView chart control — symbol, resolution, studies, drawings, alerts, watchlists, notes, Pine editor, replay, snapshots, and layouts. Connects to a Chromium browser over CDP and evaluates JavaScript directly in TradingView pages. A separate researcher daemon passively captures network traffic for offline analysis.
 
-**[Full Documentation](https://fomo-driven-development.github.io/MaudeViewTvDocs/)** — architecture, quickstart, all 177 endpoints, building agents, configuration, security.
+**[Full Documentation](https://fomo-driven-development.github.io/MaudeViewTvDocs/)** — architecture, quickstart, all 184 endpoints, building agents, configuration, security.
 
 > **WARNING — Security**
 >

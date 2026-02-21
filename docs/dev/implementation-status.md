@@ -1,6 +1,6 @@
 # Implementation Status
 
-178 controller API endpoints across 9 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+184 controller API endpoints across 10 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -17,9 +17,10 @@
 | Watchlists | `server_watchlist.go` | 15 |
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
-| **Total** | | **175** |
+| Notes | `server_notes.go` | 6 |
+| **Total** | | **181** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 178.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 184.
 
 ## Endpoints by Feature Area
 
@@ -240,6 +241,17 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 178
 | DELETE | `/api/v1/alerts/fires` | Webpack internal | `await aapi.deleteFires({fire_ids: ids})` |
 | DELETE | `/api/v1/alerts/fires/all` | Webpack internal | `await aapi.deleteAllFires()` |
 
+### Notes
+
+| Method | Path | Type | Mechanism |
+|--------|------|------|-----------|
+| GET | `/api/v1/notes` | JS internal REST | `fetch("/textnotes/getall/")` with optional `?symbol=` filter |
+| GET | `/api/v1/notes/{note_id}` | JS internal REST | Fetches all notes, finds by ID |
+| POST | `/api/v1/notes` | JS internal REST | `fetch("/textnotes/add/")` with FormData |
+| PUT | `/api/v1/notes/{note_id}` | JS internal REST | `fetch("/textnotes/edit/")` with FormData |
+| DELETE | `/api/v1/notes/{note_id}` | JS internal REST | `fetch("/textnotes/remove/")` with FormData |
+| POST | `/api/v1/notes/snapshot` | Webpack internal | `clientSnapshot()` → base64 → `POST /snapshot/` with `images` JSON + `previews[]=thumb` |
+
 ### Snapshots
 
 | Method | Path | Type | Mechanism |
@@ -317,9 +329,9 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 178
 | Type | Count | Fragility | Notes |
 |------|-------|-----------|-------|
 | JS API call | ~90 | Low | `window.TradingViewApi` — stable public-facing charting library API |
-| Webpack internal | ~21 | **High** | Module IDs and internal singletons change on TradingView deploys |
+| Webpack internal | ~22 | **High** | Module IDs and internal singletons change on TradingView deploys |
 | Keyboard shortcut | ~16 | Low | Standard shortcuts rarely change |
-| JS internal REST | ~15 | Medium | TradingView's private REST paths versioned (`/api/v1/`) but could change |
+| JS internal REST | ~20 | Medium | TradingView's private REST paths versioned (`/api/v1/`) but could change |
 | Mixed | ~10 | Medium | Combines 2+ techniques (DOM + click, keyboard + text) |
 | File I/O | ~6 | None | Local snapshot storage |
 | DOM manipulation | ~4 | **High** | CSS class names and DOM structure change frequently |
@@ -333,6 +345,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 178
 - **Flag symbol** — React fiber tree walk (`__reactFiber`)
 - **Pine toggle** — DOM button selectors for CDP trusted click coordinates
 - **Hotlists** (5 endpoints) — webpack-internal `hotlistsManager()` singleton
+- **Notes snapshot** — webpack-internal `clientSnapshot()` + module 131890 fetch wrapper
 - **Tweet drawing** — webpack-internal `createTweetLineToolByUrl()` + TradingView backend fetch
 
 ## Coverage Gaps
