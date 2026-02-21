@@ -283,6 +283,37 @@ func registerMiscHandlers(api huma.API, svc Service) {
 			return out, nil
 		})
 
+	type snapshotImageOutput struct {
+		ContentType string `header:"Content-Type"`
+		Body        []byte
+	}
+	huma.Register(api, huma.Operation{
+		OperationID: "get-snapshot-image",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/snapshots/{snapshot_id}/image",
+		Summary:     "Get snapshot image",
+		Tags:        []string{"Snapshots"},
+		Responses: map[string]*huma.Response{
+			"200": {
+				Description: "Snapshot image",
+				Content: map[string]*huma.MediaType{
+					"image/png": {
+						Schema: &huma.Schema{Type: "string", Format: "binary"},
+					},
+				},
+			},
+		},
+	}, func(ctx context.Context, input *snapshotIDInput) (*snapshotImageOutput, error) {
+		data, format, err := svc.ReadSnapshotImage(ctx, input.SnapshotID)
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		ct := "image/png"
+		if format == "jpeg" {
+			ct = "image/jpeg"
+		}
+		return &snapshotImageOutput{ContentType: ct, Body: data}, nil
+	})
 
 	type reloadOutput struct {
 		Body cdpcontrol.ReloadResult
