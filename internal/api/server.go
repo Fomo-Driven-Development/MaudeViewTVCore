@@ -181,6 +181,7 @@ type Service interface {
 	BulkRemoveColoredWatchlist(ctx context.Context, symbols []string) error
 	ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyTemplateList, error)
 	GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error)
+	ApplyStudyTemplate(ctx context.Context, chartID, name string) (cdpcontrol.StudyTemplateApplyResult, error)
 	ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error)
 	ProbeHotlistsManagerDeep(ctx context.Context) (map[string]any, error)
 	GetHotlistMarkets(ctx context.Context) (any, error)

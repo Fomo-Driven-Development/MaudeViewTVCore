@@ -1383,6 +1383,13 @@ func (s *Service) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.Stud
 	return s.cdp.GetStudyTemplate(ctx, id)
 }
 
+func (s *Service) ApplyStudyTemplate(ctx context.Context, chartID, name string) (cdpcontrol.StudyTemplateApplyResult, error) {
+	if err := s.requireNonEmpty(name, "template name"); err != nil {
+		return cdpcontrol.StudyTemplateApplyResult{}, err
+	}
+	return s.cdp.ApplyStudyTemplate(ctx, strings.TrimSpace(chartID), strings.TrimSpace(name))
+}
+
 // --- Hotlists Manager methods ---
 
 func (s *Service) ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error) {

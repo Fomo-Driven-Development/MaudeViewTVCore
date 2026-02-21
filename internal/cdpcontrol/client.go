@@ -2404,6 +2404,14 @@ func (c *Client) GetStudyTemplate(ctx context.Context, id int) (StudyTemplateEnt
 	return out, nil
 }
 
+func (c *Client) ApplyStudyTemplate(ctx context.Context, chartID, name string) (StudyTemplateApplyResult, error) {
+	var out StudyTemplateApplyResult
+	if err := c.evalOnChart(ctx, chartID, jsApplyStudyTemplateByName(name), &out); err != nil {
+		return StudyTemplateApplyResult{}, err
+	}
+	return out, nil
+}
+
 // --- Hotlists Manager methods ---
 
 func (c *Client) ProbeHotlistsManager(ctx context.Context) (HotlistsManagerProbe, error) {

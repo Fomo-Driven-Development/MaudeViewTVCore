@@ -449,6 +449,9 @@ func (s *stubService) ListStudyTemplates(ctx context.Context) (cdpcontrol.StudyT
 func (s *stubService) GetStudyTemplate(ctx context.Context, id int) (cdpcontrol.StudyTemplateEntry, error) {
 	return cdpcontrol.StudyTemplateEntry{}, nil
 }
+func (s *stubService) ApplyStudyTemplate(ctx context.Context, chartID, name string) (cdpcontrol.StudyTemplateApplyResult, error) {
+	return cdpcontrol.StudyTemplateApplyResult{}, nil
+}
 func (s *stubService) ProbeHotlistsManager(ctx context.Context) (cdpcontrol.HotlistsManagerProbe, error) {
 	return cdpcontrol.HotlistsManagerProbe{}, nil
 }
@@ -576,6 +579,7 @@ func TestNewServerRegistersAllDomainRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/pine/status", http.StatusOK},
 		{http.MethodGet, "/api/v1/layouts", http.StatusOK},
 		{http.MethodGet, "/health", http.StatusOK},
+		{http.MethodPost, "/api/v1/chart/chart-1/study-templates/apply?name=foo", http.StatusOK},
 	}
 
 	for _, tt := range tests {

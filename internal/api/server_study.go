@@ -200,6 +200,24 @@ func registerStudyHandlers(api huma.API, svc Service) {
 			out.Body = entry
 			return out, nil
 		})
+	type applyStudyTemplateInput struct {
+		ChartID string `path:"chart_id"`
+		Name    string `query:"name" required:"true" doc:"Template name to apply (case-insensitive match)"`
+	}
+	type applyStudyTemplateOutput struct {
+		Body cdpcontrol.StudyTemplateApplyResult
+	}
+	huma.Register(api, huma.Operation{OperationID: "apply-study-template", Method: http.MethodPost, Path: "/api/v1/chart/{chart_id}/study-templates/apply", Summary: "Apply a study template by name", Tags: []string{"Studies"}},
+		func(ctx context.Context, input *applyStudyTemplateInput) (*applyStudyTemplateOutput, error) {
+			result, err := svc.ApplyStudyTemplate(ctx, input.ChartID, input.Name)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &applyStudyTemplateOutput{}
+			out.Body = result
+			return out, nil
+		})
+
 	type searchIndicatorsInput struct {
 		ChartID string `path:"chart_id"`
 		Body    struct {

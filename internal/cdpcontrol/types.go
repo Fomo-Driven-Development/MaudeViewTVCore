@@ -619,6 +619,13 @@ type StudyTemplateEntry struct {
 	FavoriteDate string `json:"favorite_date,omitempty"`
 }
 
+// StudyTemplateApplyResult describes the result of applying a study template.
+type StudyTemplateApplyResult struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
 // StudyTemplateList describes study templates grouped by category.
 type StudyTemplateList struct {
 	Custom       []StudyTemplateEntry `json:"custom"`

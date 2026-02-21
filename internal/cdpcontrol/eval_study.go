@@ -676,6 +676,30 @@ return JSON.stringify({ok:true,data:{id:Number(raw.id||tid),name:String(raw.name
 `, id))
 }
 
+func jsApplyStudyTemplateByName(name string) string {
+	return wrapJSEvalAsync(fmt.Sprintf(jsWatchlistFetch+jsPreamble+`
+var targetName = %s;
+if (!api) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"TradingView API unavailable"});
+var raw = await _wlFetch("/api/v1/study-templates");
+var match = null;
+var lower = targetName.toLowerCase();
+var all = (raw.custom || []).concat(raw.standard || []).concat(raw.fundamentals || []);
+for (var i = 0; i < all.length; i++) {
+  if ((all[i].name || "").toLowerCase() === lower) { match = all[i]; break; }
+}
+if (!match) return JSON.stringify({ok:false,error_code:"VALIDATION",error_message:"template not found: " + targetName});
+var detail = await _wlFetch("/api/v1/study-templates/" + match.id);
+var chart = api.activeChart();
+if (!chart || typeof chart.applyStudyTemplate !== "function") {
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"applyStudyTemplate unavailable"});
+}
+var tplData = typeof detail.content === "string" ? JSON.parse(detail.content) : detail.content;
+if (!tplData) return JSON.stringify({ok:false,error_code:"EVAL_FAILURE",error_message:"template content is empty"});
+chart.applyStudyTemplate(tplData);
+return JSON.stringify({ok:true,data:{id:Number(match.id),name:String(match.name),status:"applied"}});
+`, jsString(name)))
+}
+
 // jsHotlistsPreamble extends jsPreamble with hotlistsManager() resolution.
 // The hotlists manager is a webpack-internal singleton — accessed via webpack
 // require extraction + module cache scan. No lazy-load trigger needed.
