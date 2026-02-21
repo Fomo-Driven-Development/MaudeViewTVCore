@@ -1,0 +1,15 @@
+# WebSocket Relay Configuration
+# Each feed matches browser WebSocket connections by URL pattern.
+# Optional message_types filters on the "m" field in JSON payloads.
+
+feeds:
+  - name: private_feed
+    url_pattern: "private_feed"
+    message_types: ["alert_fired", "alerts_created", "alerts_updated", "fires_updated"]
+
+  - name: public
+    url_pattern: "public"
+
+  - name: chart_data
+    url_pattern: "socket.io/websocket"
+    message_types: ["du", "qsd"]

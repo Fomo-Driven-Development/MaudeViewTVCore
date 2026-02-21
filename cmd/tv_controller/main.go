@@ -16,6 +16,7 @@ import (
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/cdpcontrol"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/config"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/controller"
+	"github.com/dgnsrekt/MaudeViewTVCore/internal/relay"
 	"github.com/dgnsrekt/MaudeViewTVCore/internal/snapshot"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -87,7 +88,26 @@ func main() {
 	}
 
 	svc := controller.NewService(cdpClient, snapStore)
-	h := api.NewServer(svc)
+
+	var serverOpts []api.ServerOption
+	var wsRelay *relay.Relay
+	if cfg.RelayEnabled {
+		relayCfg, err := relay.LoadConfig(cfg.RelayConfigPath)
+		if err != nil {
+			slog.Error("failed to load relay config", "path", cfg.RelayConfigPath, "error", err)
+			os.Exit(1)
+		}
+		broker := relay.NewBroker()
+		wsRelay = relay.NewRelay(relayCfg, broker)
+		if err := wsRelay.Start(context.Background(), cdpClient); err != nil {
+			slog.Error("failed to start relay", "error", err)
+			os.Exit(1)
+		}
+		serverOpts = append(serverOpts, api.WithRelayHandler(relay.SSEHandler(broker)))
+		slog.Info("ws relay enabled", "config", cfg.RelayConfigPath, "feeds", len(relayCfg.Feeds))
+	}
+
+	h := api.NewServer(svc, serverOpts...)
 
 	srv := &http.Server{Addr: bindAddr, Handler: h}
 
@@ -115,6 +135,10 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("tv_controller shutdown failed", "error", err)
+	}
+
+	if wsRelay != nil {
+		wsRelay.Stop()
 	}
 
 	if launcher != nil && launcher.Running() {

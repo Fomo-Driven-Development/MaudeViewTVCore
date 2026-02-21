@@ -16,6 +16,10 @@ type ControllerConfig struct {
 	LogFile       string
 	SnapshotDir   string
 
+	// WebSocket relay settings
+	RelayEnabled    bool
+	RelayConfigPath string
+
 	// Browser launch settings (optional, for single-command startup)
 	LaunchBrowser       bool
 	StartURL            string
@@ -42,6 +46,9 @@ func LoadController() (*ControllerConfig, error) {
 		LogLevel:      strings.ToLower(getEnvOrDefault("CONTROLLER_LOG_LEVEL", "info")),
 		LogFile:       getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/tv_controller.log"),
 		SnapshotDir:   getEnvOrDefault("SNAPSHOT_DIR", "./snapshots"),
+
+		RelayEnabled:    getEnvBoolOrDefault("CONTROLLER_RELAY_ENABLED", false),
+		RelayConfigPath: getEnvOrDefault("CONTROLLER_RELAY_CONFIG", "./config/relay.yaml"),
 
 		LaunchBrowser:       getEnvBoolOrDefault("CONTROLLER_LAUNCH_BROWSER", false),
 		StartURL:            getEnvOrDefault("CHROMIUM_START_URL", "https://www.tradingview.com/"),

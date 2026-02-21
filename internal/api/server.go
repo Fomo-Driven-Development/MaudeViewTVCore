@@ -212,7 +212,17 @@ type navStatusOutput struct {
 	}
 }
 
-func NewServer(svc Service) http.Handler {
+// ServerOption configures optional server features.
+type ServerOption func(*chi.Mux)
+
+// WithRelayHandler mounts an SSE relay handler at /api/v1/relay/events.
+func WithRelayHandler(h http.Handler) ServerOption {
+	return func(r *chi.Mux) {
+		r.Get("/api/v1/relay/events", h.ServeHTTP)
+	}
+}
+
+func NewServer(svc Service, opts ...ServerOption) http.Handler {
 	router := chi.NewMux()
 	router.Use(middleware.RequestID)
 	router.Use(requestLogger)
@@ -228,6 +238,10 @@ func NewServer(svc Service) http.Handler {
 			slog.Debug("docs response write failed", "error", err)
 		}
 	})
+
+	for _, opt := range opts {
+		opt(router)
+	}
 
 	registerChartHandlers(api, svc)
 	registerWatchlistHandlers(api, svc)

@@ -2539,3 +2539,27 @@ func (c *Client) ProbeDataWindow(ctx context.Context, chartID string) (DataWindo
 	}
 	return out, nil
 }
+
+// EnableNetworkDomain enables the Network CDP domain on the first available
+// chart tab session so that Network.* events are emitted.
+func (c *Client) EnableNetworkDomain(ctx context.Context) error {
+	cdp, sessionID, err := c.resolveAnySession(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = cdp.sendFlat(ctx, sessionID, "Network.enable", nil)
+	return err
+}
+
+// RegisterCDPEventHandler registers a handler for a CDP event method (e.g.
+// "Network.webSocketCreated"). Returns an unregister function.
+// The caller must have called Connect first.
+func (c *Client) RegisterCDPEventHandler(method string, fn func(sessionID string, params json.RawMessage)) (func(), error) {
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return nil, newError(CodeCDPUnavailable, "CDP client not connected", nil)
+	}
+	return cdp.registerEventHandler(method, fn), nil
+}
