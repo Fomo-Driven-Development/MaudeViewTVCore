@@ -1323,6 +1323,59 @@ func (s *Service) GetAvailableUnits(ctx context.Context, chartID string, pane in
 	return s.cdp.GetAvailableUnits(ctx, strings.TrimSpace(chartID))
 }
 
+// --- Notes methods ---
+
+func (s *Service) ListNotes(ctx context.Context, symbol string) ([]cdpcontrol.Note, error) {
+	return s.cdp.ListNotes(ctx, strings.TrimSpace(symbol))
+}
+
+func (s *Service) GetNote(ctx context.Context, noteID int) (cdpcontrol.Note, error) {
+	if noteID <= 0 {
+		return cdpcontrol.Note{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "note_id must be > 0"}
+	}
+	notes, err := s.cdp.ListNotes(ctx, "")
+	if err != nil {
+		return cdpcontrol.Note{}, err
+	}
+	for _, n := range notes {
+		if n.ID == noteID {
+			return n, nil
+		}
+	}
+	return cdpcontrol.Note{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeNoteNotFound, Message: fmt.Sprintf("note %d not found", noteID)}
+}
+
+func (s *Service) CreateNote(ctx context.Context, symbolFull, description, title, snapshotUID string) (cdpcontrol.Note, error) {
+	if err := s.requireNonEmpty(symbolFull, "symbol_full"); err != nil {
+		return cdpcontrol.Note{}, err
+	}
+	if err := s.requireNonEmpty(description, "description"); err != nil {
+		return cdpcontrol.Note{}, err
+	}
+	return s.cdp.CreateNote(ctx, strings.TrimSpace(symbolFull), description, title, strings.TrimSpace(snapshotUID))
+}
+
+func (s *Service) EditNote(ctx context.Context, noteID int, description, title, snapshotUID string) (cdpcontrol.Note, error) {
+	if noteID <= 0 {
+		return cdpcontrol.Note{}, &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "note_id must be > 0"}
+	}
+	if err := s.requireNonEmpty(description, "description"); err != nil {
+		return cdpcontrol.Note{}, err
+	}
+	return s.cdp.EditNote(ctx, noteID, description, title, strings.TrimSpace(snapshotUID))
+}
+
+func (s *Service) DeleteNote(ctx context.Context, noteID int) error {
+	if noteID <= 0 {
+		return &cdpcontrol.CodedError{Code: cdpcontrol.CodeValidation, Message: "note_id must be > 0"}
+	}
+	return s.cdp.DeleteNote(ctx, noteID)
+}
+
+func (s *Service) TakeServerSnapshot(ctx context.Context) (cdpcontrol.ServerSnapshotResult, error) {
+	return s.cdp.TakeServerSnapshot(ctx)
+}
+
 // --- Colored Watchlist methods ---
 
 var validColors = map[string]bool{

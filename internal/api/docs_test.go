@@ -87,7 +87,23 @@ func (s *stubService) AddWatchlistSymbols(ctx context.Context, id string, symbol
 func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
 	return cdpcontrol.WatchlistDetail{}, nil
 }
-func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error    { return nil }
+func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
+func (s *stubService) ListNotes(ctx context.Context, symbol string) ([]cdpcontrol.Note, error) {
+	return []cdpcontrol.Note{}, nil
+}
+func (s *stubService) GetNote(ctx context.Context, noteID int) (cdpcontrol.Note, error) {
+	return cdpcontrol.Note{}, nil
+}
+func (s *stubService) CreateNote(ctx context.Context, symbolFull, description, title, snapshotUID string) (cdpcontrol.Note, error) {
+	return cdpcontrol.Note{}, nil
+}
+func (s *stubService) EditNote(ctx context.Context, noteID int, description, title, snapshotUID string) (cdpcontrol.Note, error) {
+	return cdpcontrol.Note{}, nil
+}
+func (s *stubService) DeleteNote(ctx context.Context, noteID int) error { return nil }
+func (s *stubService) TakeServerSnapshot(ctx context.Context) (cdpcontrol.ServerSnapshotResult, error) {
+	return cdpcontrol.ServerSnapshotResult{}, nil
+}
 func (s *stubService) Zoom(ctx context.Context, chartID, direction string) error  { return nil }
 func (s *stubService) Scroll(ctx context.Context, chartID string, bars int) error { return nil }
 func (s *stubService) ResetView(ctx context.Context, chartID string) error        { return nil }
@@ -580,6 +596,9 @@ func TestNewServerRegistersAllDomainRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/layouts", http.StatusOK},
 		{http.MethodGet, "/health", http.StatusOK},
 		{http.MethodPost, "/api/v1/chart/chart-1/study-templates/apply?name=foo", http.StatusOK},
+		{http.MethodGet, "/api/v1/notes", http.StatusOK},
+		{http.MethodGet, "/api/v1/notes/1", http.StatusOK},
+		{http.MethodPost, "/api/v1/notes/snapshot", http.StatusOK},
 	}
 
 	for _, tt := range tests {

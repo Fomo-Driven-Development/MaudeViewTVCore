@@ -10,6 +10,7 @@ const (
 	CodeEvalTimeout    = "EVAL_TIMEOUT"
 	CodeCDPUnavailable    = "CDP_UNAVAILABLE"
 	CodeSnapshotNotFound  = "SNAPSHOT_NOT_FOUND"
+	CodeNoteNotFound      = "NOTE_NOT_FOUND"
 )
 
 // CodedError is a typed error used for stable API mapping.
@@ -667,6 +668,26 @@ type HotlistResult struct {
 	Exchange string          `json:"exchange"`
 	Group    string          `json:"group"`
 	Symbols  []HotlistSymbol `json:"symbols"`
+}
+
+// Note describes a watchlist text note from TradingView's textnotes API.
+type Note struct {
+	ID            int     `json:"id"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Created       float64 `json:"created"`
+	Modified      float64 `json:"modified"`
+	Symbol        string  `json:"symbol"`
+	SymbolFull    string  `json:"symbol_full"`
+	Snapshot      string  `json:"snapshot,omitempty"`
+	SnapshotPage  string  `json:"snapshot_page,omitempty"`
+	SnapshotThumb string  `json:"snapshot_thumb,omitempty"`
+}
+
+// ServerSnapshotResult describes the result of uploading a chart screenshot to TradingView servers.
+type ServerSnapshotResult struct {
+	UID string `json:"uid"`
+	URL string `json:"url"`
 }
 
 // DataWindowProbe describes what's discoverable about the data window / crosshair state.

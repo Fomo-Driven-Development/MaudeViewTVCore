@@ -2386,6 +2386,53 @@ func (c *Client) BulkRemoveColoredWatchlist(ctx context.Context, symbols []strin
 	return c.doSessionAction(ctx, jsBulkRemoveColoredWatchlist(symbols))
 }
 
+// --- Notes methods ---
+
+func (c *Client) ListNotes(ctx context.Context, symbol string) ([]Note, error) {
+	var out struct {
+		Notes []Note `json:"notes"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsListNotes(symbol), &out); err != nil {
+		return nil, err
+	}
+	if out.Notes == nil {
+		return []Note{}, nil
+	}
+	return out.Notes, nil
+}
+
+func (c *Client) CreateNote(ctx context.Context, symbolFull, description, title, snapshotUID string) (Note, error) {
+	var out Note
+	if err := c.evalOnAnyChart(ctx, jsCreateNote(symbolFull, description, title, snapshotUID), &out); err != nil {
+		return Note{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) EditNote(ctx context.Context, noteID int, description, title, snapshotUID string) (Note, error) {
+	var out Note
+	if err := c.evalOnAnyChart(ctx, jsEditNote(noteID, description, title, snapshotUID), &out); err != nil {
+		return Note{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) DeleteNote(ctx context.Context, noteID int) error {
+	return c.doSessionAction(ctx, jsDeleteNote(noteID))
+}
+
+func (c *Client) TakeServerSnapshot(ctx context.Context) (ServerSnapshotResult, error) {
+	// Snapshot involves canvas render + blob conversion + HTTP upload, so extend timeout.
+	snapCtx, cancel := context.WithTimeout(ctx, 3*c.evalTimeout)
+	defer cancel()
+
+	var out ServerSnapshotResult
+	if err := c.evalOnAnyChart(snapCtx, jsTakeServerSnapshot(), &out); err != nil {
+		return ServerSnapshotResult{}, err
+	}
+	return out, nil
+}
+
 // --- Study Template methods ---
 
 func (c *Client) ListStudyTemplates(ctx context.Context) (StudyTemplateList, error) {

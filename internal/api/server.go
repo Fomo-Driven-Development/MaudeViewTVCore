@@ -43,6 +43,12 @@ type Service interface {
 	AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
 	RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
 	FlagSymbol(ctx context.Context, id, symbol string) error
+	ListNotes(ctx context.Context, symbol string) ([]cdpcontrol.Note, error)
+	GetNote(ctx context.Context, noteID int) (cdpcontrol.Note, error)
+	CreateNote(ctx context.Context, symbolFull, description, title, snapshotUID string) (cdpcontrol.Note, error)
+	EditNote(ctx context.Context, noteID int, description, title, snapshotUID string) (cdpcontrol.Note, error)
+	DeleteNote(ctx context.Context, noteID int) error
+	TakeServerSnapshot(ctx context.Context) (cdpcontrol.ServerSnapshotResult, error)
 	Zoom(ctx context.Context, chartID, direction string) error
 	Scroll(ctx context.Context, chartID string, bars int) error
 	ResetView(ctx context.Context, chartID string) error
@@ -225,6 +231,7 @@ func NewServer(svc Service) http.Handler {
 
 	registerChartHandlers(api, svc)
 	registerWatchlistHandlers(api, svc)
+	registerNoteHandlers(api, svc)
 	registerStudyHandlers(api, svc)
 	registerDrawingHandlers(api, svc)
 	registerReplayHandlers(api, svc)
@@ -245,7 +252,7 @@ func mapErr(err error) error {
 		switch coded.Code {
 		case cdpcontrol.CodeValidation:
 			return huma.Error400BadRequest(coded.Message)
-		case cdpcontrol.CodeChartNotFound, cdpcontrol.CodeSnapshotNotFound:
+		case cdpcontrol.CodeChartNotFound, cdpcontrol.CodeSnapshotNotFound, cdpcontrol.CodeNoteNotFound:
 			return huma.Error404NotFound(coded.Message)
 		case cdpcontrol.CodeEvalTimeout:
 			return huma.Error504GatewayTimeout(coded.Message)
