@@ -194,6 +194,7 @@ type Service interface {
 	GetHotlistExchanges(ctx context.Context) ([]cdpcontrol.HotlistExchangeDetail, error)
 	GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error)
 	ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error)
+	ExportChartData(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartExportResult, error)
 }
 
 type chartIDInput struct {

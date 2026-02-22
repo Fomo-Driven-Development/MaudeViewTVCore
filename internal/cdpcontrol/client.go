@@ -2540,6 +2540,22 @@ func (c *Client) ProbeDataWindow(ctx context.Context, chartID string) (DataWindo
 	return out, nil
 }
 
+// --- Export methods ---
+
+func (c *Client) ExportChartData(ctx context.Context, chartID string) (ChartExportResult, error) {
+	var out ChartExportResult
+	if err := c.evalOnChart(ctx, chartID, jsExportChartData(), &out); err != nil {
+		return ChartExportResult{}, err
+	}
+	if out.Columns == nil {
+		out.Columns = []ExportSchemaColumn{}
+	}
+	if out.Bars == nil {
+		out.Bars = [][]any{}
+	}
+	return out, nil
+}
+
 // EnableNetworkDomain enables the Network CDP domain on the first available
 // chart tab session so that Network.* events are emitted.
 func (c *Client) EnableNetworkDomain(ctx context.Context) error {

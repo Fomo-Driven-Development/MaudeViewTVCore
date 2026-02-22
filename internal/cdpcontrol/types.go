@@ -690,6 +690,28 @@ type ServerSnapshotResult struct {
 	URL string `json:"url"`
 }
 
+// ExportSchemaColumn describes one column in a chart export result.
+type ExportSchemaColumn struct {
+	Type        string `json:"type"`
+	SourceType  string `json:"source_type,omitempty"`
+	SourceID    string `json:"source_id,omitempty"`
+	SourceTitle string `json:"source_title,omitempty"`
+	PlotTitle   string `json:"plot_title,omitempty"`
+	PlotID      string `json:"plot_id,omitempty"`
+}
+
+// ChartExportResult is returned by ExportChartData.
+// Schema describes each column; Bars is a 2-D array in schema order.
+// Null values (study gaps, before-history) are represented as JSON null.
+type ChartExportResult struct {
+	Symbol     string               `json:"symbol"`
+	Resolution string               `json:"resolution"`
+	BarCount   int                  `json:"bar_count"`
+	TimeColIdx int                  `json:"time_col_idx"`
+	Columns    []ExportSchemaColumn `json:"schema"`
+	Bars       [][]any              `json:"bars"`
+}
+
 // DataWindowProbe describes what's discoverable about the data window / crosshair state.
 type DataWindowProbe struct {
 	PanelVisible     bool           `json:"panel_visible"`

@@ -1480,6 +1480,15 @@ func (s *Service) ProbeDataWindow(ctx context.Context, chartID string, pane int)
 	return s.cdp.ProbeDataWindow(ctx, strings.TrimSpace(chartID))
 }
 
+// --- Export methods ---
+
+func (s *Service) ExportChartData(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartExportResult, error) {
+	if err := s.ensurePane(ctx, pane); err != nil {
+		return cdpcontrol.ChartExportResult{}, err
+	}
+	return s.cdp.ExportChartData(ctx, strings.TrimSpace(chartID))
+}
+
 func decodeDataURL(dataURL string) ([]byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {

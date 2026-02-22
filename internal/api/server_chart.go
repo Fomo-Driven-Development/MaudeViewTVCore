@@ -568,4 +568,27 @@ func registerChartHandlers(api huma.API, svc Service) {
 			out.Body.Status = "executed"
 			return out, nil
 		})
+
+	type exportInput struct {
+		ChartID string `path:"chart_id"`
+		Pane    int    `query:"pane" default:"-1" doc:"Target pane index (0-based). Omit to use active pane."`
+	}
+	type exportOutput struct {
+		Body cdpcontrol.ChartExportResult
+	}
+	huma.Register(api, huma.Operation{
+		OperationID: "export-chart-data",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/chart/{chart_id}/export",
+		Summary:     "Export chart data (OHLCV + all studies)",
+		Description: "Returns all visible bars with OHLCV and every study plot column. " +
+			"Equivalent to TradingView's native Download chart data dialog.",
+		Tags: []string{"Data"},
+	}, func(ctx context.Context, input *exportInput) (*exportOutput, error) {
+		result, err := svc.ExportChartData(ctx, input.ChartID, input.Pane)
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		return &exportOutput{Body: result}, nil
+	})
 }

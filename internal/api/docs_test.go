@@ -486,6 +486,9 @@ func (s *stubService) GetOneHotlist(ctx context.Context, exchange, group string)
 func (s *stubService) ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error) {
 	return cdpcontrol.DataWindowProbe{}, nil
 }
+func (s *stubService) ExportChartData(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartExportResult, error) {
+	return cdpcontrol.ChartExportResult{}, nil
+}
 
 type studyPathInputRecording struct {
 	chartID string
