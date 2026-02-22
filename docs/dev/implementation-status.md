@@ -1,6 +1,6 @@
 # Implementation Status
 
-185 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+186 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -8,7 +8,7 @@
 
 | Feature Area | File | Endpoints |
 |---|---|---|
-| Charts | `server_chart.go` | 28 |
+| Charts | `server_chart.go` | 29 |
 | Misc (health, strategy, snapshots, currency, hotlists) | `server_misc.go` | 28 |
 | Pine Editor | `server_pine.go` | 21 |
 | Layout | `server_layout.go` | 19 |
@@ -19,9 +19,9 @@
 | Alerts | `server_alert.go` | 14 |
 | Notes | `server_notes.go` | 6 |
 | Relay | SSE streaming | 1 |
-| **Total** | | **182** |
+| **Total** | | **183** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 185.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 186.
 
 ## Endpoints by Feature Area
 
@@ -98,6 +98,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 185
 | POST | `/api/v1/chart/{id}/reset-scales` | JS API call | `chart.resetScales()` |
 | POST | `/api/v1/chart/{id}/undo` | CDP keyboard | Ctrl+Z |
 | POST | `/api/v1/chart/{id}/redo` | CDP keyboard | Ctrl+Y |
+| GET | `/api/v1/chart/{id}/export` | Webpack internal | `wpReq(183702).exportData(cw.model().model())` — all visible bars, OHLCV + every study plot column as 2-D array with typed schema |
 
 ### Chart Toggles
 
