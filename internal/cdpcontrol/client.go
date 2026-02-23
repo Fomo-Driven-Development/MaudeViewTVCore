@@ -565,6 +565,14 @@ func (c *Client) RemoveWatchlistSymbols(ctx context.Context, id string, symbols 
 	return out, nil
 }
 
+func (c *Client) PinWatchlist(ctx context.Context, id string) (WatchlistInfo, error) {
+	var out WatchlistInfo
+	if err := c.evalOnAnyChart(ctx, jsPinWatchlist(id), &out); err != nil {
+		return WatchlistInfo{}, err
+	}
+	return out, nil
+}
+
 func (c *Client) FlagSymbol(ctx context.Context, id, symbol string) error {
 	return c.doSessionAction(ctx, jsFlagSymbol(id, symbol))
 }

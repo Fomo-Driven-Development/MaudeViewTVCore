@@ -2,18 +2,49 @@ package cdpcontrol
 
 import "fmt"
 
+const jsFavoritesServicePreamble = `
+var _favSvc = null;
+var _wpReq2 = window.__tvAgentWpRequire || null;
+if (!_wpReq2) {
+  var _ca2 = window.webpackChunktradingview;
+  if (_ca2 && Array.isArray(_ca2)) {
+    try { _ca2.push([["__favSvc_" + Date.now()], {}, function(r) { _wpReq2 = r; }]); } catch(_) {}
+    if (_wpReq2) window.__tvAgentWpRequire = _wpReq2;
+  }
+}
+if (_wpReq2 && _wpReq2.c) {
+  var _fmc = _wpReq2.c;
+  var _fkeys = Object.keys(_fmc);
+  for (var _fi = 0; _fi < _fkeys.length; _fi++) {
+    try {
+      var _fexp = _fmc[_fkeys[_fi]].exports;
+      if (_fexp && typeof _fexp.favoritesService === "function") {
+        var _fs = _fexp.favoritesService();
+        if (_fs && typeof _fs.toggleFavorite === "function") { _favSvc = _fs; break; }
+      }
+    } catch(_) {}
+  }
+}
+`
+
 func jsListWatchlists() string {
-	return wrapJSEvalAsync(jsWatchlistFetch + `
+	return wrapJSEvalAsync(jsWatchlistFetch + jsFavoritesServicePreamble + `
 var raw = await _wlFetch("/api/v1/symbols_list/all/");
 if (!Array.isArray(raw)) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"symbols_list/all returned non-array"});
 var lists = [];
 for (var i = 0; i < raw.length; i++) {
   var it = raw[i] || {};
+  var listId = String(it.id || "");
+  var isPinned = false;
+  if (_favSvc) {
+    try { isPinned = _favSvc.isFavorite({type:"custom", id:listId}); } catch(_) {}
+  }
   lists.push({
-    id: String(it.id || ""),
+    id: listId,
     name: String(it.name || ""),
     type: String(it.type || ""),
     active: !!(it.active),
+    pinned: isPinned,
     count: Number((it.symbols && it.symbols.length) || 0)
   });
 }
@@ -162,6 +193,20 @@ if (Array.isArray(updated)) {
 }
 return JSON.stringify({ok:true,data:{id:listId,name:"",type:"",symbols:result}});
 `, jsString(id), jsJSON(symbols)))
+}
+
+func jsPinWatchlist(id string) string {
+	// TradingView stores watchlist favorites in its settings system (key "symbol-lists.favorites")
+	// via the favoritesService singleton. There is no dedicated REST endpoint for pin/unpin.
+	// We find favoritesService via webpack module cache scan and call toggleFavorite directly.
+	return wrapJSEvalAsync(fmt.Sprintf(jsFavoritesServicePreamble+`
+var listId = %s;
+if (!_favSvc) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"favoritesService not found"});
+var item = {type:"custom", id:listId};
+_favSvc.toggleFavorite(item);
+var isPinned = !!(_favSvc.isFavorite(item));
+return JSON.stringify({ok:true,data:{id:listId,name:"",type:"custom",pinned:isPinned,count:0}});
+`, jsString(id)))
 }
 
 func jsFlagSymbol(id, symbol string) string {

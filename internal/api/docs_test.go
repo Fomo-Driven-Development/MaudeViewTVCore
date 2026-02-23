@@ -87,6 +87,9 @@ func (s *stubService) AddWatchlistSymbols(ctx context.Context, id string, symbol
 func (s *stubService) RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error) {
 	return cdpcontrol.WatchlistDetail{}, nil
 }
+func (s *stubService) PinWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
+	return cdpcontrol.WatchlistInfo{}, nil
+}
 func (s *stubService) FlagSymbol(ctx context.Context, id, symbol string) error { return nil }
 func (s *stubService) ListNotes(ctx context.Context, symbol string) ([]cdpcontrol.Note, error) {
 	return []cdpcontrol.Note{}, nil

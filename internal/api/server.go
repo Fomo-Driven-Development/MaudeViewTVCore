@@ -42,6 +42,7 @@ type Service interface {
 	DeleteWatchlist(ctx context.Context, id string) error
 	AddWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
 	RemoveWatchlistSymbols(ctx context.Context, id string, symbols []string) (cdpcontrol.WatchlistDetail, error)
+	PinWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error)
 	FlagSymbol(ctx context.Context, id, symbol string) error
 	ListNotes(ctx context.Context, symbol string) ([]cdpcontrol.Note, error)
 	GetNote(ctx context.Context, noteID int) (cdpcontrol.Note, error)

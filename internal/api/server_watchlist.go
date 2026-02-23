@@ -125,6 +125,17 @@ func registerWatchlistHandlers(api huma.API, svc Service) {
 			return out, nil
 		})
 
+	huma.Register(api, huma.Operation{OperationID: "pin-watchlist", Method: http.MethodPost, Path: "/api/v1/watchlist/{watchlist_id}/pin", Summary: "[EXPERIMENTAL] Toggle watchlist pin/star", Description: "Toggles the watchlist's pinned/favorite state via the favoritesService singleton. Pin state is stored in TradingView's settings system (not a dedicated REST endpoint). Fragile — may break if TradingView refactors the settings module.", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *watchlistIDInput) (*watchlistInfoOutput, error) {
+			info, err := svc.PinWatchlist(ctx, input.WatchlistID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistInfoOutput{}
+			out.Body = info
+			return out, nil
+		})
+
 	type symbolsBodyInput struct {
 		WatchlistID string `path:"watchlist_id"`
 		Body        struct {

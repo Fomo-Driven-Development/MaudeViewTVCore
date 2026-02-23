@@ -1,6 +1,6 @@
 # Implementation Status
 
-187 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+188 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -14,14 +14,14 @@
 | Layout | `server_layout.go` | 19 |
 | Drawings | `server_drawing.go` | 20 |
 | Studies & Indicators | `server_study.go` | 16 |
-| Watchlists | `server_watchlist.go` | 16 |
+| Watchlists | `server_watchlist.go` | 17 |
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
 | Notes | `server_notes.go` | 6 |
 | Relay | SSE streaming | 1 |
-| **Total** | | **184** |
+| **Total** | | **185** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 187.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 188.
 
 ## Endpoints by Feature Area
 
@@ -165,6 +165,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 187
 | POST | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | Add symbols |
 | DELETE | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | Remove symbols |
 | POST | `/api/v1/watchlist/{wid}/flag` | Mixed (DOM + React fiber) | `markSymbol()` via `__reactFiber` tree walk **[EXPERIMENTAL]** |
+| POST | `/api/v1/watchlist/{wid}/pin` | JS settings singleton | `favoritesService().toggleFavorite()` via webpack module scan **[EXPERIMENTAL]** |
 | GET | `/api/v1/watchlists/colored` | JS internal REST | List colored watchlists |
 | PUT | `/api/v1/watchlists/colored/{color}` | JS internal REST | Replace color list |
 | POST | `/api/v1/watchlists/colored/{color}/append` | JS internal REST | Add symbols to color list |

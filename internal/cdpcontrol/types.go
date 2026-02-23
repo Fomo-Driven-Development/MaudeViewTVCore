@@ -116,6 +116,7 @@ type WatchlistInfo struct {
 	Name   string `json:"name"`
 	Type   string `json:"type,omitempty"`
 	Active bool   `json:"active,omitempty"`
+	Pinned bool   `json:"pinned,omitempty"`
 	Count  int    `json:"count"`
 }
 

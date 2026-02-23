@@ -382,6 +382,13 @@ func (s *Service) RemoveWatchlistSymbols(ctx context.Context, id string, symbols
 	return s.cdp.RemoveWatchlistSymbols(ctx, strings.TrimSpace(id), symbols)
 }
 
+func (s *Service) PinWatchlist(ctx context.Context, id string) (cdpcontrol.WatchlistInfo, error) {
+	if err := s.requireNonEmpty(id, "id"); err != nil {
+		return cdpcontrol.WatchlistInfo{}, err
+	}
+	return s.cdp.PinWatchlist(ctx, strings.TrimSpace(id))
+}
+
 func (s *Service) FlagSymbol(ctx context.Context, id, symbol string) error {
 	if err := s.requireNonEmpty(id, "watchlist_id"); err != nil {
 		return err
