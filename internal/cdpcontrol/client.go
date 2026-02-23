@@ -405,19 +405,19 @@ func (c *Client) Scroll(ctx context.Context, chartID string, bars int) error {
 func (c *Client) ResetView(ctx context.Context, chartID string) error {
 	// Alt+R via CDP — trusted "Reset chart view" keyboard shortcut.
 	// modifiers: 1=Alt
-	return c.sendShortcut(ctx, "r", "KeyR", 82, 1, uiSettleLong, "failed to send Alt+R")
+	return c.sendShortcutOnChart(ctx, chartID, "r", "KeyR", 82, 1, uiSettleLong, "failed to send Alt+R")
 }
 
 func (c *Client) UndoChart(ctx context.Context, chartID string) error {
 	// Ctrl+Z — chart-level undo for drawings, studies, etc.
 	// modifiers: 2=Ctrl
-	return c.sendShortcut(ctx, "z", "KeyZ", 90, 2, uiSettleMedium, "failed to send Ctrl+Z")
+	return c.sendShortcutOnChart(ctx, chartID, "z", "KeyZ", 90, 2, uiSettleMedium, "failed to send Ctrl+Z")
 }
 
 func (c *Client) RedoChart(ctx context.Context, chartID string) error {
 	// Ctrl+Y — chart-level redo for drawings, studies, etc.
 	// modifiers: 2=Ctrl
-	return c.sendShortcut(ctx, "y", "KeyY", 89, 2, uiSettleMedium, "failed to send Ctrl+Y")
+	return c.sendShortcutOnChart(ctx, chartID, "y", "KeyY", 89, 2, uiSettleMedium, "failed to send Ctrl+Y")
 }
 
 func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) error {
@@ -427,7 +427,7 @@ func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) 
 
 	// Step 1: Alt+G to open the "Go to" dialog (trusted CDP key event)
 	// modifiers: 1=Alt
-	if err := c.sendKeysOnAnyChart(ctx, "g", "KeyG", 71, 1); err != nil {
+	if err := c.sendKeysOnChart(ctx, chartID, "g", "KeyG", 71, 1); err != nil {
 		return newError(CodeEvalFailure, "failed to send Alt+G", err)
 	}
 
@@ -436,12 +436,12 @@ func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) 
 		Status string `json:"status"`
 		Date   string `json:"date"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsGoToFillDate(dateStr), &fill); err != nil {
+	if err := c.evalOnChart(ctx, chartID, jsGoToFillDate(dateStr), &fill); err != nil {
 		return err
 	}
 
 	// Step 3: Enter to submit the form (trusted CDP key event)
-	if err := c.sendKeysOnAnyChart(ctx, "Enter", "Enter", 13, 0); err != nil {
+	if err := c.sendKeysOnChart(ctx, chartID, "Enter", "Enter", 13, 0); err != nil {
 		return newError(CodeEvalFailure, "failed to send Enter", err)
 	}
 
@@ -449,7 +449,7 @@ func (c *Client) GoToDate(ctx context.Context, chartID string, timestamp int64) 
 	var result struct {
 		Status string `json:"status"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsGoToWaitClose(), &result); err != nil {
+	if err := c.evalOnChart(ctx, chartID, jsGoToWaitClose(), &result); err != nil {
 		return err
 	}
 
@@ -496,17 +496,17 @@ func (c *Client) GetChartToggles(ctx context.Context, chartID string) (ChartTogg
 
 func (c *Client) ToggleLogScale(ctx context.Context, chartID string) error {
 	// Alt+L via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	return c.sendShortcut(ctx, "l", "KeyL", 76, 1, uiSettleMedium, "failed to send Alt+L")
+	return c.sendShortcutOnChart(ctx, chartID, "l", "KeyL", 76, 1, uiSettleMedium, "failed to send Alt+L")
 }
 
 func (c *Client) ToggleAutoScale(ctx context.Context, chartID string) error {
 	// Alt+A via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	return c.sendShortcut(ctx, "a", "KeyA", 65, 1, uiSettleMedium, "failed to send Alt+A")
+	return c.sendShortcutOnChart(ctx, chartID, "a", "KeyA", 65, 1, uiSettleMedium, "failed to send Alt+A")
 }
 
 func (c *Client) ToggleExtendedHours(ctx context.Context, chartID string) error {
 	// Alt+E via CDP — trusted keyboard shortcut. modifiers: 1=Alt
-	return c.sendShortcut(ctx, "e", "KeyE", 69, 1, uiSettleMedium, "failed to send Alt+E")
+	return c.sendShortcutOnChart(ctx, chartID, "e", "KeyE", 69, 1, uiSettleMedium, "failed to send Alt+E")
 }
 
 func (c *Client) ListWatchlists(ctx context.Context) ([]WatchlistInfo, error) {
@@ -1559,41 +1559,66 @@ func (c *Client) pineKeyAction(ctx context.Context, key, code string, keyCode, m
 // --- Indicator Dialog methods (DOM-based) ---
 
 func (c *Client) ProbeIndicatorDialogDOM(ctx context.Context) (map[string]any, error) {
-	if err := c.openAndSearchIndicators(ctx, "RSI"); err != nil {
+	if err := c.clickOnAnyChart(ctx, 400, 400); err != nil {
+		slog.Debug("indicator probe focus click failed", "error", err)
+	}
+	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+		return nil, newError(CodeEvalFailure, "failed to send / key", err)
+	}
+	var dialogCheck struct {
+		DialogFound bool `json:"dialog_found"`
+	}
+	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+		return nil, err
+	}
+	if !dialogCheck.DialogFound {
+		return nil, newError(CodeAPIUnavailable, "indicator dialog did not open", nil)
+	}
+	if err := c.evalOnAnyChart(ctx, jsSetIndicatorSearchValue("RSI"), nil); err != nil {
+		for range 2 {
+			_ = c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0)
+			_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil)
+		}
 		return nil, err
 	}
 	var out map[string]any
 	if err := c.evalOnAnyChart(ctx, jsProbeIndicatorDialogDOM(), &out); err != nil {
-		c.dismissIndicatorDialog(ctx)
+		for range 2 {
+			_ = c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0)
+			_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil)
+		}
 		return nil, err
 	}
-	c.dismissIndicatorDialog(ctx)
+	for range 2 {
+		_ = c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0)
+		_ = c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil)
+	}
 	return out, nil
 }
 
 // dismissIndicatorDialog sends Escape to close the indicator dialog and waits.
 // Sends Escape twice to handle cases where the first press clears the search
 // text without closing the dialog.
-func (c *Client) dismissIndicatorDialog(ctx context.Context) {
+func (c *Client) dismissIndicatorDialog(ctx context.Context, chartID string) {
 	for range 2 {
-		if err := c.sendKeysOnAnyChart(ctx, "Escape", "Escape", 27, 0); err != nil {
+		if err := c.sendKeysOnChart(ctx, chartID, "Escape", "Escape", 27, 0); err != nil {
 			slog.Debug("sendKeys while dismissing indicator dialog failed", "error", err)
 		}
-		if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialogClosed(), nil); err != nil {
+		if err := c.evalOnChart(ctx, chartID, jsWaitForIndicatorDialogClosed(), nil); err != nil {
 			slog.Debug("eval for indicator dialog close state failed", "error", err)
 		}
 	}
 }
 
 // openAndSearchIndicators opens the indicator dialog and types a search query.
-func (c *Client) openAndSearchIndicators(ctx context.Context, query string) error {
+func (c *Client) openAndSearchIndicators(ctx context.Context, chartID, query string) error {
 	// Click the chart canvas to ensure it has focus before sending "/" shortcut.
 	// Without focus, the "/" key may be ignored.
-	if err := c.clickOnAnyChart(ctx, 400, 400); err != nil {
+	if err := c.clickOnChart(ctx, chartID, 400, 400); err != nil {
 		slog.Debug("indicator search focus click failed", "error", err)
 	}
 
-	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+	if err := c.sendKeysOnChart(ctx, chartID, "/", "Slash", 191, 0); err != nil {
 		return newError(CodeEvalFailure, "failed to send / key", err)
 	}
 	var dialogCheck struct {
@@ -1601,7 +1626,7 @@ func (c *Client) openAndSearchIndicators(ctx context.Context, query string) erro
 		InputX      float64 `json:"input_x"`
 		InputY      float64 `json:"input_y"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+	if err := c.evalOnChart(ctx, chartID, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
 		return err
 	}
 	if !dialogCheck.DialogFound {
@@ -1609,15 +1634,15 @@ func (c *Client) openAndSearchIndicators(ctx context.Context, query string) erro
 	}
 	// Type the search query using document.execCommand('insertText') which
 	// fires all native events that React's controlled components respond to.
-	if err := c.evalOnAnyChart(ctx, jsSetIndicatorSearchValue(query), nil); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsSetIndicatorSearchValue(query), nil); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return err
 	}
 	return nil
 }
 
 func (c *Client) SearchIndicators(ctx context.Context, chartID, query string) (IndicatorSearchResult, error) {
-	if err := c.openAndSearchIndicators(ctx, query); err != nil {
+	if err := c.openAndSearchIndicators(ctx, chartID, query); err != nil {
 		return IndicatorSearchResult{}, err
 	}
 
@@ -1626,13 +1651,13 @@ func (c *Client) SearchIndicators(ctx context.Context, chartID, query string) (I
 		Results    []IndicatorResult `json:"results"`
 		TotalCount int               `json:"total_count"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsScrapeIndicatorResults(), &scraped); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsScrapeIndicatorResults(), &scraped); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorSearchResult{}, err
 	}
 
 	// Step 5: Dismiss dialog
-	c.dismissIndicatorDialog(ctx)
+	c.dismissIndicatorDialog(ctx, chartID)
 
 	if scraped.Results == nil {
 		scraped.Results = []IndicatorResult{}
@@ -1646,7 +1671,7 @@ func (c *Client) SearchIndicators(ctx context.Context, chartID, query string) (I
 }
 
 func (c *Client) AddIndicatorBySearch(ctx context.Context, chartID, query string, index int) (IndicatorAddResult, error) {
-	if err := c.openAndSearchIndicators(ctx, query); err != nil {
+	if err := c.openAndSearchIndicators(ctx, chartID, query); err != nil {
 		return IndicatorAddResult{}, err
 	}
 
@@ -1656,13 +1681,13 @@ func (c *Client) AddIndicatorBySearch(ctx context.Context, chartID, query string
 		Index  int    `json:"index"`
 		Name   string `json:"name"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsClickIndicatorResult(index), &clicked); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsClickIndicatorResult(index), &clicked); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorAddResult{}, err
 	}
 
 	// Step 5: Dismiss dialog
-	c.dismissIndicatorDialog(ctx)
+	c.dismissIndicatorDialog(ctx, chartID)
 
 	return IndicatorAddResult{
 		Status: "added",
@@ -1674,10 +1699,10 @@ func (c *Client) AddIndicatorBySearch(ctx context.Context, chartID, query string
 
 func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (IndicatorSearchResult, error) {
 	// Click chart to ensure focus, then open indicator dialog
-	if err := c.clickOnAnyChart(ctx, 400, 400); err != nil {
+	if err := c.clickOnChart(ctx, chartID, 400, 400); err != nil {
 		slog.Debug("favorites indicator focus click failed", "error", err)
 	}
-	if err := c.sendKeysOnAnyChart(ctx, "/", "Slash", 191, 0); err != nil {
+	if err := c.sendKeysOnChart(ctx, chartID, "/", "Slash", 191, 0); err != nil {
 		return IndicatorSearchResult{}, newError(CodeEvalFailure, "failed to send / key", err)
 	}
 	var dialogCheck struct {
@@ -1685,7 +1710,7 @@ func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (In
 		InputX      float64 `json:"input_x"`
 		InputY      float64 `json:"input_y"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
+	if err := c.evalOnChart(ctx, chartID, jsWaitForIndicatorDialog(), &dialogCheck); err != nil {
 		return IndicatorSearchResult{}, err
 	}
 	if !dialogCheck.DialogFound {
@@ -1693,8 +1718,8 @@ func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (In
 	}
 
 	// Click "Favorites" category in sidebar
-	if err := c.evalOnAnyChart(ctx, jsClickIndicatorCategory("Favorites"), nil); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsClickIndicatorCategory("Favorites"), nil); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorSearchResult{}, err
 	}
 
@@ -1703,13 +1728,13 @@ func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (In
 		Results    []IndicatorResult `json:"results"`
 		TotalCount int               `json:"total_count"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsScrapeIndicatorResults(), &scraped); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsScrapeIndicatorResults(), &scraped); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorSearchResult{}, err
 	}
 
 	// Step 5: Dismiss dialog
-	c.dismissIndicatorDialog(ctx)
+	c.dismissIndicatorDialog(ctx, chartID)
 
 	if scraped.Results == nil {
 		scraped.Results = []IndicatorResult{}
@@ -1723,7 +1748,7 @@ func (c *Client) ListFavoriteIndicators(ctx context.Context, chartID string) (In
 }
 
 func (c *Client) ToggleIndicatorFavorite(ctx context.Context, chartID, query string, index int) (IndicatorFavoriteResult, error) {
-	if err := c.openAndSearchIndicators(ctx, query); err != nil {
+	if err := c.openAndSearchIndicators(ctx, chartID, query); err != nil {
 		return IndicatorFavoriteResult{}, err
 	}
 
@@ -1735,14 +1760,14 @@ func (c *Client) ToggleIndicatorFavorite(ctx context.Context, chartID, query str
 		X          float64 `json:"x"`
 		Y          float64 `json:"y"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsLocateIndicatorFavoriteStar(index), &starLoc); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsLocateIndicatorFavoriteStar(index), &starLoc); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorFavoriteResult{}, err
 	}
 
 	// Step 5: CDP trusted click on the star
-	if err := c.clickOnAnyChart(ctx, starLoc.X, starLoc.Y); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.clickOnChart(ctx, chartID, starLoc.X, starLoc.Y); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorFavoriteResult{}, newError(CodeEvalFailure, "failed to click favorite star", err)
 	}
 
@@ -1751,13 +1776,13 @@ func (c *Client) ToggleIndicatorFavorite(ctx context.Context, chartID, query str
 		Name       string `json:"name"`
 		IsFavorite bool   `json:"is_favorite"`
 	}
-	if err := c.evalOnAnyChart(ctx, jsCheckIndicatorFavoriteState(index), &newState); err != nil {
-		c.dismissIndicatorDialog(ctx)
+	if err := c.evalOnChart(ctx, chartID, jsCheckIndicatorFavoriteState(index), &newState); err != nil {
+		c.dismissIndicatorDialog(ctx, chartID)
 		return IndicatorFavoriteResult{}, err
 	}
 
 	// Step 7: Dismiss dialog
-	c.dismissIndicatorDialog(ctx)
+	c.dismissIndicatorDialog(ctx, chartID)
 
 	return IndicatorFavoriteResult{
 		Status:     "toggled",
