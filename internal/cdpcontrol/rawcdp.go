@@ -195,6 +195,16 @@ func (r *rawCDP) send(ctx context.Context, method string, params any) (json.RawM
 	return r.sendRaw(ctx, id, req)
 }
 
+// createTarget opens a new browser window at url.
+func (r *rawCDP) createTarget(ctx context.Context, url string) error {
+	params := struct {
+		URL       string `json:"url"`
+		NewWindow bool   `json:"newWindow"`
+	}{URL: url, NewWindow: true}
+	_, err := r.send(ctx, "Target.createTarget", params)
+	return err
+}
+
 // attachToTarget attaches a flat session to the given target.
 func (r *rawCDP) attachToTarget(ctx context.Context, targetID string) (string, error) {
 	params := struct {

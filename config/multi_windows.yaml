@@ -1,0 +1,5 @@
+# Windows opened at startup when CONTROLLER_LAUNCH_BROWSER=true
+# First entry's url is also used as the browser start URL.
+windows:
+  - url: "https://www.tradingview.com/chart/rzWLrz7t/" 
+  - url: "https://www.tradingview.com/chart/MpdT1cgD/" 

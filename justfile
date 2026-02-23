@@ -14,6 +14,8 @@ help:
 	@echo "  just run-researcher      Build and run passive TradingView researcher"
 	@echo "  just run-tv-controller   Build and run Huma control API"
 	@echo "  just run-tv-controller-with-browser  Launch browser + controller in one command"
+	@echo "  just run-tv-multi-controller         Build and run multi-window control API"
+	@echo "  just run-tv-multi-controller-with-browser  Launch browser + multi controller"
 	@echo "  just test-integration    Run integration tests (live server)"
 	@echo ""
 
@@ -36,6 +38,14 @@ run-tv-controller:
 # Build and run the controller with auto-launched browser
 run-tv-controller-with-browser:
     CONTROLLER_LAUNCH_BROWSER=true go build -o ./bin/tv_controller ./cmd/tv_controller && CONTROLLER_LAUNCH_BROWSER=true ./bin/tv_controller
+
+# Build and run the multi-window controller API
+run-tv-multi-controller:
+    go build -o ./bin/tv_multi_controller ./cmd/tv_multi_controller && ./bin/tv_multi_controller
+
+# Build and run the multi-window controller with auto-launched browser
+run-tv-multi-controller-with-browser:
+    CONTROLLER_LAUNCH_BROWSER=true go build -o ./bin/tv_multi_controller ./cmd/tv_multi_controller && CONTROLLER_LAUNCH_BROWSER=true ./bin/tv_multi_controller
 
 # Run integration tests (requires running browser + tv_controller)
 test-integration:

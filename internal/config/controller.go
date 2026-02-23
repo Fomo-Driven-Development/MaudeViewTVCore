@@ -27,6 +27,7 @@ type ControllerConfig struct {
 	LogFileDir          string
 	CrashDumpDir        string
 	EnableCrashReporter bool
+	WindowsConfigPath   string
 }
 
 // LoadController reads controller configuration from environment variables.

@@ -98,6 +98,19 @@ func (c *Client) Connect(ctx context.Context) error {
 	return c.connectLocked(ctx)
 }
 
+// OpenWindow opens a new browser window at url via CDP Target.createTarget.
+// The new window is not immediately discoverable; call refreshTabs after a
+// delay to pick it up.
+func (c *Client) OpenWindow(ctx context.Context, url string) error {
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return newError(CodeCDPUnavailable, "not connected", nil)
+	}
+	return cdp.createTarget(ctx, url)
+}
+
 func (c *Client) connectLocked(ctx context.Context) error {
 	if c.cdpURL == "" {
 		return newError(CodeCDPUnavailable, "missing CDP URL", nil)
