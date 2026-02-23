@@ -114,6 +114,17 @@ func registerWatchlistHandlers(api huma.API, svc Service) {
 			return &struct{}{}, nil
 		})
 
+	huma.Register(api, huma.Operation{OperationID: "activate-watchlist", Method: http.MethodPut, Path: "/api/v1/watchlist/{watchlist_id}/active", Summary: "Set watchlist as active by path ID", Tags: []string{"Watchlists"}},
+		func(ctx context.Context, input *watchlistIDInput) (*watchlistInfoOutput, error) {
+			info, err := svc.SetActiveWatchlist(ctx, input.WatchlistID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &watchlistInfoOutput{}
+			out.Body = info
+			return out, nil
+		})
+
 	type symbolsBodyInput struct {
 		WatchlistID string `path:"watchlist_id"`
 		Body        struct {

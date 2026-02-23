@@ -1,6 +1,6 @@
 # Implementation Status
 
-186 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
+187 controller API endpoints across 11 feature areas, built on CDP browser automation with in-page JavaScript evaluation.
 
 ![Coverage Map](chart_coverage.png)
 
@@ -14,14 +14,14 @@
 | Layout | `server_layout.go` | 19 |
 | Drawings | `server_drawing.go` | 20 |
 | Studies & Indicators | `server_study.go` | 16 |
-| Watchlists | `server_watchlist.go` | 15 |
+| Watchlists | `server_watchlist.go` | 16 |
 | Replay | `server_replay.go` | 14 |
 | Alerts | `server_alert.go` | 14 |
 | Notes | `server_notes.go` | 6 |
 | Relay | SSE streaming | 1 |
-| **Total** | | **183** |
+| **Total** | | **184** |
 
-Note: 3 additional endpoints (health, docs at root level) bring the total to 186.
+Note: 3 additional endpoints (health, docs at root level) bring the total to 187.
 
 ## Endpoints by Feature Area
 
@@ -161,6 +161,7 @@ Note: 3 additional endpoints (health, docs at root level) bring the total to 186
 | GET | `/api/v1/watchlist/{wid}` | JS internal REST | Get single watchlist |
 | PATCH | `/api/v1/watchlist/{wid}` | JS internal REST | Rename watchlist |
 | DELETE | `/api/v1/watchlist/{wid}` | JS internal REST | Delete watchlist |
+| PUT | `/api/v1/watchlist/{wid}/active` | JS internal REST | Set watchlist active (path ID) |
 | POST | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | Add symbols |
 | DELETE | `/api/v1/watchlist/{wid}/symbols` | JS internal REST | Remove symbols |
 | POST | `/api/v1/watchlist/{wid}/flag` | Mixed (DOM + React fiber) | `markSymbol()` via `__reactFiber` tree walk **[EXPERIMENTAL]** |
