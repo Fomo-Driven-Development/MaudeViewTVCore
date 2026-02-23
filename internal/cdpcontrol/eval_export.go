@@ -16,10 +16,35 @@ if (!_wpReq) {
 }
 if (!_wpReq) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"webpack require unavailable"});
 
+// Step 1: Ensure chunk 43619 is loaded. This is a no-op if the chunk is in webpack's
+// initial list (already bundled), or triggers a network fetch if it's truly lazy.
+// Either way, it guarantees module 853336's factory is registered in _wpReq.m.
+try { await _wpReq.e(43619); } catch(_) {}
+
+// Step 2: Initialize module 853336 (body-scroll-lock — a dependency of module 183702).
+// Requiring it runs its factory and caches it so module 183702 can find it.
+try { _wpReq(853336); } catch(_) {}
+
+// Step 3: Require module 183702, which exports exportData.
 var exportModule = null;
-try { exportModule = _wpReq(183702); } catch(_) {}
+try {
+  var _m = _wpReq(183702);
+  if (_m && typeof _m.exportData === "function") exportModule = _m;
+} catch(_) {}
+
+// Fallback: scan executed module cache. Handles cases where module IDs changed between
+// TradingView builds but the user already opened the export dialog at least once.
+if (!exportModule && _wpReq.c) {
+  for (var _k in _wpReq.c) {
+    try {
+      var _x = _wpReq.c[_k] && _wpReq.c[_k].exports;
+      if (_x && typeof _x.exportData === "function") { exportModule = _x; break; }
+    } catch(_) {}
+  }
+}
+
 if (!exportModule || typeof exportModule.exportData !== "function")
-  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"exportData unavailable (module 183702)"});
+  return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"exportData unavailable"});
 
 // Two levels of model() — confirmed by reading module 276449 source
 var innerModel = cw.model().model();
