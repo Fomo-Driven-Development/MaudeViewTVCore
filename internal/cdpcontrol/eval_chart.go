@@ -369,7 +369,7 @@ var r = {
   alerts_api: false,
   watchlist_rest: false,
   replay_api: !!(api && api._replayApi),
-  backtesting_api: !!(api && api._backtestingStrategyApi),
+  backtesting_api: false,
   pine_editor_dom: !!(document.querySelector('button[data-name="pine-dialog-button"]') || document.querySelector('button[aria-label="Pine"]')),
   monaco_webpack: !!(window.__tvMonacoNs && window.__tvMonacoNs.editor),
   load_chart: !!(api && api._loadChartService),
@@ -400,6 +400,12 @@ if (!_wpReq) {
   }
 }
 r.webpack_require = !!(_wpReq && _wpReq.c);
+// backtesting_api — call api.backtestingStrategyApi() (returns a Promise)
+if (api && typeof api.backtestingStrategyApi === "function") {
+  try { r.backtesting_api = !!(await api.backtestingStrategyApi()); } catch(_) {}
+} else if (api && api._backtestingStrategyApi) {
+  r.backtesting_api = true;
+}
 // alerts_api — scan webpack modules for getAlertsRestApi
 if (r.webpack_require) {
   if (api && typeof api.alerts === "function") { try { await api.alerts(); } catch(_) {} }

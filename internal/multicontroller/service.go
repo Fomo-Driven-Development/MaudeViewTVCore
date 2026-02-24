@@ -437,6 +437,10 @@ func (s *Service) StrategyGotoDate(ctx context.Context, chartID string, timestam
 	return s.cdp.StrategyGotoDate(ctx, strings.TrimSpace(chartID), timestamp, belowBar)
 }
 
+func (s *Service) ScanBacktestingAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	return s.cdp.ScanBacktestingAccess(ctx, strings.TrimSpace(chartID))
+}
+
 // --- Alerts REST API probe methods (chart-level, chartID already present) ---
 
 func (s *Service) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {

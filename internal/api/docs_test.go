@@ -195,6 +195,9 @@ func (s *stubService) GetStrategyDateRange(ctx context.Context, chartID string) 
 func (s *stubService) StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error {
 	return nil
 }
+func (s *stubService) ScanBacktestingAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
 func (s *stubService) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {
 	return map[string]any{}, nil
 }
@@ -596,6 +599,7 @@ func TestNewServerRegistersAllDomainRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/watchlists/active", http.StatusOK},
 		{http.MethodGet, "/api/v1/chart/chart-1/studies", http.StatusOK},
 		{http.MethodGet, "/api/v1/chart/chart-1/drawings", http.StatusOK},
+		{http.MethodGet, "/api/v1/chart/chart-1/strategy/scan", http.StatusOK},
 		{http.MethodGet, "/api/v1/chart/chart-1/alerts/scan", http.StatusOK},
 		{http.MethodGet, "/api/v1/chart/chart-1/replay/status", http.StatusOK},
 		{http.MethodGet, "/api/v1/pine/status", http.StatusOK},

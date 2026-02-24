@@ -80,6 +80,7 @@ type MultiService interface {
 	GetStrategyReport(ctx context.Context, chartID string) (map[string]any, error)
 	GetStrategyDateRange(ctx context.Context, chartID string) (any, error)
 	StrategyGotoDate(ctx context.Context, chartID string, timestamp float64, belowBar bool) error
+	ScanBacktestingAccess(ctx context.Context, chartID string) (map[string]any, error)
 	ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error)
 	ProbeAlertsRestApi(ctx context.Context, chartID string) (cdpcontrol.AlertsApiProbe, error)
 	ProbeAlertsRestApiDeep(ctx context.Context, chartID string) (map[string]any, error)

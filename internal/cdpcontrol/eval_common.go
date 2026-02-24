@@ -159,7 +159,11 @@ if (api && api._replayApi) { rapi = api._replayApi; }
 `
 
 const jsBacktestingApiPreamble = jsPreamble + `
-var bsa = api ? api._backtestingStrategyApi : null;
+var bsa = null;
+if (api) {
+  if (typeof api.backtestingStrategyApi === "function") { try { bsa = await api.backtestingStrategyApi(); } catch(_) {} }
+  if (!bsa && api._backtestingStrategyApi) { bsa = api._backtestingStrategyApi; }
+}
 `
 
 // jsBacktestingWVHelper aliases jsWatchedValueHelper for backward compatibility.

@@ -792,6 +792,14 @@ func (c *Client) StrategyGotoDate(ctx context.Context, chartID string, timestamp
 	return c.doChartAction(ctx, chartID, jsStrategyGotoDate(timestamp, belowBar))
 }
 
+func (c *Client) ScanBacktestingAccess(ctx context.Context, chartID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.evalOnChart(ctx, chartID, jsScanBacktestingAccess(), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // --- Alerts REST API methods ---
 
 func (c *Client) ScanAlertsAccess(ctx context.Context, chartID string) (map[string]any, error) {

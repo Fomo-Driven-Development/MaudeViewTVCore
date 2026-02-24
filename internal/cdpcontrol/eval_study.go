@@ -137,15 +137,91 @@ return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"remo
 // jsBacktestingApiPreamble extends jsPreamble with _backtestingStrategyApi resolution.
 
 // jsBacktestingWVHelper aliases jsWatchedValueHelper for backward compatibility.
+
+func jsScanBacktestingAccess() string {
+	return wrapJSEvalAsync(jsPreamble + `
+var results = {};
+
+// 1. Direct checks on api and chart
+results.api_direct   = !!(api && api._backtestingStrategyApi);
+results.chart_direct = !!(chart && chart._backtestingStrategyApi);
+
+// 2. Scan api object for any "backtest"/"strategy" properties
+var apiKeys = [];
+if (api) {
+  var ak = [];
+  try { ak = Object.getOwnPropertyNames(Object.getPrototypeOf(api)).concat(Object.keys(api)); } catch(_) { ak = Object.keys(api); }
+  for (var i = 0; i < ak.length; i++) {
+    var kl = ak[i].toLowerCase();
+    if (kl.indexOf("backtest") !== -1 || kl.indexOf("strategy") !== -1) {
+      var t = "unknown"; try { t = typeof api[ak[i]]; } catch(_) {}
+      apiKeys.push({key: ak[i], type: t, truthy: !!(api[ak[i]])});
+    }
+  }
+}
+results.api_backtest_keys = apiKeys;
+
+// 3. Same scan on chart
+var chartKeys = [];
+if (chart) {
+  var ck = [];
+  try { ck = Object.getOwnPropertyNames(Object.getPrototypeOf(chart)).concat(Object.keys(chart)); } catch(_) { ck = Object.keys(chart); }
+  for (var j = 0; j < ck.length; j++) {
+    var cl = ck[j].toLowerCase();
+    if (cl.indexOf("backtest") !== -1 || cl.indexOf("strategy") !== -1) {
+      var ct = "unknown"; try { ct = typeof chart[ck[j]]; } catch(_) {}
+      chartKeys.push({key: ck[j], type: ct, truthy: !!(chart[ck[j]])});
+    }
+  }
+}
+results.chart_backtest_keys = chartKeys;
+
+// 4. Webpack module cache scan
+var wpRequire = window.__tvAgentWpRequire || null;
+if (!wpRequire) {
+  var wkeys = Object.getOwnPropertyNames(window);
+  for (var wi = 0; wi < wkeys.length; wi++) {
+    try {
+      var wv = window[wkeys[wi]];
+      if (Array.isArray(wv) && wv.push !== Array.prototype.push) {
+        wv.push([["__bsa_" + Date.now()], {}, function(r) { wpRequire = r; }]);
+        if (wpRequire) { window.__tvAgentWpRequire = wpRequire; break; }
+      }
+    } catch(_) {}
+  }
+}
+var cacheHits = [];
+if (wpRequire && wpRequire.c) {
+  var mc = wpRequire.c; var mkeys = Object.keys(mc);
+  results.module_cache_size = mkeys.length;
+  for (var mi = 0; mi < mkeys.length; mi++) {
+    try {
+      var exp = mc[mkeys[mi]].exports;
+      if (!exp || typeof exp !== "object") continue;
+      var ekeys = Object.keys(exp);
+      for (var ei = 0; ei < ekeys.length; ei++) {
+        var ekl = ekeys[ei].toLowerCase();
+        if (ekl.indexOf("backtest") !== -1 || (ekl.indexOf("strategy") !== -1 && ekl.indexOf("api") !== -1)) {
+          cacheHits.push({moduleId: mkeys[mi], key: ekeys[ei], type: typeof exp[ekeys[ei]]});
+        }
+      }
+    } catch(_) {}
+  }
+}
+results.cache_hits = cacheHits;
+return JSON.stringify({ok:true,data:results});
+`)
+}
+
 func jsProbeBacktestingApi() string {
-	return wrapJSEval(jsBacktestingApiPreamble + jsProbeObjectHelper + `
-var r = _probeObj(bsa, ["api._backtestingStrategyApi"]);
+	return wrapJSEvalAsync(jsBacktestingApiPreamble + jsProbeObjectHelper + `
+var r = _probeObj(bsa, ["api.backtestingStrategyApi()"]);
 return JSON.stringify({ok:true,data:r});
 `)
 }
 
 func jsListStrategies() string {
-	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+	return wrapJSEvalAsync(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
 var raw = _wv(bsa.allStrategies);
 if (!raw) raw = _wv(bsa._allStrategies);
@@ -169,7 +245,7 @@ return JSON.stringify({ok:true,data:{strategies:strategies}});
 }
 
 func jsGetActiveStrategy() string {
-	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+	return wrapJSEvalAsync(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
 var active = _wv(bsa.activeStrategy);
 if (!active) active = _wv(bsa._activeStrategy);
@@ -190,7 +266,7 @@ return JSON.stringify({ok:true,data:{strategy:strategy,inputs:inputs,named_input
 }
 
 func jsSetActiveStrategy(strategyID string) string {
-	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsBacktestingApiPreamble+`
 var id = %s;
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
 if (typeof bsa.setActiveStrategy !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"setActiveStrategy unavailable"});
@@ -200,7 +276,7 @@ return JSON.stringify({ok:true,data:{status:"set",strategy_id:id}});
 }
 
 func jsSetStrategyInput(name string, value any) string {
-	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsBacktestingApiPreamble+`
 var name = %s;
 var value = %s;
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
@@ -211,7 +287,7 @@ return JSON.stringify({ok:true,data:{status:"set",name:name,value:value}});
 }
 
 func jsGetStrategyReport() string {
-	return wrapJSEval(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
+	return wrapJSEvalAsync(jsBacktestingApiPreamble + jsBacktestingWVHelper + `
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
 var report = _wv(bsa.activeStrategyReportData);
 if (!report) report = _wv(bsa._activeStrategyReportData);
@@ -225,7 +301,7 @@ return JSON.stringify({ok:true,data:{report:report,status:status,is_deep_backtes
 }
 
 func jsGetStrategyDateRange() string {
-	return wrapJSEval(jsBacktestingApiPreamble + `
+	return wrapJSEvalAsync(jsBacktestingApiPreamble + `
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});
 if (typeof bsa.getChartDateRange !== "function") return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"getChartDateRange unavailable"});
 var range = bsa.getChartDateRange();
@@ -234,7 +310,7 @@ return JSON.stringify({ok:true,data:{date_range:range}});
 }
 
 func jsStrategyGotoDate(timestamp float64, belowBar bool) string {
-	return wrapJSEval(fmt.Sprintf(jsBacktestingApiPreamble+`
+	return wrapJSEvalAsync(fmt.Sprintf(jsBacktestingApiPreamble+`
 var ts = %v;
 var below = %t;
 if (!bsa) return JSON.stringify({ok:false,error_code:"API_UNAVAILABLE",error_message:"backtesting API unavailable"});

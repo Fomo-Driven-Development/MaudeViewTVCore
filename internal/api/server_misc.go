@@ -51,6 +51,17 @@ func registerMiscHandlers(api huma.API, svc Service) {
 			return out, nil
 		})
 
+	huma.Register(api, huma.Operation{OperationID: "scan-backtesting-access", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/scan", Summary: "Scan for backtesting strategy API location", Tags: []string{"Strategy"}},
+		func(ctx context.Context, input *chartIDInput) (*struct{ Body map[string]any }, error) {
+			result, err := svc.ScanBacktestingAccess(ctx, input.ChartID)
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			out := &struct{ Body map[string]any }{}
+			out.Body = result
+			return out, nil
+		})
+
 	huma.Register(api, huma.Operation{OperationID: "list-strategies", Method: http.MethodGet, Path: "/api/v1/chart/{chart_id}/strategy/list", Summary: "List all loaded strategies", Tags: []string{"Strategy"}},
 		func(ctx context.Context, input *chartIDInput) (*struct {
 			Body struct {
