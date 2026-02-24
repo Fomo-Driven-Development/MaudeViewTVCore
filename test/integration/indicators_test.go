@@ -117,7 +117,7 @@ func TestListFavoriteIndicators(t *testing.T) {
 }
 
 func TestProbeIndicatorDialogDOM(t *testing.T) {
-	resp := env.GET(t, "/api/v1/indicators/probe-dom")
+	resp := env.GET(t, env.featurePath("indicators/probe-dom"))
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }

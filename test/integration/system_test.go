@@ -63,7 +63,11 @@ func TestGetActiveChart(t *testing.T) {
 	if result.ChartID == "" {
 		t.Fatal("expected non-empty chart_id")
 	}
-	requireField(t, result.ChartID, env.ChartID, "chart_id")
+	// In single-controller mode the active chart must match the test chart.
+	// In multi-controller mode any focused chart may be active.
+	if !env.IsMulti {
+		requireField(t, result.ChartID, env.ChartID, "chart_id")
+	}
 	if result.ChartCount < 1 {
 		t.Fatalf("chart_count = %d, want >= 1", result.ChartCount)
 	}

@@ -24,7 +24,7 @@ type pineState struct {
 // getPineStatus fetches the current Pine editor status.
 func getPineStatus(t *testing.T) pineState {
 	t.Helper()
-	resp := env.GET(t, "/api/v1/pine/status")
+	resp := env.GET(t, env.featurePath("pine/status"))
 	requireStatus(t, resp, http.StatusOK)
 	return decodeJSON[pineState](t, resp)
 }
@@ -44,7 +44,7 @@ func ensurePineOpen(t *testing.T) {
 			return
 		}
 		if !st.IsVisible {
-			resp := env.POST(t, "/api/v1/pine/toggle", nil)
+			resp := env.POST(t, env.featurePath("pine/toggle"), nil)
 			resp.Body.Close()
 			time.Sleep(testSettleLong) // let DOM settle after click
 		}
@@ -78,7 +78,7 @@ func ensurePineClosed(t *testing.T) {
 	if !st.IsVisible {
 		return
 	}
-	resp := env.POST(t, "/api/v1/pine/toggle", nil)
+	resp := env.POST(t, env.featurePath("pine/toggle"), nil)
 	resp.Body.Close()
 	// Poll until closed.
 	deadline := time.Now().Add(5 * time.Second)
@@ -93,7 +93,7 @@ func ensurePineClosed(t *testing.T) {
 }
 
 func TestPineStatus(t *testing.T) {
-	resp := env.GET(t, "/api/v1/pine/status")
+	resp := env.GET(t, env.featurePath("pine/status"))
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("pine status: visible=%v monaco_ready=%v status=%s", st.IsVisible, st.MonacoReady, st.Status)
@@ -106,7 +106,7 @@ func TestPineToggleOpenClose(t *testing.T) {
 	// Open the editor.
 	ensurePineOpen(t)
 
-	resp := env.GET(t, "/api/v1/pine/status")
+	resp := env.GET(t, env.featurePath("pine/status"))
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	if !st.IsVisible {
@@ -117,7 +117,7 @@ func TestPineToggleOpenClose(t *testing.T) {
 	// Close the editor.
 	ensurePineClosed(t)
 
-	resp = env.GET(t, "/api/v1/pine/status")
+	resp = env.GET(t, env.featurePath("pine/status"))
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	if st.IsVisible {
@@ -136,7 +136,7 @@ plot(close, "Close Price")
 `
 
 	// Write source.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": testSource,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -148,7 +148,7 @@ plot(close, "Close Price")
 	t.Logf("set source: length=%d lines=%d name=%q", st.SourceLength, st.LineCount, st.ScriptName)
 
 	// Read source back.
-	resp = env.GET(t, "/api/v1/pine/source")
+	resp = env.GET(t, env.featurePath("pine/source"))
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	if st.ScriptSource == "" {
@@ -161,7 +161,7 @@ plot(close, "Close Price")
 }
 
 func TestPineSetSource_EmptyRejected(t *testing.T) {
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": "",
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -177,7 +177,7 @@ func TestPineSave(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write a valid script first.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("Pine Save Test", overlay=true)
 plot(close)
@@ -189,7 +189,7 @@ plot(close)
 	time.Sleep(testSettleMedium)
 
 	// Save the script.
-	resp = env.POST(t, "/api/v1/pine/save", nil)
+	resp = env.POST(t, env.featurePath("pine/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "saved", "status")
@@ -201,7 +201,7 @@ func TestPineAddToChart(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write a valid script.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("Pine AddToChart Test", overlay=true)
 plot(close, color=color.blue)
@@ -213,7 +213,7 @@ plot(close, color=color.blue)
 	time.Sleep(testSettleMedium)
 
 	// Add to chart.
-	resp = env.POST(t, "/api/v1/pine/add-to-chart", nil)
+	resp = env.POST(t, env.featurePath("pine/add-to-chart"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "added", "status")
@@ -243,7 +243,7 @@ func TestPineUndoRedo(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write source.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("Undo Redo Test", overlay=true)
 plot(close)
@@ -254,13 +254,13 @@ plot(close)
 	time.Sleep(testSettleMedium)
 
 	// Undo.
-	resp = env.POST(t, "/api/v1/pine/undo", nil)
+	resp = env.POST(t, env.featurePath("pine/undo"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("undo: status=%s visible=%v", st.Status, st.IsVisible)
 
 	// Redo.
-	resp = env.POST(t, "/api/v1/pine/redo", nil)
+	resp = env.POST(t, env.featurePath("pine/redo"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	t.Logf("redo: status=%s visible=%v", st.Status, st.IsVisible)
@@ -271,7 +271,7 @@ func TestPineFindReplace(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write source with known text.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("FindReplace Test", overlay=true)
 plot(close, "Close Price")
@@ -283,7 +283,7 @@ plot(open, "Open Price")
 	time.Sleep(testSettleMedium)
 
 	// Find and replace "Price" with "Value".
-	resp = env.POST(t, "/api/v1/pine/find-replace", map[string]any{
+	resp = env.POST(t, env.featurePath("pine/find-replace"), map[string]any{
 		"find":    "Price",
 		"replace": "Value",
 	})
@@ -295,7 +295,7 @@ plot(open, "Open Price")
 	t.Logf("find-replace: status=%s matches=%d", st.Status, st.MatchCount)
 
 	// Verify the replacement took effect.
-	resp = env.GET(t, "/api/v1/pine/source")
+	resp = env.GET(t, env.featurePath("pine/source"))
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	if !strings.Contains(st.ScriptSource, "Value") {
@@ -310,7 +310,7 @@ func TestPineGoToLine(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.POST(t, "/api/v1/pine/go-to-line", map[string]any{
+	resp := env.POST(t, env.featurePath("pine/go-to-line"), map[string]any{
 		"line": 2,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -319,7 +319,7 @@ func TestPineGoToLine(t *testing.T) {
 }
 
 func TestPineGoToLine_InvalidZero(t *testing.T) {
-	resp := env.POST(t, "/api/v1/pine/go-to-line", map[string]any{
+	resp := env.POST(t, env.featurePath("pine/go-to-line"), map[string]any{
 		"line": 0,
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -335,7 +335,7 @@ func TestPineDeleteLine(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write multi-line source.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("DeleteLine Test", overlay=true)
 plot(close)
@@ -348,7 +348,7 @@ plot(high)
 	time.Sleep(testSettleMedium)
 
 	// Delete one line.
-	resp = env.POST(t, "/api/v1/pine/delete-line", map[string]any{"count": 1})
+	resp = env.POST(t, env.featurePath("pine/delete-line"), map[string]any{"count": 1})
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("delete-line: status=%s before_lines=%d", st.Status, before.LineCount)
@@ -359,7 +359,7 @@ func TestPineMoveLine(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Move line down.
-	resp := env.POST(t, "/api/v1/pine/move-line", map[string]any{
+	resp := env.POST(t, env.featurePath("pine/move-line"), map[string]any{
 		"direction": "down",
 		"count":     1,
 	})
@@ -368,7 +368,7 @@ func TestPineMoveLine(t *testing.T) {
 	t.Logf("move-line down: status=%s", st.Status)
 
 	// Move line up.
-	resp = env.POST(t, "/api/v1/pine/move-line", map[string]any{
+	resp = env.POST(t, env.featurePath("pine/move-line"), map[string]any{
 		"direction": "up",
 		"count":     1,
 	})
@@ -382,12 +382,12 @@ func TestPineToggleComment(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Toggle comment on, then off.
-	resp := env.POST(t, "/api/v1/pine/toggle-comment", nil)
+	resp := env.POST(t, env.featurePath("pine/toggle-comment"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("toggle-comment: status=%s", st.Status)
 
-	resp = env.POST(t, "/api/v1/pine/toggle-comment", nil)
+	resp = env.POST(t, env.featurePath("pine/toggle-comment"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }
@@ -397,13 +397,13 @@ func TestPineToggleConsole(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Toggle console on.
-	resp := env.POST(t, "/api/v1/pine/toggle-console", nil)
+	resp := env.POST(t, env.featurePath("pine/toggle-console"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("toggle-console: status=%s", st.Status)
 
 	// Toggle console off.
-	resp = env.POST(t, "/api/v1/pine/toggle-console", nil)
+	resp = env.POST(t, env.featurePath("pine/toggle-console"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }
@@ -412,7 +412,7 @@ func TestPineInsertLine(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.POST(t, "/api/v1/pine/insert-line", nil)
+	resp := env.POST(t, env.featurePath("pine/insert-line"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("insert-line: status=%s", st.Status)
@@ -422,7 +422,7 @@ func TestPineConsole(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.GET(t, "/api/v1/pine/console")
+	resp := env.GET(t, env.featurePath("pine/console"))
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		Messages []struct {
@@ -437,7 +437,7 @@ func TestPineNewIndicator(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.POST(t, "/api/v1/pine/new-indicator", nil)
+	resp := env.POST(t, env.featurePath("pine/new-indicator"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("new-indicator: status=%s visible=%v", st.Status, st.IsVisible)
@@ -449,7 +449,7 @@ func TestPineNewStrategy(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.POST(t, "/api/v1/pine/new-strategy", nil)
+	resp := env.POST(t, env.featurePath("pine/new-strategy"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("new-strategy: status=%s visible=%v", st.Status, st.IsVisible)
@@ -461,7 +461,7 @@ func TestPineCommandPalette(t *testing.T) {
 	ensurePineOpen(t)
 	t.Cleanup(func() { ensurePineClosed(t) })
 
-	resp := env.POST(t, "/api/v1/pine/command-palette", nil)
+	resp := env.POST(t, env.featurePath("pine/command-palette"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	t.Logf("command-palette: status=%s visible=%v", st.Status, st.IsVisible)
@@ -475,7 +475,7 @@ func TestPineOpenScript(t *testing.T) {
 	t.Cleanup(func() { ensurePineClosed(t) })
 
 	// Write and save a script so there's something to open.
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{
 		"source": `//@version=6
 indicator("OpenScript Test", overlay=true)
 plot(close)
@@ -485,13 +485,13 @@ plot(close)
 	resp.Body.Close()
 	time.Sleep(testSettleMedium)
 
-	resp = env.POST(t, "/api/v1/pine/save", nil)
+	resp = env.POST(t, env.featurePath("pine/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 	time.Sleep(testSettleLong)
 
 	// Try to open a script by name.
-	resp = env.POST(t, "/api/v1/pine/open-script", map[string]any{
+	resp = env.POST(t, env.featurePath("pine/open-script"), map[string]any{
 		"name": "OpenScript Test",
 	})
 	if resp.StatusCode != http.StatusOK {
@@ -516,14 +516,14 @@ indicator("Lifecycle Test", overlay=true)
 plot(close, "Close")
 plot(open, "Open")
 `
-	resp := env.PUT(t, "/api/v1/pine/source", map[string]any{"source": script})
+	resp := env.PUT(t, env.featurePath("pine/source"), map[string]any{"source": script})
 	requireStatus(t, resp, http.StatusOK)
 	st := decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "set", "status")
 	time.Sleep(testSettleMedium)
 
 	// 3. Read source back.
-	resp = env.GET(t, "/api/v1/pine/source")
+	resp = env.GET(t, env.featurePath("pine/source"))
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	if !strings.Contains(st.ScriptSource, "Lifecycle Test") {
@@ -531,7 +531,7 @@ plot(open, "Open")
 	}
 
 	// 4. Find and replace.
-	resp = env.POST(t, "/api/v1/pine/find-replace", map[string]any{
+	resp = env.POST(t, env.featurePath("pine/find-replace"), map[string]any{
 		"find":    "Close",
 		"replace": "LastClose",
 	})
@@ -542,19 +542,19 @@ plot(open, "Open")
 	}
 
 	// 5. Save.
-	resp = env.POST(t, "/api/v1/pine/save", nil)
+	resp = env.POST(t, env.featurePath("pine/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "saved", "status")
 
 	// 6. Add to chart.
-	resp = env.POST(t, "/api/v1/pine/add-to-chart", nil)
+	resp = env.POST(t, env.featurePath("pine/add-to-chart"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	requireField(t, st.Status, "added", "status")
 
 	// 7. Check console.
-	resp = env.GET(t, "/api/v1/pine/console")
+	resp = env.GET(t, env.featurePath("pine/console"))
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
@@ -579,7 +579,7 @@ plot(open, "Open")
 	// 9. Close editor.
 	ensurePineClosed(t)
 
-	resp = env.GET(t, "/api/v1/pine/status")
+	resp = env.GET(t, env.featurePath("pine/status"))
 	requireStatus(t, resp, http.StatusOK)
 	st = decodeJSON[pineState](t, resp)
 	if st.IsVisible {

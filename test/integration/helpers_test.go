@@ -43,10 +43,16 @@ type Env struct {
 	OriginalLayoutID int    // for switch-back in teardown
 	TestLayoutName   string // for deletion in teardown (resolved by name)
 	StrategyReady    bool   // true if setup loaded a strategy
+	IsMulti          bool   // true when running against tv_multi_controller
 }
 
 // discoverChartID fetches /api/v1/charts and sets env.ChartID to the first chart.
+// If TV_TEST_CHART_ID is set, that value is used directly without an HTTP call.
 func (e *Env) discoverChartID() error {
+	if id := os.Getenv("TV_TEST_CHART_ID"); id != "" {
+		e.ChartID = id
+		return nil
+	}
 	resp, err := e.Client.Get(e.BaseURL + "/api/v1/charts")
 	if err != nil {
 		return fmt.Errorf("server not reachable at %s: %w", e.BaseURL, err)
@@ -90,7 +96,7 @@ type layoutActionResult struct {
 
 // listLayouts fetches all layouts.
 func (e *Env) listLayouts() ([]layoutInfo, error) {
-	resp, err := e.Client.Get(e.BaseURL + "/api/v1/layouts")
+	resp, err := e.Client.Get(e.BaseURL + e.featurePath("layouts"))
 	if err != nil {
 		return nil, fmt.Errorf("list layouts: %w", err)
 	}
@@ -110,7 +116,7 @@ func (e *Env) listLayouts() ([]layoutInfo, error) {
 
 // currentLayoutName returns the name of the currently active layout.
 func (e *Env) currentLayoutName() (string, error) {
-	resp, err := e.Client.Get(e.BaseURL + "/api/v1/layout/status")
+	resp, err := e.Client.Get(e.BaseURL + e.featurePath("layout/status"))
 	if err != nil {
 		return "", fmt.Errorf("layout status: %w", err)
 	}
@@ -143,7 +149,7 @@ func (e *Env) resolveLayoutNumericID(name string) (int, error) {
 // currentLayoutNumericID returns the numeric ID of the currently active layout.
 // Matches by both name and layout_id (URL) to handle unsaved/orphaned layouts.
 func (e *Env) currentLayoutNumericID() (int, error) {
-	resp, err := e.Client.Get(e.BaseURL + "/api/v1/layout/status")
+	resp, err := e.Client.Get(e.BaseURL + e.featurePath("layout/status"))
 	if err != nil {
 		return 0, fmt.Errorf("layout status: %w", err)
 	}
@@ -226,7 +232,7 @@ func setupStrategyLayout() error {
 
 	// 2. Clone layout with a unique name.
 	cloneName := fmt.Sprintf("tv_agent_test_%d", time.Now().Unix())
-	resp, err := env.doJSON(http.MethodPost, "/api/v1/layout/clone", map[string]any{
+	resp, err := env.doJSON(http.MethodPost, env.featurePath("layout/clone"), map[string]any{
 		"name": cloneName,
 	})
 	if err != nil {
@@ -264,7 +270,7 @@ func setupStrategyLayout() error {
 	}
 
 	// Save the cloned layout so it persists (needed for teardown deletion).
-	saveResp, err := env.doJSON(http.MethodPost, "/api/v1/layout/save", nil)
+	saveResp, err := env.doJSON(http.MethodPost, env.featurePath("layout/save"), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "integration: save warning: %v\n", err)
 	} else {
@@ -294,7 +300,7 @@ func setupStrategyLayout() error {
 // test strategy source, adds it to the chart, and closes the editor.
 func addTestStrategy() error {
 	// Open Pine editor.
-	resp, err := env.doJSON(http.MethodPost, "/api/v1/pine/toggle", nil)
+	resp, err := env.doJSON(http.MethodPost, env.featurePath("pine/toggle"), nil)
 	if err != nil {
 		return fmt.Errorf("open pine: %w", err)
 	}
@@ -302,7 +308,7 @@ func addTestStrategy() error {
 	time.Sleep(testDataSettleMedium)
 
 	// Verify it opened.
-	resp, err = env.Client.Get(env.BaseURL + "/api/v1/pine/status")
+	resp, err = env.Client.Get(env.BaseURL + env.featurePath("pine/status"))
 	if err != nil {
 		return fmt.Errorf("pine status: %w", err)
 	}
@@ -315,7 +321,7 @@ func addTestStrategy() error {
 	if !st.IsVisible {
 		// Retry toggle once.
 		time.Sleep(testDataSettleMedium)
-		resp, err = env.doJSON(http.MethodPost, "/api/v1/pine/toggle", nil)
+		resp, err = env.doJSON(http.MethodPost, env.featurePath("pine/toggle"), nil)
 		if err != nil {
 			return fmt.Errorf("retry open pine: %w", err)
 		}
@@ -324,7 +330,7 @@ func addTestStrategy() error {
 	}
 
 	// Load new strategy template.
-	resp, err = env.doJSON(http.MethodPost, "/api/v1/pine/new-strategy", nil)
+	resp, err = env.doJSON(http.MethodPost, env.featurePath("pine/new-strategy"), nil)
 	if err != nil {
 		return fmt.Errorf("new-strategy: %w", err)
 	}
@@ -332,7 +338,7 @@ func addTestStrategy() error {
 	time.Sleep(testSettleLong)
 
 	// Write test strategy source.
-	resp, err = env.doJSON(http.MethodPut, "/api/v1/pine/source", map[string]any{
+	resp, err = env.doJSON(http.MethodPut, env.featurePath("pine/source"), map[string]any{
 		"source": testStrategySource,
 	})
 	if err != nil {
@@ -348,7 +354,7 @@ func addTestStrategy() error {
 	time.Sleep(testSettleMedium)
 
 	// Add to chart.
-	resp2, err := env.doJSON(http.MethodPost, "/api/v1/pine/add-to-chart", nil)
+	resp2, err := env.doJSON(http.MethodPost, env.featurePath("pine/add-to-chart"), nil)
 	if err != nil {
 		return fmt.Errorf("add-to-chart: %w", err)
 	}
@@ -364,7 +370,7 @@ func addTestStrategy() error {
 	// Save the script so it persists as a named study on the chart.
 	// Without saving, the strategy is an "unnamed" editor tab that gets removed
 	// when subsequent Pine tests load new templates (e.g. Ctrl+K Ctrl+S).
-	saveResp, err := env.doJSON(http.MethodPost, "/api/v1/pine/save", nil)
+	saveResp, err := env.doJSON(http.MethodPost, env.featurePath("pine/save"), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "integration: save strategy warning: %v\n", err)
 	} else {
@@ -385,7 +391,7 @@ func addTestStrategy() error {
 	// strategy tests run.
 
 	// Close Pine editor.
-	resp3, err := env.doJSON(http.MethodPost, "/api/v1/pine/toggle", nil)
+	resp3, err := env.doJSON(http.MethodPost, env.featurePath("pine/toggle"), nil)
 	if err != nil {
 		return fmt.Errorf("close pine: %w", err)
 	}
@@ -405,7 +411,7 @@ func teardownStrategyLayout() {
 	fmt.Fprintf(os.Stdout, "integration: teardown — switching back to layout %d\n", env.OriginalLayoutID)
 
 	// Switch back to original layout.
-	resp, err := env.doJSON(http.MethodPost, "/api/v1/layout/switch", map[string]any{
+	resp, err := env.doJSON(http.MethodPost, env.featurePath("layout/switch"), map[string]any{
 		"id": env.OriginalLayoutID,
 	})
 	if err != nil {
@@ -425,7 +431,7 @@ func teardownStrategyLayout() {
 		return
 	}
 
-	path := fmt.Sprintf("/api/v1/layout/%d", testLayoutID)
+	path := env.featurePath(fmt.Sprintf("layout/%d", testLayoutID))
 	req, err := http.NewRequest(http.MethodDelete, env.BaseURL+path, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "integration: teardown delete request: %v\n", err)
@@ -462,6 +468,15 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "integration: using chart %s at %s\n", env.ChartID, env.BaseURL)
+
+	// Detect single vs multi controller mode by probing the session-level layout status path.
+	// In multi-controller, /api/v1/layout/status returns 404; chart-scoped paths are used instead.
+	probeResp, probeErr := env.Client.Get(env.BaseURL + "/api/v1/layout/status")
+	if probeErr == nil {
+		probeResp.Body.Close()
+		env.IsMulti = probeResp.StatusCode == http.StatusNotFound
+	}
+	fmt.Fprintf(os.Stdout, "integration: mode=%s\n", map[bool]string{true: "multi", false: "single"}[env.IsMulti])
 
 	// Warmup: set a known timeframe to ensure the chart is focused and interactive.
 	warmupURL := fmt.Sprintf("%s/api/v1/chart/%s/timeframe?preset=1Y", env.BaseURL, env.ChartID)
@@ -562,4 +577,25 @@ func requireField[T comparable](t *testing.T, got, want T, name string) {
 
 func (e *Env) chartPath(suffix string) string {
 	return fmt.Sprintf("/api/v1/chart/%s/%s", e.ChartID, suffix)
+}
+
+// featurePath returns the path for session-level feature namespaces.
+// In single-controller mode: /api/v1/{suffix}
+// In multi-controller mode: /api/v1/chart/{id}/{suffix}
+// Covers: layout, alerts, watchlists, pine, hotlists, study-templates, indicators.
+func (e *Env) featurePath(suffix string) string {
+	if e.IsMulti {
+		return fmt.Sprintf("/api/v1/chart/%s/%s", e.ChartID, suffix)
+	}
+	return "/api/v1/" + suffix
+}
+
+// panePath returns the path for pane navigation actions.
+// In single-controller mode: /api/v1/chart/{action}
+// In multi-controller mode: /api/v1/chart/{id}/pane/{action}
+func (e *Env) panePath(action string) string {
+	if e.IsMulti {
+		return fmt.Sprintf("/api/v1/chart/%s/pane/%s", e.ChartID, action)
+	}
+	return "/api/v1/chart/" + action
 }

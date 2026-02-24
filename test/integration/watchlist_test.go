@@ -12,7 +12,7 @@ func TestWatchlistCRUD(t *testing.T) {
 	const wlName = "integration-test-crud"
 
 	// --- Create ---
-	resp := env.POST(t, "/api/v1/watchlists", map[string]any{"name": wlName})
+	resp := env.POST(t, env.featurePath("watchlists"), map[string]any{"name": wlName})
 	requireStatus(t, resp, http.StatusOK)
 	created := decodeJSON[struct {
 		ID    string `json:"id"`
@@ -29,12 +29,12 @@ func TestWatchlistCRUD(t *testing.T) {
 
 	// Ensure cleanup even if test fails partway through.
 	t.Cleanup(func() {
-		r := env.DELETE(t, "/api/v1/watchlist/"+wlID)
+		r := env.DELETE(t, env.featurePath("watchlist/"+wlID))
 		r.Body.Close()
 	})
 
 	// --- Get (empty) ---
-	resp = env.GET(t, "/api/v1/watchlist/"+wlID)
+	resp = env.GET(t, env.featurePath("watchlist/"+wlID))
 	requireStatus(t, resp, http.StatusOK)
 	detail := decodeJSON[struct {
 		ID      string   `json:"id"`
@@ -47,7 +47,7 @@ func TestWatchlistCRUD(t *testing.T) {
 	}
 
 	// --- Add symbols ---
-	resp = env.POST(t, "/api/v1/watchlist/"+wlID+"/symbols", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlist/"+wlID+"/symbols"), map[string]any{
 		"symbols": []string{"AAPL", "MSFT", "TSLA"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -60,7 +60,7 @@ func TestWatchlistCRUD(t *testing.T) {
 	t.Logf("added symbols: %v", added.Symbols)
 
 	// --- Remove one symbol (DELETE with body) ---
-	resp = env.do(t, http.MethodDelete, "/api/v1/watchlist/"+wlID+"/symbols", map[string]any{
+	resp = env.do(t, http.MethodDelete, env.featurePath("watchlist/"+wlID+"/symbols"), map[string]any{
 		"symbols": []string{"MSFT"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -80,7 +80,7 @@ func TestWatchlistCRUD(t *testing.T) {
 
 	// --- Rename ---
 	const newName = "integration-test-renamed"
-	resp = env.do(t, http.MethodPatch, "/api/v1/watchlist/"+wlID, map[string]any{
+	resp = env.do(t, http.MethodPatch, env.featurePath("watchlist/"+wlID), map[string]any{
 		"name": newName,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -93,7 +93,7 @@ func TestWatchlistCRUD(t *testing.T) {
 	requireField(t, renamed.Count, 2, "count")
 
 	// --- Verify via Get ---
-	resp = env.GET(t, "/api/v1/watchlist/"+wlID)
+	resp = env.GET(t, env.featurePath("watchlist/"+wlID))
 	requireStatus(t, resp, http.StatusOK)
 	final := decodeJSON[struct {
 		ID      string   `json:"id"`
@@ -106,12 +106,12 @@ func TestWatchlistCRUD(t *testing.T) {
 	}
 
 	// --- Delete ---
-	resp = env.DELETE(t, "/api/v1/watchlist/"+wlID)
+	resp = env.DELETE(t, env.featurePath("watchlist/"+wlID))
 	requireStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()
 
 	// --- Verify deleted (should 500 with "watchlist not found") ---
-	resp = env.GET(t, "/api/v1/watchlist/"+wlID)
+	resp = env.GET(t, env.featurePath("watchlist/"+wlID))
 	if resp.StatusCode == http.StatusOK {
 		resp.Body.Close()
 		t.Fatal("watchlist should not exist after delete")
@@ -121,7 +121,7 @@ func TestWatchlistCRUD(t *testing.T) {
 }
 
 func TestGetActiveWatchlist(t *testing.T) {
-	resp := env.GET(t, "/api/v1/watchlists/active")
+	resp := env.GET(t, env.featurePath("watchlists/active"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -141,27 +141,27 @@ func TestGetActiveWatchlist(t *testing.T) {
 
 func TestSetActiveWatchlist(t *testing.T) {
 	// Get current active watchlist to restore later.
-	resp := env.GET(t, "/api/v1/watchlists/active")
+	resp := env.GET(t, env.featurePath("watchlists/active"))
 	requireStatus(t, resp, http.StatusOK)
 	original := decodeJSON[struct {
 		ID string `json:"id"`
 	}](t, resp)
 
 	// Create a new watchlist to switch to.
-	resp = env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-active"})
+	resp = env.POST(t, env.featurePath("watchlists"), map[string]any{"name": "integration-test-active"})
 	requireStatus(t, resp, http.StatusOK)
 	created := decodeJSON[struct {
 		ID string `json:"id"`
 	}](t, resp)
 	t.Cleanup(func() {
 		// Restore original active watchlist and delete test one.
-		env.PUT(t, "/api/v1/watchlists/active", map[string]any{"id": original.ID})
-		r := env.DELETE(t, "/api/v1/watchlist/"+created.ID)
+		env.PUT(t, env.featurePath("watchlists/active"), map[string]any{"id": original.ID})
+		r := env.DELETE(t, env.featurePath("watchlist/"+created.ID))
 		r.Body.Close()
 	})
 
 	// Set the new watchlist as active.
-	resp = env.PUT(t, "/api/v1/watchlists/active", map[string]any{
+	resp = env.PUT(t, env.featurePath("watchlists/active"), map[string]any{
 		"id": created.ID,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -173,7 +173,7 @@ func TestSetActiveWatchlist(t *testing.T) {
 	t.Logf("set active watchlist: id=%s name=%q", result.ID, result.Name)
 
 	// Verify via GET.
-	resp = env.GET(t, "/api/v1/watchlists/active")
+	resp = env.GET(t, env.featurePath("watchlists/active"))
 	requireStatus(t, resp, http.StatusOK)
 	verify := decodeJSON[struct {
 		ID string `json:"id"`
@@ -183,30 +183,30 @@ func TestSetActiveWatchlist(t *testing.T) {
 
 func TestFlagSymbol(t *testing.T) {
 	// Create a temporary watchlist with a symbol.
-	resp := env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-flag"})
+	resp := env.POST(t, env.featurePath("watchlists"), map[string]any{"name": "integration-test-flag"})
 	requireStatus(t, resp, http.StatusOK)
 	created := decodeJSON[struct {
 		ID string `json:"id"`
 	}](t, resp)
 	t.Cleanup(func() {
-		r := env.DELETE(t, "/api/v1/watchlist/"+created.ID)
+		r := env.DELETE(t, env.featurePath("watchlist/"+created.ID))
 		r.Body.Close()
 	})
 
 	// Add a symbol.
-	resp = env.POST(t, "/api/v1/watchlist/"+created.ID+"/symbols", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlist/"+created.ID+"/symbols"), map[string]any{
 		"symbols": []string{"AAPL"},
 	})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
 	// Set this as active so flag can find it.
-	resp = env.PUT(t, "/api/v1/watchlists/active", map[string]any{"id": created.ID})
+	resp = env.PUT(t, env.featurePath("watchlists/active"), map[string]any{"id": created.ID})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
 	// Flag the symbol (experimental endpoint — may fail).
-	resp = env.POST(t, "/api/v1/watchlist/"+created.ID+"/flag", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlist/"+created.ID+"/flag"), map[string]any{
 		"symbol": "AAPL",
 	})
 	if resp.StatusCode != http.StatusOK {
@@ -224,7 +224,7 @@ func TestFlagSymbol(t *testing.T) {
 // --- Colored Watchlist tests ---
 
 func TestListColoredWatchlists(t *testing.T) {
-	resp := env.GET(t, "/api/v1/watchlists/colored")
+	resp := env.GET(t, env.featurePath("watchlists/colored"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -248,7 +248,7 @@ func TestReplaceAndListColoredWatchlist(t *testing.T) {
 	syms := []string{"AAPL", "MSFT"}
 
 	// Append test symbols to green list.
-	resp := env.POST(t, "/api/v1/watchlists/colored/"+color+"/append", map[string]any{
+	resp := env.POST(t, env.featurePath("watchlists/colored/"+color+"/append"), map[string]any{
 		"symbols": syms,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -259,7 +259,7 @@ func TestReplaceAndListColoredWatchlist(t *testing.T) {
 	t.Logf("appended to %s list: %v", color, appended.Symbols)
 
 	t.Cleanup(func() {
-		r := env.POST(t, "/api/v1/watchlists/colored/"+color+"/remove", map[string]any{
+		r := env.POST(t, env.featurePath("watchlists/colored/"+color+"/remove"), map[string]any{
 			"symbols": syms,
 		})
 		r.Body.Close()
@@ -270,7 +270,7 @@ func TestReplaceAndListColoredWatchlist(t *testing.T) {
 	for i, s := range appended.Symbols {
 		reversed[len(appended.Symbols)-1-i] = s
 	}
-	resp = env.PUT(t, "/api/v1/watchlists/colored/"+color, map[string]any{
+	resp = env.PUT(t, env.featurePath("watchlists/colored/"+color), map[string]any{
 		"symbols": reversed,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -284,7 +284,7 @@ func TestReplaceAndListColoredWatchlist(t *testing.T) {
 	t.Logf("replaced (reordered) %s list: %v", color, replaced.Symbols)
 
 	// Verify via list.
-	resp = env.GET(t, "/api/v1/watchlists/colored")
+	resp = env.GET(t, env.featurePath("watchlists/colored"))
 	requireStatus(t, resp, http.StatusOK)
 	listing := decodeJSON[struct {
 		ColoredWatchlists []struct {
@@ -308,7 +308,7 @@ func TestAppendAndRemoveColoredWatchlist(t *testing.T) {
 	const color = "green"
 
 	// Append two test symbols.
-	resp := env.POST(t, "/api/v1/watchlists/colored/"+color+"/append", map[string]any{
+	resp := env.POST(t, env.featurePath("watchlists/colored/"+color+"/append"), map[string]any{
 		"symbols": []string{"AAPL", "TSLA"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -319,7 +319,7 @@ func TestAppendAndRemoveColoredWatchlist(t *testing.T) {
 
 	t.Cleanup(func() {
 		// Remove test symbols.
-		r := env.POST(t, "/api/v1/watchlists/colored/"+color+"/remove", map[string]any{
+		r := env.POST(t, env.featurePath("watchlists/colored/"+color+"/remove"), map[string]any{
 			"symbols": []string{"AAPL", "TSLA"},
 		})
 		r.Body.Close()
@@ -330,7 +330,7 @@ func TestAppendAndRemoveColoredWatchlist(t *testing.T) {
 	}
 
 	// Remove AAPL.
-	resp = env.POST(t, "/api/v1/watchlists/colored/"+color+"/remove", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlists/colored/"+color+"/remove"), map[string]any{
 		"symbols": []string{"AAPL"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -347,13 +347,13 @@ func TestAppendAndRemoveColoredWatchlist(t *testing.T) {
 
 func TestBulkRemoveColoredWatchlist(t *testing.T) {
 	// Add a symbol to two colors.
-	resp := env.POST(t, "/api/v1/watchlists/colored/red/append", map[string]any{
+	resp := env.POST(t, env.featurePath("watchlists/colored/red/append"), map[string]any{
 		"symbols": []string{"GOOG"},
 	})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 
-	resp = env.POST(t, "/api/v1/watchlists/colored/blue/append", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlists/colored/blue/append"), map[string]any{
 		"symbols": []string{"GOOG"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -361,14 +361,14 @@ func TestBulkRemoveColoredWatchlist(t *testing.T) {
 
 	t.Cleanup(func() {
 		// Best-effort cleanup: remove GOOG from both.
-		r := env.POST(t, "/api/v1/watchlists/colored/red/remove", map[string]any{"symbols": []string{"GOOG"}})
+		r := env.POST(t, env.featurePath("watchlists/colored/red/remove"), map[string]any{"symbols": []string{"GOOG"}})
 		r.Body.Close()
-		r = env.POST(t, "/api/v1/watchlists/colored/blue/remove", map[string]any{"symbols": []string{"GOOG"}})
+		r = env.POST(t, env.featurePath("watchlists/colored/blue/remove"), map[string]any{"symbols": []string{"GOOG"}})
 		r.Body.Close()
 	})
 
 	// Bulk remove GOOG from all.
-	resp = env.POST(t, "/api/v1/watchlists/colored/bulk-remove", map[string]any{
+	resp = env.POST(t, env.featurePath("watchlists/colored/bulk-remove"), map[string]any{
 		"symbols": []string{"GOOG"},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -382,7 +382,7 @@ func TestBulkRemoveColoredWatchlist(t *testing.T) {
 // --- Study Template tests ---
 
 func TestListStudyTemplates(t *testing.T) {
-	resp := env.GET(t, "/api/v1/study-templates")
+	resp := env.GET(t, env.featurePath("study-templates"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -401,7 +401,7 @@ func TestListStudyTemplates(t *testing.T) {
 
 func TestGetStudyTemplate(t *testing.T) {
 	// First, list to get a valid ID.
-	resp := env.GET(t, "/api/v1/study-templates")
+	resp := env.GET(t, env.featurePath("study-templates"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -422,7 +422,7 @@ func TestGetStudyTemplate(t *testing.T) {
 		t.Skip("no study templates available to fetch")
 	}
 
-	resp = env.GET(t, fmt.Sprintf("/api/v1/study-templates/%d", templateID))
+	resp = env.GET(t, env.featurePath(fmt.Sprintf("study-templates/%d", templateID)))
 	requireStatus(t, resp, http.StatusOK)
 	entry := decodeJSON[struct {
 		ID       int    `json:"id"`
@@ -437,17 +437,17 @@ func TestGetStudyTemplate(t *testing.T) {
 
 func TestWatchlistListContainsCreated(t *testing.T) {
 	// Create a watchlist, verify it appears in the listing, then clean up.
-	resp := env.POST(t, "/api/v1/watchlists", map[string]any{"name": "integration-test-list"})
+	resp := env.POST(t, env.featurePath("watchlists"), map[string]any{"name": "integration-test-list"})
 	requireStatus(t, resp, http.StatusOK)
 	created := decodeJSON[struct {
 		ID string `json:"id"`
 	}](t, resp)
 	t.Cleanup(func() {
-		r := env.DELETE(t, "/api/v1/watchlist/"+created.ID)
+		r := env.DELETE(t, env.featurePath("watchlist/"+created.ID))
 		r.Body.Close()
 	})
 
-	resp = env.GET(t, "/api/v1/watchlists")
+	resp = env.GET(t, env.featurePath("watchlists"))
 	requireStatus(t, resp, http.StatusOK)
 	listing := decodeJSON[struct {
 		Watchlists []struct {

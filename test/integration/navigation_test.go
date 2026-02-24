@@ -660,7 +660,7 @@ func TestRedoChart(t *testing.T) {
 // --- Layout Favorite tests ---
 
 func TestGetLayoutFavorite(t *testing.T) {
-	resp := env.GET(t, "/api/v1/layout/favorite")
+	resp := env.GET(t, env.featurePath("layout/favorite"))
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		LayoutID   string `json:"layout_id"`
@@ -675,14 +675,14 @@ func TestGetLayoutFavorite(t *testing.T) {
 
 func TestToggleLayoutFavorite(t *testing.T) {
 	// Read initial state.
-	resp := env.GET(t, "/api/v1/layout/favorite")
+	resp := env.GET(t, env.featurePath("layout/favorite"))
 	requireStatus(t, resp, http.StatusOK)
 	before := decodeJSON[struct {
 		IsFavorite bool `json:"is_favorite"`
 	}](t, resp)
 
 	// Toggle.
-	resp = env.POST(t, "/api/v1/layout/favorite/toggle", nil)
+	resp = env.POST(t, env.featurePath("layout/favorite/toggle"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		LayoutID   string `json:"layout_id"`
@@ -694,7 +694,7 @@ func TestToggleLayoutFavorite(t *testing.T) {
 	t.Logf("toggle: was_favorite=%v is_favorite=%v", before.IsFavorite, result.IsFavorite)
 
 	// Toggle back to restore.
-	resp = env.POST(t, "/api/v1/layout/favorite/toggle", nil)
+	resp = env.POST(t, env.featurePath("layout/favorite/toggle"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }

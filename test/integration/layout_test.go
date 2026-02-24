@@ -14,7 +14,7 @@ import (
 // restoreGrid sets the grid back to single pane and sleeps briefly.
 func restoreGrid(t *testing.T) {
 	t.Helper()
-	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "s"})
+	resp := env.POST(t, env.featurePath("layout/grid"), map[string]any{"template": "s"})
 	resp.Body.Close()
 	time.Sleep(testSettleMedium)
 }
@@ -53,7 +53,7 @@ func TestListLayouts(t *testing.T) {
 }
 
 func TestGetLayoutStatus(t *testing.T) {
-	resp := env.GET(t, "/api/v1/layout/status")
+	resp := env.GET(t, env.featurePath("layout/status"))
 	requireStatus(t, resp, http.StatusOK)
 
 	status := decodeJSON[struct {
@@ -118,7 +118,7 @@ func TestGetPanes(t *testing.T) {
 // --- Group 2: Layout Actions ---
 
 func TestSaveLayout(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/save", nil)
+	resp := env.POST(t, env.featurePath("layout/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -148,7 +148,7 @@ func TestRenameLayout_AndRestore(t *testing.T) {
 
 	// Rename to a test name.
 	testName := "tv_agent_rename_test"
-	resp := env.POST(t, "/api/v1/layout/rename", map[string]any{"name": testName})
+	resp := env.POST(t, env.featurePath("layout/rename"), map[string]any{"name": testName})
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -169,17 +169,17 @@ func TestRenameLayout_AndRestore(t *testing.T) {
 	requireField(t, name, testName, "layout_name after rename")
 
 	// Restore original name and save to persist it.
-	resp = env.POST(t, "/api/v1/layout/rename", map[string]any{"name": origName})
+	resp = env.POST(t, env.featurePath("layout/rename"), map[string]any{"name": origName})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
-	resp = env.POST(t, "/api/v1/layout/save", nil)
+	resp = env.POST(t, env.featurePath("layout/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 	t.Logf("restored name to %q and saved", origName)
 }
 
 func TestDismissDialog(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/dismiss-dialog", nil)
+	resp := env.POST(t, env.featurePath("layout/dismiss-dialog"), nil)
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -194,7 +194,7 @@ func TestDismissDialog(t *testing.T) {
 
 func TestToggleFullscreen(t *testing.T) {
 	// Toggle on.
-	resp := env.POST(t, "/api/v1/layout/fullscreen", nil)
+	resp := env.POST(t, env.featurePath("layout/fullscreen"), nil)
 	requireStatus(t, resp, http.StatusOK)
 
 	on := decodeJSON[struct {
@@ -209,7 +209,7 @@ func TestToggleFullscreen(t *testing.T) {
 	time.Sleep(testSettleMedium)
 
 	// Toggle off.
-	resp = env.POST(t, "/api/v1/layout/fullscreen", nil)
+	resp = env.POST(t, env.featurePath("layout/fullscreen"), nil)
 	requireStatus(t, resp, http.StatusOK)
 
 	off := decodeJSON[struct {
@@ -240,7 +240,7 @@ func TestSetGrid_AllTemplates(t *testing.T) {
 
 	for _, tc := range templates {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": tc.name})
+			resp := env.POST(t, env.featurePath("layout/grid"), map[string]any{"template": tc.name})
 			requireStatus(t, resp, http.StatusOK)
 
 			result := decodeJSON[struct {
@@ -261,13 +261,13 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	t.Cleanup(func() { restoreGrid(t) })
 
 	// Set grid to 2 panes.
-	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "2h"})
+	resp := env.POST(t, env.featurePath("layout/grid"), map[string]any{"template": "2h"})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 	time.Sleep(testSettleMedium)
 
 	// Activate index 0.
-	resp = env.POST(t, "/api/v1/chart/activate", map[string]any{"index": 0})
+	resp = env.POST(t, env.panePath("activate"), map[string]any{"index": 0})
 	requireStatus(t, resp, http.StatusOK)
 	act0 := decodeJSON[struct {
 		ActiveIndex int `json:"active_index"`
@@ -277,7 +277,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	time.Sleep(testSettleSmall)
 
 	// Next → should go to index 1.
-	resp = env.POST(t, "/api/v1/chart/next", nil)
+	resp = env.POST(t, env.panePath("next"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	next := decodeJSON[struct {
 		ChartIndex int `json:"chart_index"`
@@ -289,7 +289,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	time.Sleep(testSettleSmall)
 
 	// Prev → should go back to index 0.
-	resp = env.POST(t, "/api/v1/chart/prev", nil)
+	resp = env.POST(t, env.panePath("prev"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	prev := decodeJSON[struct {
 		ChartIndex int `json:"chart_index"`
@@ -301,7 +301,7 @@ func TestChartNavigation_MultiPane(t *testing.T) {
 	time.Sleep(testSettleSmall)
 
 	// Activate index 1 directly.
-	resp = env.POST(t, "/api/v1/chart/activate", map[string]any{"index": 1})
+	resp = env.POST(t, env.panePath("activate"), map[string]any{"index": 1})
 	requireStatus(t, resp, http.StatusOK)
 	act1 := decodeJSON[struct {
 		ActiveIndex int `json:"active_index"`
@@ -314,13 +314,13 @@ func TestMaximizeChart(t *testing.T) {
 	t.Cleanup(func() { restoreGrid(t) })
 
 	// Need multi-pane to test maximize meaningfully.
-	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": "2h"})
+	resp := env.POST(t, env.featurePath("layout/grid"), map[string]any{"template": "2h"})
 	requireStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 	time.Sleep(testSettleLong)
 
 	// Toggle maximize on.
-	resp = env.POST(t, "/api/v1/chart/maximize", nil)
+	resp = env.POST(t, env.panePath("maximize"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	on := decodeJSON[struct {
 		IsMaximized bool `json:"is_maximized"`
@@ -335,7 +335,7 @@ func TestMaximizeChart(t *testing.T) {
 
 	// Toggle maximize off. The endpoint always returns 200 with the
 	// current state; verify it at least responds.
-	resp = env.POST(t, "/api/v1/chart/maximize", nil)
+	resp = env.POST(t, env.panePath("maximize"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	off := decodeJSON[struct {
 		IsMaximized bool `json:"is_maximized"`
@@ -349,43 +349,43 @@ func TestMaximizeChart(t *testing.T) {
 // --- Group 4: Validation Tests ---
 
 func TestCloneLayout_EmptyName(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/clone", map[string]any{"name": ""})
+	resp := env.POST(t, env.featurePath("layout/clone"), map[string]any{"name": ""})
 	requireErrorStatus(t, resp)
 	t.Logf("empty clone name rejected with status %d", resp.StatusCode)
 }
 
 func TestRenameLayout_EmptyName(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/rename", map[string]any{"name": ""})
+	resp := env.POST(t, env.featurePath("layout/rename"), map[string]any{"name": ""})
 	requireErrorStatus(t, resp)
 	t.Logf("empty rename name rejected with status %d", resp.StatusCode)
 }
 
 func TestDeleteLayout_InvalidID(t *testing.T) {
-	resp := env.DELETE(t, "/api/v1/layout/0")
+	resp := env.DELETE(t, env.featurePath("layout/0"))
 	requireErrorStatus(t, resp)
 	t.Logf("delete layout 0 rejected with status %d", resp.StatusCode)
 }
 
 func TestSwitchLayout_InvalidID(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/switch", map[string]any{"id": 0})
+	resp := env.POST(t, env.featurePath("layout/switch"), map[string]any{"id": 0})
 	requireErrorStatus(t, resp)
 	t.Logf("switch layout 0 rejected with status %d", resp.StatusCode)
 }
 
 func TestBatchDelete_EmptyIDs(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layouts/batch-delete", map[string]any{"ids": []int{}})
+	resp := env.POST(t, env.featurePath("layouts/batch-delete"), map[string]any{"ids": []int{}})
 	requireErrorStatus(t, resp)
 	t.Logf("empty batch-delete ids rejected with status %d", resp.StatusCode)
 }
 
 func TestActivateChart_NegativeIndex(t *testing.T) {
-	resp := env.POST(t, "/api/v1/chart/activate", map[string]any{"index": -1})
+	resp := env.POST(t, env.panePath("activate"), map[string]any{"index": -1})
 	requireErrorStatus(t, resp)
 	t.Logf("negative activate index rejected with status %d", resp.StatusCode)
 }
 
 func TestSetGrid_EmptyTemplate(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/grid", map[string]any{"template": ""})
+	resp := env.POST(t, env.featurePath("layout/grid"), map[string]any{"template": ""})
 	requireErrorStatus(t, resp)
 	t.Logf("empty grid template rejected with status %d", resp.StatusCode)
 }
@@ -410,7 +410,7 @@ func TestBatchDeleteLayouts(t *testing.T) {
 			beforeSet[l.ID] = true
 		}
 
-		resp := env.POST(t, "/api/v1/layout/clone", map[string]any{"name": name})
+		resp := env.POST(t, env.featurePath("layout/clone"), map[string]any{"name": name})
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
 			t.Skipf("clone layout failed for batch-delete test (status %d)", resp.StatusCode)
@@ -429,7 +429,7 @@ func TestBatchDeleteLayouts(t *testing.T) {
 			}
 
 			// Save so the clone persists in TradingView's layout list.
-			sr := env.POST(t, "/api/v1/layout/save", nil)
+			sr := env.POST(t, env.featurePath("layout/save"), nil)
 			sr.Body.Close()
 			time.Sleep(testSettleLong)
 
@@ -458,7 +458,7 @@ func TestBatchDeleteLayouts(t *testing.T) {
 	}
 
 	// Switch back to original layout before deleting clones.
-	resp := env.POST(t, "/api/v1/layout/switch", map[string]any{"id": env.OriginalLayoutID})
+	resp := env.POST(t, env.featurePath("layout/switch"), map[string]any{"id": env.OriginalLayoutID})
 	resp.Body.Close()
 	time.Sleep(testDataSettleLong)
 	env.discoverChartID()
@@ -466,13 +466,13 @@ func TestBatchDeleteLayouts(t *testing.T) {
 	// Register cleanup in case batch-delete fails.
 	t.Cleanup(func() {
 		for _, cid := range cloneIDs {
-			r := env.do(t, http.MethodDelete, fmt.Sprintf("/api/v1/layout/%d", cid), nil)
+			r := env.do(t, http.MethodDelete, env.featurePath(fmt.Sprintf("layout/%d", cid)), nil)
 			r.Body.Close()
 		}
 	})
 
 	// Batch delete both clones.
-	resp = env.POST(t, "/api/v1/layouts/batch-delete", map[string]any{"ids": cloneIDs})
+	resp = env.POST(t, env.featurePath("layouts/batch-delete"), map[string]any{"ids": cloneIDs})
 	requireStatus(t, resp, http.StatusOK)
 	batchResult := decodeJSON[struct {
 		Deleted []int `json:"deleted"`
@@ -511,7 +511,7 @@ func TestPreviewLayout(t *testing.T) {
 
 	layoutID := layouts[0].ID
 
-	resp := env.POST(t, "/api/v1/layout/preview", map[string]any{
+	resp := env.POST(t, env.featurePath("layout/preview"), map[string]any{
 		"id": layoutID,
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -524,7 +524,7 @@ func TestPreviewLayout(t *testing.T) {
 }
 
 func TestPreviewLayout_InvalidID(t *testing.T) {
-	resp := env.POST(t, "/api/v1/layout/preview", map[string]any{
+	resp := env.POST(t, env.featurePath("layout/preview"), map[string]any{
 		"id": 0,
 	})
 	defer resp.Body.Close()
@@ -538,7 +538,7 @@ func TestPreviewLayout_InvalidID(t *testing.T) {
 func TestLayoutLifecycle(t *testing.T) {
 	// Save first to ensure current layout is persisted in the list
 	// (prior tests may have renamed without saving).
-	saveResp := env.POST(t, "/api/v1/layout/save", nil)
+	saveResp := env.POST(t, env.featurePath("layout/save"), nil)
 	saveResp.Body.Close()
 
 	// 1. Record current layout name (we'll resolve its ID after clone triggers a page reload,
@@ -559,7 +559,7 @@ func TestLayoutLifecycle(t *testing.T) {
 			origID, _ = env.resolveLayoutNumericID(origName)
 		}
 		if origID > 0 {
-			resp, err := env.doJSON(http.MethodPost, "/api/v1/layout/switch", map[string]any{"id": origID})
+			resp, err := env.doJSON(http.MethodPost, env.featurePath("layout/switch"), map[string]any{"id": origID})
 			if err != nil {
 				t.Logf("cleanup switch: %v", err)
 			} else {
@@ -573,7 +573,7 @@ func TestLayoutLifecycle(t *testing.T) {
 			cloneNumericID, _ = env.resolveLayoutNumericID(cloneName)
 		}
 		if cloneNumericID > 0 {
-			path := fmt.Sprintf("/api/v1/layout/%d", cloneNumericID)
+			path := env.featurePath(fmt.Sprintf("layout/%d", cloneNumericID))
 			resp, err := env.doJSON(http.MethodDelete, path, nil)
 			if err != nil {
 				t.Logf("cleanup delete: %v", err)
@@ -590,7 +590,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	})
 
 	// 2. Clone layout (triggers page reload, refreshes layout list cache).
-	resp := env.POST(t, "/api/v1/layout/clone", map[string]any{"name": cloneName})
+	resp := env.POST(t, env.featurePath("layout/clone"), map[string]any{"name": cloneName})
 	requireStatus(t, resp, http.StatusOK)
 	cloneResult := decodeJSON[struct {
 		Status     string `json:"status"`
@@ -609,7 +609,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	t.Logf("2/9 chart ID after clone: %s", env.ChartID)
 
 	// 5. Verify we're on the cloned layout.
-	resp = env.GET(t, "/api/v1/layout/status")
+	resp = env.GET(t, env.featurePath("layout/status"))
 	requireStatus(t, resp, http.StatusOK)
 	statusAfterClone := decodeJSON[struct {
 		LayoutName string `json:"layout_name"`
@@ -634,7 +634,7 @@ func TestLayoutLifecycle(t *testing.T) {
 
 	// 5. Rename the clone.
 	renamedName := fmt.Sprintf("tv_agent_renamed_%d", time.Now().Unix())
-	resp = env.POST(t, "/api/v1/layout/rename", map[string]any{"name": renamedName})
+	resp = env.POST(t, env.featurePath("layout/rename"), map[string]any{"name": renamedName})
 	requireStatus(t, resp, http.StatusOK)
 	renameResult := decodeJSON[struct {
 		Status string `json:"status"`
@@ -644,7 +644,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	cloneName = renamedName
 
 	// 6. Save.
-	resp = env.POST(t, "/api/v1/layout/save", nil)
+	resp = env.POST(t, env.featurePath("layout/save"), nil)
 	requireStatus(t, resp, http.StatusOK)
 	saveResult := decodeJSON[struct {
 		Status string `json:"status"`
@@ -654,7 +654,7 @@ func TestLayoutLifecycle(t *testing.T) {
 	// 7. Switch back to original layout.
 	// Switch triggers a page reload; the server polls for up to 30s internally,
 	// which can race with the 30s client timeout. Use doJSON and tolerate timeout.
-	switchResp, switchErr := env.doJSON(http.MethodPost, "/api/v1/layout/switch", map[string]any{"id": origID})
+	switchResp, switchErr := env.doJSON(http.MethodPost, env.featurePath("layout/switch"), map[string]any{"id": origID})
 	if switchErr != nil {
 		t.Logf("7/9 switch request error (expected during page reload): %v", switchErr)
 	} else {
@@ -676,7 +676,7 @@ func TestLayoutLifecycle(t *testing.T) {
 		t.Fatalf("resolve clone ID: %v", err)
 	}
 
-	deletePath := fmt.Sprintf("/api/v1/layout/%d", cloneNumericID)
+	deletePath := env.featurePath(fmt.Sprintf("layout/%d", cloneNumericID))
 	resp = env.DELETE(t, deletePath)
 	requireStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()

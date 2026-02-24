@@ -17,6 +17,7 @@ help:
 	@echo "  just run-tv-multi-controller         Build and run multi-window control API"
 	@echo "  just run-tv-multi-controller-with-browser  Launch browser + multi controller"
 	@echo "  just test-integration    Run integration tests (live server)"
+	@echo "  just test-integration-multi [chart=rzWLrz7t]  Run tests against multi-controller"
 	@echo ""
 
 # Start Chrome with debugging and console logs
@@ -50,3 +51,7 @@ run-tv-multi-controller-with-browser:
 # Run integration tests (requires running browser + tv_controller)
 test-integration:
     go test -tags integration -v -count=1 ./test/integration/...
+
+# Run integration tests against the multi-window controller on a specific chart
+test-integration-multi chart="rzWLrz7t":
+    TV_CONTROLLER_URL=http://127.0.0.1:8189 TV_TEST_CHART_ID={{chart}} go test -tags integration -v -count=1 ./test/integration/...

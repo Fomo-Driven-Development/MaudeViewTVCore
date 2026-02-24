@@ -10,7 +10,7 @@ import (
 )
 
 func TestHotlistsProbe(t *testing.T) {
-	resp := env.GET(t, "/api/v1/hotlists/probe")
+	resp := env.GET(t, env.featurePath("hotlists/probe"))
 	requireStatus(t, resp, http.StatusOK)
 
 	var probe struct {
@@ -31,7 +31,7 @@ func TestHotlistsProbe(t *testing.T) {
 }
 
 func TestHotlistsProbeDeep(t *testing.T) {
-	resp := env.GET(t, "/api/v1/hotlists/probe/deep")
+	resp := env.GET(t, env.featurePath("hotlists/probe/deep"))
 	requireStatus(t, resp, http.StatusOK)
 
 	var result map[string]any
@@ -40,7 +40,7 @@ func TestHotlistsProbeDeep(t *testing.T) {
 }
 
 func TestHotlistsMarkets(t *testing.T) {
-	resp := env.GET(t, "/api/v1/hotlists/markets")
+	resp := env.GET(t, env.featurePath("hotlists/markets"))
 	requireStatus(t, resp, http.StatusOK)
 
 	var result struct {
@@ -53,7 +53,7 @@ func TestHotlistsMarkets(t *testing.T) {
 }
 
 func TestHotlistsExchanges(t *testing.T) {
-	resp := env.GET(t, "/api/v1/hotlists/exchanges")
+	resp := env.GET(t, env.featurePath("hotlists/exchanges"))
 	requireStatus(t, resp, http.StatusOK)
 
 	var result struct {
@@ -86,7 +86,7 @@ func TestHotlistsExchanges(t *testing.T) {
 
 func TestHotlistsGetOne(t *testing.T) {
 	// First discover an exchange and group
-	resp := env.GET(t, "/api/v1/hotlists/exchanges")
+	resp := env.GET(t, env.featurePath("hotlists/exchanges"))
 	requireStatus(t, resp, http.StatusOK)
 
 	var exchanges struct {
@@ -116,7 +116,7 @@ func TestHotlistsGetOne(t *testing.T) {
 	}
 
 	group := ex.Groups[0].ID
-	path := fmt.Sprintf("/api/v1/hotlists/%s/%s", ex.Exchange, group)
+	path := env.featurePath(fmt.Sprintf("hotlists/%s/%s", ex.Exchange, group))
 	resp2 := env.GET(t, path)
 	requireStatus(t, resp2, http.StatusOK)
 

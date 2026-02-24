@@ -18,7 +18,7 @@ func alertPath(suffix string) string {
 // or calls t.Skip if no alerts exist.
 func getFirstAlertID(t *testing.T) string {
 	t.Helper()
-	resp := env.GET(t, "/api/v1/alerts")
+	resp := env.GET(t, env.featurePath("alerts"))
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		Alerts []map[string]any `json:"alerts"`
@@ -45,7 +45,7 @@ func getFirstAlertID(t *testing.T) string {
 // listAlertIDs returns all current alert ID strings.
 func listAlertIDs(t *testing.T) []string {
 	t.Helper()
-	resp := env.GET(t, "/api/v1/alerts")
+	resp := env.GET(t, env.featurePath("alerts"))
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		Alerts []map[string]any `json:"alerts"`
@@ -110,7 +110,7 @@ func TestAlertsProbeDeep(t *testing.T) {
 // --- Read Operations ---
 
 func TestAlertsListAlerts(t *testing.T) {
-	resp := env.GET(t, "/api/v1/alerts")
+	resp := env.GET(t, env.featurePath("alerts"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -122,7 +122,7 @@ func TestAlertsListAlerts(t *testing.T) {
 }
 
 func TestAlertsListFires(t *testing.T) {
-	resp := env.GET(t, "/api/v1/alerts/fires")
+	resp := env.GET(t, env.featurePath("alerts/fires"))
 	requireStatus(t, resp, http.StatusOK)
 
 	result := decodeJSON[struct {
@@ -135,7 +135,7 @@ func TestAlertsListFires(t *testing.T) {
 // --- Validation Tests ---
 
 func TestDeleteAlerts_EmptyIDs(t *testing.T) {
-	resp := env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
+	resp := env.do(t, http.MethodDelete, env.featurePath("alerts"), map[string]any{
 		"alert_ids": []string{},
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -147,7 +147,7 @@ func TestDeleteAlerts_EmptyIDs(t *testing.T) {
 }
 
 func TestStopAlerts_EmptyIDs(t *testing.T) {
-	resp := env.POST(t, "/api/v1/alerts/stop", map[string]any{
+	resp := env.POST(t, env.featurePath("alerts/stop"), map[string]any{
 		"alert_ids": []string{},
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -159,7 +159,7 @@ func TestStopAlerts_EmptyIDs(t *testing.T) {
 }
 
 func TestRestartAlerts_EmptyIDs(t *testing.T) {
-	resp := env.POST(t, "/api/v1/alerts/restart", map[string]any{
+	resp := env.POST(t, env.featurePath("alerts/restart"), map[string]any{
 		"alert_ids": []string{},
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -171,7 +171,7 @@ func TestRestartAlerts_EmptyIDs(t *testing.T) {
 }
 
 func TestCloneAlerts_EmptyIDs(t *testing.T) {
-	resp := env.POST(t, "/api/v1/alerts/clone", map[string]any{
+	resp := env.POST(t, env.featurePath("alerts/clone"), map[string]any{
 		"alert_ids": []string{},
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -183,7 +183,7 @@ func TestCloneAlerts_EmptyIDs(t *testing.T) {
 }
 
 func TestDeleteFires_EmptyIDs(t *testing.T) {
-	resp := env.do(t, http.MethodDelete, "/api/v1/alerts/fires", map[string]any{
+	resp := env.do(t, http.MethodDelete, env.featurePath("alerts/fires"), map[string]any{
 		"fire_ids": []string{},
 	})
 	if resp.StatusCode == http.StatusOK {
@@ -201,7 +201,7 @@ func TestAlerts_StopAndRestart(t *testing.T) {
 	t.Logf("testing stop/restart on alert %s", alertID)
 
 	// Stop the alert.
-	resp := env.POST(t, "/api/v1/alerts/stop", map[string]any{
+	resp := env.POST(t, env.featurePath("alerts/stop"), map[string]any{
 		"alert_ids": []string{alertID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -214,7 +214,7 @@ func TestAlerts_StopAndRestart(t *testing.T) {
 	time.Sleep(testSettleLong)
 
 	// Restart the alert.
-	resp = env.POST(t, "/api/v1/alerts/restart", map[string]any{
+	resp = env.POST(t, env.featurePath("alerts/restart"), map[string]any{
 		"alert_ids": []string{alertID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -235,7 +235,7 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 	t.Logf("alert count before clone: %d", beforeCount)
 
 	// Clone the alert.
-	resp := env.POST(t, "/api/v1/alerts/clone", map[string]any{
+	resp := env.POST(t, env.featurePath("alerts/clone"), map[string]any{
 		"alert_ids": []string{alertID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -274,14 +274,14 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 
 	// Register cleanup in case delete fails.
 	t.Cleanup(func() {
-		r := env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
+		r := env.do(t, http.MethodDelete, env.featurePath("alerts"), map[string]any{
 			"alert_ids": []string{clonedID},
 		})
 		r.Body.Close()
 	})
 
 	// Delete the clone.
-	resp = env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
+	resp = env.do(t, http.MethodDelete, env.featurePath("alerts"), map[string]any{
 		"alert_ids": []string{clonedID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -303,7 +303,7 @@ func TestAlerts_CloneAndDelete(t *testing.T) {
 // --- Create & Modify ---
 
 func TestCreateAlert_EmptyParams(t *testing.T) {
-	resp := env.POST(t, "/api/v1/alerts", map[string]any{})
+	resp := env.POST(t, env.featurePath("alerts"), map[string]any{})
 	if resp.StatusCode == http.StatusOK {
 		resp.Body.Close()
 		t.Fatal("expected error for empty params")
@@ -315,7 +315,7 @@ func TestCreateAlert_EmptyParams(t *testing.T) {
 func TestModifyAlert_EmptyParams(t *testing.T) {
 	alertID := getFirstAlertID(t)
 
-	resp := env.PUT(t, "/api/v1/alerts/"+alertID, map[string]any{})
+	resp := env.PUT(t, env.featurePath("alerts/"+alertID), map[string]any{})
 	// The server injects the alert_id into params, so params won't be empty.
 	// But the underlying TradingView API may still reject it.
 	// Accept either success (200) or client error (4xx).
@@ -328,7 +328,7 @@ func TestModifyAlert(t *testing.T) {
 	t.Logf("testing modify on alert %s", alertID)
 
 	// Get the existing alert data.
-	resp := env.GET(t, "/api/v1/alerts/"+alertID)
+	resp := env.GET(t, env.featurePath("alerts/"+alertID))
 	requireStatus(t, resp, http.StatusOK)
 	original := decodeJSON[struct {
 		Alerts any `json:"alerts"`
@@ -339,7 +339,7 @@ func TestModifyAlert(t *testing.T) {
 
 	// Modify with updated name.
 	modifiedName := fmt.Sprintf("tv_agent_test_%d", time.Now().Unix())
-	resp = env.PUT(t, "/api/v1/alerts/"+alertID, map[string]any{
+	resp = env.PUT(t, env.featurePath("alerts/"+alertID), map[string]any{
 		"name": modifiedName,
 	})
 	if resp.StatusCode != http.StatusOK {
@@ -359,7 +359,7 @@ func TestModifyAlert(t *testing.T) {
 // --- Delete All Fires ---
 
 func TestDeleteAllFires(t *testing.T) {
-	resp := env.DELETE(t, "/api/v1/alerts/fires/all")
+	resp := env.DELETE(t, env.featurePath("alerts/fires/all"))
 	requireStatus(t, resp, http.StatusOK)
 	result := decodeJSON[struct {
 		Status string `json:"status"`
@@ -377,7 +377,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	// 1. List alerts — already validated by getFirstAlertID.
 
 	// 2. Get single alert.
-	resp := env.GET(t, "/api/v1/alerts/"+alertID)
+	resp := env.GET(t, env.featurePath("alerts/"+alertID))
 	requireStatus(t, resp, http.StatusOK)
 	single := decodeJSON[struct {
 		Alerts any `json:"alerts"`
@@ -389,7 +389,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 
 	// 3. Clone the alert.
 	beforeIDs := listAlertIDs(t)
-	resp = env.POST(t, "/api/v1/alerts/clone", map[string]any{
+	resp = env.POST(t, env.featurePath("alerts/clone"), map[string]any{
 		"alert_ids": []string{alertID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -420,14 +420,14 @@ func TestAlertsFullLifecycle(t *testing.T) {
 
 	// Register cleanup.
 	t.Cleanup(func() {
-		r := env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
+		r := env.do(t, http.MethodDelete, env.featurePath("alerts"), map[string]any{
 			"alert_ids": []string{clonedID},
 		})
 		r.Body.Close()
 	})
 
 	// 4. Stop the clone.
-	resp = env.POST(t, "/api/v1/alerts/stop", map[string]any{
+	resp = env.POST(t, env.featurePath("alerts/stop"), map[string]any{
 		"alert_ids": []string{clonedID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -440,7 +440,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	time.Sleep(testSettleLong)
 
 	// 5. Restart the clone.
-	resp = env.POST(t, "/api/v1/alerts/restart", map[string]any{
+	resp = env.POST(t, env.featurePath("alerts/restart"), map[string]any{
 		"alert_ids": []string{clonedID},
 	})
 	requireStatus(t, resp, http.StatusOK)
@@ -453,7 +453,7 @@ func TestAlertsFullLifecycle(t *testing.T) {
 	time.Sleep(testSettleLong)
 
 	// 6. Delete the clone.
-	resp = env.do(t, http.MethodDelete, "/api/v1/alerts", map[string]any{
+	resp = env.do(t, http.MethodDelete, env.featurePath("alerts"), map[string]any{
 		"alert_ids": []string{clonedID},
 	})
 	requireStatus(t, resp, http.StatusOK)
