@@ -15,6 +15,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+var version = "dev"
+
 func main() {
 	if err := os.MkdirAll("logs", 0o755); err != nil {
 		slog.Debug("log directory creation failed", "error", err)
@@ -31,7 +33,7 @@ func main() {
 	handler := slog.NewTextHandler(io.MultiWriter(os.Stdout, logWriter), &slog.HandlerOptions{Level: slog.LevelDebug})
 	slog.SetDefault(slog.New(handler))
 
-	slog.Info("Starting TradingView passive researcher")
+	slog.Info("Starting TradingView passive researcher", "version", version)
 
 	cfg, err := config.Load()
 	if err != nil {

@@ -21,6 +21,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+var version = "dev"
+
 func main() {
 	cfg, err := config.LoadController()
 	if err != nil {
@@ -35,6 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Info("tv_controller starting", "version", version)
 	slog.Info("tv_controller config loaded",
 		"bind_addr", cfg.BindAddr,
 		"tab_url_filter", cfg.TabURLFilter,

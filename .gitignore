@@ -5,6 +5,7 @@ logs/
 research_data/
 snapshots/
 bin/
+dist/
 
 /controller
 /tv_controller
