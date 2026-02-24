@@ -14,6 +14,22 @@ Exposes a REST API for TradingView chart control — symbol, resolution, studies
 >
 > The controller can execute **arbitrary JavaScript** in any browser tab it connects to. CDP and the REST API have **no authentication**. The managed browser uses a **dedicated profile** — **only log into TradingView in this browser. Do not log into any other websites** (email, banking, social media, etc.). Any site open in a matched tab is fully scriptable. Always bind to `127.0.0.1` (the default) and never expose the CDP port or API to untrusted networks. See the [Security guide](https://fomo-driven-development.github.io/MaudeViewTvDocs/security/) for hardening details.
 
+## Installation
+
+Download pre-built binaries from the [latest release](https://github.com/Fomo-Driven-Development/MaudeViewTVCore/releases/latest):
+
+```bash
+# Example: linux amd64
+curl -L https://github.com/Fomo-Driven-Development/MaudeViewTVCore/releases/latest/download/tv_controller_linux_amd64 -o tv_controller
+chmod +x tv_controller
+```
+
+Or build from source (requires Go 1.24+):
+
+```bash
+go install github.com/dgnsrekt/MaudeViewTVCore/cmd/tv_controller@latest
+```
+
 ## Prerequisites
 
 - Go 1.24+
