@@ -196,6 +196,11 @@ type Service interface {
 	GetOneHotlist(ctx context.Context, exchange, group string) (cdpcontrol.HotlistResult, error)
 	ProbeDataWindow(ctx context.Context, chartID string, pane int) (cdpcontrol.DataWindowProbe, error)
 	ExportChartData(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartExportResult, error)
+	StartScreencast(ctx context.Context, chartID string, opts cdpcontrol.ScreencastOptions) (cdpcontrol.ScreencastInfo, error)
+	StopScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error)
+	GetScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error)
+	ListScreencasts(ctx context.Context) ([]cdpcontrol.ScreencastInfo, error)
+	DeleteScreencast(ctx context.Context, id string) error
 }
 
 type chartIDInput struct {
@@ -262,6 +267,7 @@ func NewServer(svc Service, opts ...ServerOption) http.Handler {
 	registerPineHandlers(api, svc)
 	registerLayoutHandlers(api, svc)
 	registerMiscHandlers(api, svc)
+	registerScreencastHandlers(api, svc)
 
 	return router
 }
@@ -273,10 +279,13 @@ func mapErr(err error) error {
 	var coded *cdpcontrol.CodedError
 	if errors.As(err, &coded) {
 		switch coded.Code {
-		case cdpcontrol.CodeValidation:
+		case cdpcontrol.CodeValidation, cdpcontrol.CodeScreencastNotActive:
 			return huma.Error400BadRequest(coded.Message)
-		case cdpcontrol.CodeChartNotFound, cdpcontrol.CodeSnapshotNotFound, cdpcontrol.CodeNoteNotFound:
+		case cdpcontrol.CodeChartNotFound, cdpcontrol.CodeSnapshotNotFound, cdpcontrol.CodeNoteNotFound,
+			cdpcontrol.CodeScreencastNotFound:
 			return huma.Error404NotFound(coded.Message)
+		case cdpcontrol.CodeScreencastActive:
+			return huma.Error409Conflict(coded.Message)
 		case cdpcontrol.CodeEvalTimeout:
 			return huma.Error504GatewayTimeout(coded.Message)
 		case cdpcontrol.CodeAPIUnavailable, cdpcontrol.CodeCDPUnavailable:

@@ -1,6 +1,9 @@
 package cdpcontrol
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	CodeValidation     = "VALIDATION"
@@ -11,6 +14,9 @@ const (
 	CodeCDPUnavailable    = "CDP_UNAVAILABLE"
 	CodeSnapshotNotFound  = "SNAPSHOT_NOT_FOUND"
 	CodeNoteNotFound      = "NOTE_NOT_FOUND"
+	CodeScreencastNotFound  = "SCREENCAST_NOT_FOUND"
+	CodeScreencastActive    = "SCREENCAST_ACTIVE"
+	CodeScreencastNotActive = "SCREENCAST_NOT_ACTIVE"
 )
 
 // CodedError is a typed error used for stable API mapping.
@@ -722,4 +728,25 @@ type DataWindowProbe struct {
 	ChartWidgetProps []string       `json:"chart_widget_props,omitempty"`
 	ModelProps       []string       `json:"model_props,omitempty"`
 	DataWindowState  map[string]any `json:"data_window_state,omitempty"`
+}
+
+// ScreencastOptions configures a CDP Page.startScreencast session.
+type ScreencastOptions struct {
+	Format        string `json:"format"`           // "jpeg" | "png" — default "jpeg"
+	Quality       int    `json:"quality"`           // 1-100, jpeg only — default 80
+	MaxWidth      int    `json:"max_width"`         // 0 = browser native
+	MaxHeight     int    `json:"max_height"`        // 0 = browser native
+	EveryNthFrame int    `json:"every_nth_frame"`   // default 1
+}
+
+// ScreencastInfo describes the state of a screencast session.
+type ScreencastInfo struct {
+	ID         string     `json:"id"`
+	ChartID    string     `json:"chart_id"`
+	Status     string     `json:"status"`      // "active" | "stopped"
+	Format     string     `json:"format"`
+	Dir        string     `json:"dir"`
+	FrameCount int64      `json:"frame_count"`
+	StartedAt  time.Time  `json:"started_at"`
+	StoppedAt  *time.Time `json:"stopped_at,omitempty"`
 }

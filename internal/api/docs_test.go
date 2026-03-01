@@ -492,6 +492,19 @@ func (s *stubService) ProbeDataWindow(ctx context.Context, chartID string, pane 
 func (s *stubService) ExportChartData(ctx context.Context, chartID string, pane int) (cdpcontrol.ChartExportResult, error) {
 	return cdpcontrol.ChartExportResult{}, nil
 }
+func (s *stubService) StartScreencast(ctx context.Context, chartID string, opts cdpcontrol.ScreencastOptions) (cdpcontrol.ScreencastInfo, error) {
+	return cdpcontrol.ScreencastInfo{}, nil
+}
+func (s *stubService) StopScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error) {
+	return cdpcontrol.ScreencastInfo{}, nil
+}
+func (s *stubService) GetScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error) {
+	return cdpcontrol.ScreencastInfo{}, nil
+}
+func (s *stubService) ListScreencasts(ctx context.Context) ([]cdpcontrol.ScreencastInfo, error) {
+	return nil, nil
+}
+func (s *stubService) DeleteScreencast(ctx context.Context, id string) error { return nil }
 
 type studyPathInputRecording struct {
 	chartID string

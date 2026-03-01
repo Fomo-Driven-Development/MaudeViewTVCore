@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/target"
+	"github.com/google/uuid"
 )
 
 const (
@@ -72,6 +75,11 @@ type Client struct {
 
 	chartLocksMu sync.Mutex
 	chartLocks   map[string]*sync.Mutex
+
+	screencastsMu    sync.Mutex
+	screencasts      map[string]*screencastSession // session id → session
+	targetScreencast map[target.ID]string          // one active screencast per target
+	screencastDir    string
 }
 
 type evalEnvelope struct {
@@ -81,14 +89,17 @@ type evalEnvelope struct {
 	ErrorMessage string          `json:"error_message,omitempty"`
 }
 
-func NewClient(cdpURL, tabFilter string, evalTimeout time.Duration) *Client {
+func NewClient(cdpURL, tabFilter string, evalTimeout time.Duration, screencastDir string) *Client {
 	return &Client{
-		cdpURL:        cdpURL,
-		tabFilter:     strings.ToLower(strings.TrimSpace(tabFilter)),
-		evalTimeout:   evalTimeout,
-		tabs:          make(map[target.ID]*tabSession),
-		chartToTarget: make(map[string]target.ID),
-		chartLocks:    make(map[string]*sync.Mutex),
+		cdpURL:           cdpURL,
+		tabFilter:        strings.ToLower(strings.TrimSpace(tabFilter)),
+		evalTimeout:      evalTimeout,
+		tabs:             make(map[target.ID]*tabSession),
+		chartToTarget:    make(map[string]target.ID),
+		chartLocks:       make(map[string]*sync.Mutex),
+		screencasts:      make(map[string]*screencastSession),
+		targetScreencast: make(map[target.ID]string),
+		screencastDir:    screencastDir,
 	}
 }
 
@@ -129,7 +140,19 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func (c *Client) abortScreencastsLocked() {
+	// Must hold c.mu. Signals goroutines to stop; does NOT wait (avoids deadlock).
+	c.screencastsMu.Lock()
+	for _, ss := range c.screencasts {
+		ss.abort()
+	}
+	c.screencasts = make(map[string]*screencastSession)
+	c.targetScreencast = make(map[target.ID]string)
+	c.screencastsMu.Unlock()
+}
+
 func (c *Client) cleanupLocked() {
+	c.abortScreencastsLocked()
 	// Detach from any active sessions without closing targets.
 	if c.cdp != nil {
 		for _, session := range c.tabs {
@@ -2586,4 +2609,237 @@ func (c *Client) RegisterCDPEventHandler(method string, fn func(sessionID string
 		return nil, newError(CodeCDPUnavailable, "CDP client not connected", nil)
 	}
 	return cdp.registerEventHandler(method, fn), nil
+}
+
+// StartScreencast begins a CDP Page.startScreencast session on the given chart tab
+// (or the first available tab if chartID is empty). Frames are written as JPEG/PNG
+// files under screencastDir/<sessionID>/.
+func (c *Client) StartScreencast(ctx context.Context, chartID string, opts ScreencastOptions) (ScreencastInfo, error) {
+	// Apply defaults.
+	if opts.Format == "" {
+		opts.Format = "jpeg"
+	}
+	if opts.Quality == 0 {
+		opts.Quality = 80
+	}
+	if opts.EveryNthFrame < 1 {
+		opts.EveryNthFrame = 1
+	}
+
+	// Resolve chart session.
+	var session *tabSession
+	var info ChartInfo
+	var resolveErr error
+	if chartID == "" {
+		charts, err := c.ListCharts(ctx)
+		if err != nil {
+			return ScreencastInfo{}, err
+		}
+		if len(charts) == 0 {
+			return ScreencastInfo{}, newError(CodeChartNotFound, "no chart tabs found", nil)
+		}
+		session, info, resolveErr = c.resolveChartSession(ctx, charts[0].ChartID)
+	} else {
+		session, info, resolveErr = c.resolveChartSession(ctx, chartID)
+	}
+	if resolveErr != nil {
+		return ScreencastInfo{}, resolveErr
+	}
+
+	// Snapshot rawCDP.
+	c.mu.Lock()
+	cdp := c.cdp
+	c.mu.Unlock()
+	if cdp == nil {
+		return ScreencastInfo{}, newError(CodeCDPUnavailable, "CDP client not connected", nil)
+	}
+
+	targetID := target.ID(info.TargetID)
+
+	// Check for existing active screencast on this target.
+	c.screencastsMu.Lock()
+	if _, exists := c.targetScreencast[targetID]; exists {
+		c.screencastsMu.Unlock()
+		return ScreencastInfo{}, newError(CodeScreencastActive, "target already has an active screencast", nil)
+	}
+	c.screencastsMu.Unlock()
+
+	// Ensure session is attached.
+	cdpSessionID, err := c.ensureSession(ctx, cdp, session, info.TargetID)
+	if err != nil {
+		return ScreencastInfo{}, err
+	}
+
+	// Generate session ID and validate output directory.
+	sessionID := uuid.New().String()
+	sessionDir := filepath.Join(c.screencastDir, sessionID)
+	// Validate no path traversal: ensure the joined path is inside screencastDir.
+	absBase, _ := filepath.Abs(c.screencastDir)
+	absDir, _ := filepath.Abs(sessionDir)
+	if !strings.HasPrefix(absDir, absBase+string(filepath.Separator)) && absDir != absBase {
+		return ScreencastInfo{}, newError(CodeValidation, "invalid session directory", nil)
+	}
+
+	ss := &screencastSession{
+		id:           sessionID,
+		chartID:      info.ChartID,
+		cdpSessionID: cdpSessionID,
+		rawCDP:       cdp,
+		dir:          sessionDir,
+		format:       opts.Format,
+		status:       "active",
+		startedAt:    time.Now(),
+		frameCh:      make(chan screencastFrame, 128),
+		done:         make(chan struct{}),
+	}
+
+	// Register handler BEFORE enabling screencast so no frames are missed.
+	unreg := cdp.registerEventHandler("Page.screencastFrame", ss.handleFrame)
+	ss.mu.Lock()
+	ss.unregister = unreg
+	ss.mu.Unlock()
+
+	// Create output directory.
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		unreg()
+		return ScreencastInfo{}, newError(CodeEvalFailure, "failed to create screencast directory", err)
+	}
+
+	// Start writer goroutine.
+	ss.wg.Add(1)
+	go ss.writerLoop()
+
+	// Enable Page domain (idempotent) and start screencast.
+	if _, err := cdp.sendFlat(ctx, cdpSessionID, "Page.enable", nil); err != nil {
+		ss.abort()
+		return ScreencastInfo{}, newError(CodeEvalFailure, "failed to enable Page domain", err)
+	}
+
+	screencastParams := struct {
+		Format        string `json:"format"`
+		Quality       int    `json:"quality,omitempty"`
+		MaxWidth      int    `json:"maxWidth,omitempty"`
+		MaxHeight     int    `json:"maxHeight,omitempty"`
+		EveryNthFrame int    `json:"everyNthFrame"`
+	}{
+		Format:        opts.Format,
+		Quality:       opts.Quality,
+		MaxWidth:      opts.MaxWidth,
+		MaxHeight:     opts.MaxHeight,
+		EveryNthFrame: opts.EveryNthFrame,
+	}
+	if _, err := cdp.sendFlat(ctx, cdpSessionID, "Page.startScreencast", screencastParams); err != nil {
+		ss.abort()
+		return ScreencastInfo{}, newError(CodeEvalFailure, "failed to start screencast", err)
+	}
+
+	// Register session.
+	c.screencastsMu.Lock()
+	c.screencasts[sessionID] = ss
+	c.targetScreencast[targetID] = sessionID
+	c.screencastsMu.Unlock()
+
+	slog.Info("screencast started", "id", sessionID, "chart_id", info.ChartID, "dir", sessionDir)
+	return ss.info(), nil
+}
+
+// StopScreencast stops an active screencast session by ID, waits for drain, and
+// returns the final session info.
+func (c *Client) StopScreencast(ctx context.Context, id string) (ScreencastInfo, error) {
+	c.screencastsMu.Lock()
+	ss, ok := c.screencasts[id]
+	if !ok {
+		c.screencastsMu.Unlock()
+		return ScreencastInfo{}, newError(CodeScreencastNotFound, "screencast not found: "+id, nil)
+	}
+	ss.mu.Lock()
+	status := ss.status
+	ss.mu.Unlock()
+	if status != "active" {
+		c.screencastsMu.Unlock()
+		return ScreencastInfo{}, newError(CodeScreencastNotActive, "screencast is not active", nil)
+	}
+	c.screencastsMu.Unlock()
+
+	// stop() blocks; must not hold screencastsMu.
+	result := ss.stop(ctx)
+
+	// Remove from targetScreencast map.
+	targetID := target.ID(ss.chartID) // we need targetID, but we don't store it on ss
+	// Re-derive targetID from chartID via chartToTarget.
+	c.mu.Lock()
+	tid, found := c.chartToTarget[ss.chartID]
+	c.mu.Unlock()
+	if found {
+		targetID = tid
+	}
+	c.screencastsMu.Lock()
+	if c.targetScreencast[targetID] == id {
+		delete(c.targetScreencast, targetID)
+	}
+	c.screencastsMu.Unlock()
+
+	slog.Info("screencast stopped", "id", id, "frames", result.FrameCount)
+	return result, nil
+}
+
+// GetScreencast returns the current info for a screencast session.
+func (c *Client) GetScreencast(_ context.Context, id string) (ScreencastInfo, error) {
+	c.screencastsMu.Lock()
+	ss, ok := c.screencasts[id]
+	c.screencastsMu.Unlock()
+	if !ok {
+		return ScreencastInfo{}, newError(CodeScreencastNotFound, "screencast not found: "+id, nil)
+	}
+	return ss.info(), nil
+}
+
+// ListScreencasts returns info for all known screencast sessions.
+func (c *Client) ListScreencasts(_ context.Context) ([]ScreencastInfo, error) {
+	c.screencastsMu.Lock()
+	out := make([]ScreencastInfo, 0, len(c.screencasts))
+	for _, ss := range c.screencasts {
+		out = append(out, ss.info())
+	}
+	c.screencastsMu.Unlock()
+	return out, nil
+}
+
+// DeleteScreencast stops the session if active, removes its frame files from disk,
+// and deletes it from the session registry.
+func (c *Client) DeleteScreencast(ctx context.Context, id string) error {
+	c.screencastsMu.Lock()
+	ss, ok := c.screencasts[id]
+	c.screencastsMu.Unlock()
+	if !ok {
+		return newError(CodeScreencastNotFound, "screencast not found: "+id, nil)
+	}
+
+	// Validate UUID to prevent any path traversal before disk ops.
+	if _, err := uuid.Parse(id); err != nil {
+		return newError(CodeValidation, "invalid session id", nil)
+	}
+
+	// Stop if still active.
+	ss.mu.Lock()
+	status := ss.status
+	ss.mu.Unlock()
+	if status == "active" {
+		if _, err := c.StopScreencast(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	// Remove frame files.
+	if err := os.RemoveAll(ss.dir); err != nil {
+		return newError(CodeEvalFailure, "failed to remove screencast directory", err)
+	}
+
+	// Remove from registry.
+	c.screencastsMu.Lock()
+	delete(c.screencasts, id)
+	c.screencastsMu.Unlock()
+
+	slog.Info("screencast deleted", "id", id)
+	return nil
 }

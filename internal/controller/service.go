@@ -1503,3 +1503,25 @@ func decodeDataURL(dataURL string) ([]byte, error) {
 	}
 	return base64.StdEncoding.DecodeString(parts[1])
 }
+
+// --- Screencast methods ---
+
+func (s *Service) StartScreencast(ctx context.Context, chartID string, opts cdpcontrol.ScreencastOptions) (cdpcontrol.ScreencastInfo, error) {
+	return s.cdp.StartScreencast(ctx, strings.TrimSpace(chartID), opts)
+}
+
+func (s *Service) StopScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error) {
+	return s.cdp.StopScreencast(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) GetScreencast(ctx context.Context, id string) (cdpcontrol.ScreencastInfo, error) {
+	return s.cdp.GetScreencast(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) ListScreencasts(ctx context.Context) ([]cdpcontrol.ScreencastInfo, error) {
+	return s.cdp.ListScreencasts(ctx)
+}
+
+func (s *Service) DeleteScreencast(ctx context.Context, id string) error {
+	return s.cdp.DeleteScreencast(ctx, strings.TrimSpace(id))
+}

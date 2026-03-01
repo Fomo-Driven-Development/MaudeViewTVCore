@@ -45,6 +45,7 @@ func main() {
 		"log_level", cfg.LogLevel,
 		"log_file", cfg.LogFile,
 		"snapshot_dir", cfg.SnapshotDir,
+		"screencast_dir", cfg.ScreencastDir,
 		"launch_browser", cfg.LaunchBrowser,
 	)
 
@@ -67,7 +68,7 @@ func main() {
 
 	bindAddr := cfg.BindAddr
 
-	cdpClient := cdpcontrol.NewClient(cfg.ControllerCDPURL(), cfg.TabURLFilter, time.Duration(cfg.EvalTimeoutMS)*time.Millisecond)
+	cdpClient := cdpcontrol.NewClient(cfg.ControllerCDPURL(), cfg.TabURLFilter, time.Duration(cfg.EvalTimeoutMS)*time.Millisecond, cfg.ScreencastDir)
 	if err := cdpClient.Connect(context.Background()); err != nil {
 		slog.Error("failed to connect CDP controller", "cdp_url", cfg.ControllerCDPURL(), "error", err)
 		if launcher != nil && launcher.Running() {

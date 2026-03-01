@@ -15,6 +15,7 @@ type ControllerConfig struct {
 	LogLevel      string
 	LogFile       string
 	SnapshotDir   string
+	ScreencastDir string
 
 	// WebSocket relay settings
 	RelayEnabled    bool
@@ -46,6 +47,7 @@ func LoadController() (*ControllerConfig, error) {
 		LogLevel:      strings.ToLower(getEnvOrDefault("CONTROLLER_LOG_LEVEL", "info")),
 		LogFile:       getEnvOrDefault("CONTROLLER_LOG_FILE", "logs/tv_controller.log"),
 		SnapshotDir:   getEnvOrDefault("SNAPSHOT_DIR", "./snapshots"),
+		ScreencastDir: getEnvOrDefault("CONTROLLER_SCREENCAST_DIR", "./screencast_data"),
 
 		RelayEnabled:    getEnvBoolOrDefault("CONTROLLER_RELAY_ENABLED", false),
 		RelayConfigPath: getEnvOrDefault("CONTROLLER_RELAY_CONFIG", "./config/relay.yaml"),
