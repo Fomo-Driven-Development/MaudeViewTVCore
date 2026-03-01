@@ -241,6 +241,13 @@ func NewServer(svc Service, opts ...ServerOption) http.Handler {
 		}
 	})
 
+	router.Get("/docs/relay", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		if _, err := w.Write([]byte(relayDocsHTML)); err != nil {
+			slog.Debug("relay docs response write failed", "error", err)
+		}
+	})
+
 	for _, opt := range opts {
 		opt(router)
 	}
