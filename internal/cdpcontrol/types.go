@@ -732,11 +732,11 @@ type DataWindowProbe struct {
 
 // ScreencastOptions configures a CDP Page.startScreencast session.
 type ScreencastOptions struct {
-	Format        string `json:"format"`           // "jpeg" | "png" — default "jpeg"
-	Quality       int    `json:"quality"`           // 1-100, jpeg only — default 80
-	MaxWidth      int    `json:"max_width"`         // 0 = browser native
-	MaxHeight     int    `json:"max_height"`        // 0 = browser native
-	EveryNthFrame int    `json:"every_nth_frame"`   // default 1
+	Format        string `json:"format,omitempty"`          // "jpeg" | "png" — default "jpeg"
+	Quality       int    `json:"quality,omitempty"`          // 1-100, jpeg only — default 80
+	MaxWidth      int    `json:"max_width,omitempty"`        // 0 = browser native
+	MaxHeight     int    `json:"max_height,omitempty"`       // 0 = browser native
+	EveryNthFrame int    `json:"every_nth_frame,omitempty"`  // default 1
 }
 
 // ScreencastInfo describes the state of a screencast session.
